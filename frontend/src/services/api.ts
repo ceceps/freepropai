@@ -65,8 +65,34 @@ export const listingApi = {
   },
 
   // Update listing
-  async update(id: string, data: Partial<CreateListingData>): Promise<ApiResponse<Listing>> {
-    const response = await api.patch<ApiResponse<Listing>>(`/listings/${id}`, data);
+  async update(id: string, data: Partial<CreateListingData>, photos?: File[]): Promise<ApiResponse<ListingWithDetails>> {
+    const formData = new FormData();
+
+    if (data.title !== undefined) formData.append('title', data.title);
+    if (data.location !== undefined) formData.append('location', data.location);
+    if (data.price !== undefined) formData.append('price', data.price.toString());
+
+    if (data.landArea !== undefined) formData.append('landArea', data.landArea.toString());
+    if (data.buildingArea !== undefined) formData.append('buildingArea', data.buildingArea.toString());
+    if (data.bedrooms !== undefined) formData.append('bedrooms', data.bedrooms.toString());
+    if (data.bathrooms !== undefined) formData.append('bathrooms', data.bathrooms.toString());
+    if (data.propertyType !== undefined) formData.append('propertyType', data.propertyType);
+    if (data.additionalInfo !== undefined) formData.append('additionalInfo', data.additionalInfo);
+    if (data.featuredPhotoId) formData.append('featuredPhotoId', data.featuredPhotoId);
+    if (data.featuredPhotoIndex !== undefined) formData.append('featuredPhotoIndex', data.featuredPhotoIndex.toString());
+
+    if (photos && photos.length > 0) {
+      photos.forEach((photo) => {
+        formData.append('photos', photo);
+      });
+    }
+
+    const response = await api.patch<ApiResponse<ListingWithDetails>>(`/listings/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
     return response.data;
   },
 
@@ -95,6 +121,12 @@ export const listingApi = {
   // Delete a photo
   async deletePhoto(photoId: string): Promise<ApiResponse> {
     const response = await api.delete<ApiResponse>(`/listings/photos/${photoId}`);
+    return response.data;
+  },
+
+  // Set photo as featured
+  async setFeaturedPhoto(listingId: string, photoId: string): Promise<ApiResponse> {
+    const response = await api.patch<ApiResponse>(`/listings/${listingId}/photos/${photoId}/featured`);
     return response.data;
   },
 };

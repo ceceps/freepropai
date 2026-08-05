@@ -20,6 +20,7 @@ export interface ListingPhoto {
   listing_id: string;
   photo_url: string;
   photo_order: number;
+  is_featured: boolean;
   uploaded_at: string;
 }
 
@@ -48,6 +49,8 @@ export interface CreateListingData {
   bathrooms?: number;
   propertyType?: string;
   additionalInfo?: string;
+  featuredPhotoId?: string;
+  featuredPhotoIndex?: number;
 }
 
 export interface ListingSummary {
@@ -61,6 +64,9 @@ export interface ListingSummary {
   photoCount: number;
   hasDescriptions: boolean;
   created_at: string;
+  photos?: ListingPhoto[];
+  land_area?: number;
+  building_area?: number;
 }
 
 // API Response Types
