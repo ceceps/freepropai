@@ -1,9 +1,9 @@
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect, useRef } from 'react';
 import { Link, useLocation, NavLink } from 'react-router-dom';
 import {
   Menu, Sun, Moon, Home, Users, MessageSquare,
   LayoutDashboard, ChevronLeft, ChevronRight, Bell,
-  User, Search, Grid, LogOut, Settings
+  User, Search, Grid, LogOut, Settings, X
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 
@@ -25,6 +25,9 @@ export default function Layout({ children }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notificationRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 1024);
@@ -35,16 +38,29 @@ export default function Layout({ children }: LayoutProps) {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (showUserMenu && !(event.target as HTMLElement).closest('.user-menu')) {
+      if (showUserMenu && userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
+      }
+      if (showNotifications && notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showUserMenu]);
+  }, [showUserMenu, showNotifications]);
 
   const currentPath = location.pathname;
   const currentNav = navigation.find(n => currentPath === n.href) || navigation[0];
+
+  // Dummy notifications
+  const notifications = [
+    { id: 1, title: 'New lead received', message: 'John Doe from Jakarta Selatan', time: '5 min ago', read: false },
+    { id: 2, title: 'Follow-up reminder', message: 'Call with Sarah Wilson at 2:00 PM', time: '1 hour ago', read: false },
+    { id: 3, title: 'Listing published', message: 'Luxury Villa in Kemang - ID: LP-2024-001', time: '3 hours ago', read: true },
+    { id: 4, title: 'AI description ready', message: '3 new property descriptions generated', time: 'Yesterday', read: true },
+  ];
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <div className="min-h-screen bg-bg-primary dark:bg-bg-primary-dark transition-colors duration-200">
@@ -119,36 +135,12 @@ export default function Layout({ children }: LayoutProps) {
               })}
             </nav>
 
-            {/* Bottom section - User & Theme */}
+            {/* Bottom section - Theme only */}
             <div className="p-3 border-t border-border dark:border-border">
               <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 transition-colors">
                 <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center flex-shrink-0">
                   <User className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                 </div>
-                {sidebarOpen && (
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-text-primary dark:text-text-primary truncate">Admin User</p>
-                    <p className="text-xs text-text-tertiary dark:text-text-tertiary truncate">admin@freepropai.com</p>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-2 mt-3">
-                <button
-                  onClick={toggleTheme}
-                  className="flex-1 p-2 rounded-lg bg-secondary-100 dark:bg-secondary-800 hover:bg-secondary-200 dark:hover:bg-secondary-700 transition-colors"
-                  aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-                >
-                  {theme === 'light' ? (
-                    <Moon className="w-5 h-5 text-text-secondary dark:text-text-secondary mx-auto" />
-                  ) : (
-                    <Sun className="w-5 h-5 text-warning-500 mx-auto" />
-                  )}
-                </button>
-                {sidebarOpen && (
-                  <span className="text-xs text-text-tertiary dark:text-text-tertiary px-2">
-                    {theme === 'light' ? 'Light' : 'Dark'}
-                  </span>
-                )}
               </div>
             </div>
           </div>
@@ -185,23 +177,68 @@ export default function Layout({ children }: LayoutProps) {
                   />
                 </div>
 
-                {/* Notifications */}
-                <button className="relative p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 transition-colors">
-                  <Bell className="w-5 h-5 text-text-secondary dark:text-text-secondary" />
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-danger-500 rounded-full" />
-                </button>
-
-                {/* Theme toggle for mobile */}
+                {/* Theme toggle - moved to top nav before bell */}
                 <button
                   onClick={toggleTheme}
-                  className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 transition-colors lg:hidden"
+                  className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 transition-colors"
                   aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
                 >
                   {theme === 'light' ? <Moon className="w-5 h-5 text-text-secondary" /> : <Sun className="w-5 h-5 text-warning-500" />}
                 </button>
 
+                {/* Notifications with dropdown */}
+                <div className="relative" ref={notificationRef}>
+                  <button
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className="relative p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 transition-colors"
+                  >
+                    <Bell className="w-5 h-5 text-text-secondary dark:text-text-secondary" />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 w-2 h-2 bg-danger-500 rounded-full" />
+                    )}
+                  </button>
+
+                  {showNotifications && (
+                    <div className="absolute right-0 mt-2 w-80 bg-surface dark:bg-surface border border-border dark:border-border rounded-lg shadow-dropdown py-2 z-50 animate-fade-in">
+                      <div className="px-4 py-3 border-b border-border dark:border-border flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-text-primary dark:text-text-primary">Notifications</h3>
+                        <button
+                          onClick={() => setShowNotifications(false)}
+                          className="p-1 rounded hover:bg-secondary-100 dark:hover:bg-secondary-800"
+                        >
+                          <X className="w-4 h-4 text-text-tertiary" />
+                        </button>
+                      </div>
+                      <div className="max-h-80 overflow-y-auto">
+                        {notifications.map((notif) => (
+                          <button
+                            key={notif.id}
+                            className={`dropdown-item w-full text-left p-3 ${!notif.read ? 'bg-secondary-50 dark:bg-secondary-800/50' : ''}`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className={`flex-shrink-0 w-2 h-2 mt-2 rounded-full ${!notif.read ? 'bg-primary-500' : 'transparent border border-border'}`} />
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-medium ${!notif.read ? 'text-text-primary dark:text-text-primary' : 'text-text-secondary dark:text-text-secondary'}`}>
+                                  {notif.title}
+                                </p>
+                                <p className="text-xs text-text-tertiary dark:text-text-tertiary truncate">{notif.message}</p>
+                                <p className="text-xs text-text-tertiary dark:text-text-tertiary mt-1">{notif.time}</p>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="px-4 py-2 border-t border-border dark:border-border">
+                        <button className="w-full text-center text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
+                          View all notifications
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* User menu */}
-                <div className="user-menu relative">
+                <div className="user-menu relative" ref={userMenuRef}>
                   <button
                     onClick={() => setShowUserMenu(!showUserMenu)}
                     className="flex items-center gap-3 pl-3 pr-4 py-2 border-l border-border dark:border-border hover:bg-secondary-50 dark:hover:bg-secondary-800/50 transition-colors rounded-r-lg"
