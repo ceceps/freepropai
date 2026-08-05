@@ -27,7 +27,7 @@ DATABASE_URL=postgresql://username:password@localhost:5432/freepropai
 
 # LLM Configuration
 AGENTROUTER_API_KEY=your_api_key_here
-AGENTROUTER_API_URL=https://api.agentrouter.com/v1
+AGENTROUTER_API_URL=https://agentrouter.com/v1
 LLM_MODEL=claude-3-5-sonnet-20241022
 
 # Server

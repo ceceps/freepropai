@@ -38,8 +38,10 @@ uploads/
 *.db
 *.sqlite
 
-# Bob Shell
+# LLM  Dev Setup
 .bob/
+.claude
+graphify-out/
 
 # Testing
 coverage/
@@ -48,3 +50,6 @@ coverage/
 # Misc
 *.bak
 *.tmp
+
+#skill AI
+CLAUDE.md

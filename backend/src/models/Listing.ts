@@ -1,5 +1,5 @@
 import { db, listings, listingPhotos, listingDescriptions } from '../db';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, isNull, and } from 'drizzle-orm';
 import type { 
   Listing, 
   ListingPhoto, 
@@ -27,12 +27,12 @@ export class ListingModel {
     return this.mapToListing(listing);
   }
 
-  // Get listing by ID
+  // Get listing by ID (excluding soft-deleted)
   async findById(id: string): Promise<Listing | null> {
     const [listing] = await db
       .select()
       .from(listings)
-      .where(eq(listings.id, id));
+      .where(and(eq(listings.id, id), isNull(listings.deletedAt)));
 
     return listing ? this.mapToListing(listing) : null;
   }
@@ -52,9 +52,11 @@ export class ListingModel {
     };
   }
 
-  // Get all listings
+  // Get all listings (excluding soft-deleted)
   async findAll(filters?: { status?: string }): Promise<Listing[]> {
-    let query = db.select().from(listings).orderBy(desc(listings.createdAt));
+    let query = db.select().from(listings)
+      .where(isNull(listings.deletedAt))
+      .orderBy(desc(listings.createdAt));
 
     if (filters?.status) {
       query = query.where(eq(listings.status, filters.status)) as any;
@@ -81,7 +83,7 @@ export class ListingModel {
     const [updated] = await db
       .update(listings)
       .set(updateData)
-      .where(eq(listings.id, id))
+      .where(and(eq(listings.id, id), isNull(listings.deletedAt)))
       .returning();
 
     return updated ? this.mapToListing(updated) : null;
@@ -98,25 +100,55 @@ export class ListingModel {
     return updated ? this.mapToListing(updated) : null;
   }
 
-  // Delete listing
+  // Soft delete listing
   async delete(id: string): Promise<boolean> {
-    const result = await db
-      .delete(listings)
+    const [result] = await db
+      .update(listings)
+      .set({ deletedAt: new Date() })
       .where(eq(listings.id, id))
       .returning();
 
-    return result.length > 0;
+    if (result) {
+      await db.delete(listingPhotos).where(eq(listingPhotos.listingId, id));
+      await db.delete(listingDescriptions).where(eq(listingDescriptions.listingId, id));
+    }
+
+    return !!result;
   }
 
   // Add photo to listing
-  async addPhoto(listingId: string, photoUrl: string, order: number = 0): Promise<ListingPhoto> {
+  async addPhoto(listingId: string, photoUrl: string, order: number = 0, isFeatured: boolean = false): Promise<ListingPhoto> {
+    if (isFeatured) {
+      await db
+        .update(listingPhotos)
+        .set({ isFeatured: false })
+        .where(eq(listingPhotos.listingId, listingId));
+    }
+
     const [photo] = await db.insert(listingPhotos).values({
       listingId,
       photoUrl,
       photoOrder: order,
+      isFeatured,
     }).returning();
 
     return this.mapToPhoto(photo);
+  }
+
+  // Set featured photo for a listing
+  async setFeaturedPhoto(listingId: string, photoId: string): Promise<boolean> {
+    await db
+      .update(listingPhotos)
+      .set({ isFeatured: false })
+      .where(eq(listingPhotos.listingId, listingId));
+
+    const [updated] = await db
+      .update(listingPhotos)
+      .set({ isFeatured: true })
+      .where(eq(listingPhotos.id, photoId))
+      .returning();
+
+    return !!updated;
   }
 
   // Get photos for listing
@@ -125,7 +157,7 @@ export class ListingModel {
       .select()
       .from(listingPhotos)
       .where(eq(listingPhotos.listingId, listingId))
-      .orderBy(listingPhotos.photoOrder);
+      .orderBy(desc(listingPhotos.isFeatured), listingPhotos.photoOrder);
 
     return photos.map(this.mapToPhoto);
   }
@@ -217,6 +249,7 @@ export class ListingModel {
       listing_id: data.listingId,
       photo_url: data.photoUrl,
       photo_order: data.photoOrder,
+      is_featured: data.isFeatured ?? data.is_featured ?? false,
       uploaded_at: data.uploadedAt,
     };
   }

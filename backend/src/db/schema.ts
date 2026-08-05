@@ -55,6 +55,7 @@ export const listings = pgTable('listings', {
   propertyType: varchar('property_type', { length: 100 }),
   additionalInfo: text('additional_info'),
   status: varchar('status', { length: 50 }).default('draft'),
+  deletedAt: timestamp('deleted_at'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -65,6 +66,7 @@ export const listingPhotos = pgTable('listing_photos', {
   listingId: uuid('listing_id').notNull().references(() => listings.id, { onDelete: 'cascade' }),
   photoUrl: varchar('photo_url', { length: 500 }).notNull(),
   photoOrder: integer('photo_order').default(0),
+  isFeatured: boolean('is_featured').default(false),
   uploadedAt: timestamp('uploaded_at').defaultNow(),
 });
 

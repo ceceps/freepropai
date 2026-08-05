@@ -93,6 +93,7 @@ export interface ListingPhoto {
   listing_id: string;
   photo_url: string;
   photo_order: number;
+  is_featured: boolean;
   uploaded_at: Date;
 }
 
@@ -121,6 +122,8 @@ export interface CreateListingRequest {
   bathrooms?: number;
   propertyType?: string;
   additionalInfo?: string;
+  featuredPhotoId?: string;
+  featuredPhotoIndex?: number;
 }
 
 export interface GeneratedDescriptions {

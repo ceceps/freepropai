@@ -28,10 +28,10 @@ router.get('/:id', listingController.getListingById);
 
 /**
  * @route   PATCH /api/listings/:id
- * @desc    Update listing details
+ * @desc    Update listing details with optional photo uploads
  * @access  Public (should be protected in production)
  */
-router.patch('/:id', listingController.updateListing);
+router.patch('/:id', upload.array('photos', 10), listingController.updateListing);
 
 /**
  * @route   DELETE /api/listings/:id
@@ -60,5 +60,12 @@ router.patch('/:listingId/descriptions/:descId/select', listingController.select
  * @access  Public (should be protected in production)
  */
 router.delete('/photos/:photoId', listingController.deletePhoto);
+
+/**
+ * @route   PATCH /api/listings/:listingId/photos/:photoId/featured
+ * @desc    Set a photo as the featured photo for a listing
+ * @access  Public (should be protected in production)
+ */
+router.patch('/:listingId/photos/:photoId/featured', listingController.setFeaturedPhoto);
 
 export default router;

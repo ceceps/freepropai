@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
+import { validatePhotoUploads } from '../middleware/upload';
 import ListingModel from '../models/Listing';
 import descriptionGenerator from '../services/descriptionGenerator.service';
 import type { CreateListingRequest, ApiResponse, PaginatedResponse } from '../types';
@@ -10,6 +11,9 @@ class ListingController {
    * POST /api/listings
    */
   createListing = asyncHandler(async (req: Request, res: Response) => {
+    // Validate upload size on server side (max 5MB total)
+    validatePhotoUploads(req);
+
     const data: CreateListingRequest = req.body;
 
     // Validate required fields
@@ -38,16 +42,23 @@ class ListingController {
       data.bathrooms = parseInt(data.bathrooms);
     }
 
+    const files = req.files && Array.isArray(req.files) ? req.files : [];
+    if (files.length > 10) {
+      throw new AppError('Jumlah total foto melebihi batas maksimal 10 foto', 400);
+    }
+
     // Create listing
     const listing = await ListingModel.create(data);
 
     // Handle photo uploads if present
+    const featuredIndex = data.featuredPhotoIndex !== undefined ? parseInt(data.featuredPhotoIndex as any) : 0;
     const photos = [];
-    if (req.files && Array.isArray(req.files)) {
-      for (let i = 0; i < req.files.length; i++) {
-        const file = req.files[i];
+    if (files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         const photoUrl = `/uploads/${file.filename}`;
-        const photo = await ListingModel.addPhoto(listing.id, photoUrl, i);
+        const isFeatured = i === featuredIndex;
+        const photo = await ListingModel.addPhoto(listing.id, photoUrl, i, isFeatured);
         photos.push(photo);
       }
     }
@@ -130,17 +141,59 @@ class ListingController {
    */
   updateListing = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const data: Partial<CreateListingRequest> = req.body;
 
-    const listing = await ListingModel.update(id, data);
+    // Validate upload size on server side (max 5MB total)
+    validatePhotoUploads(req);
 
-    if (!listing) {
+    const existingListing = await ListingModel.findByIdWithDetails(id);
+    if (!existingListing) {
       throw new AppError('Listing not found', 404);
     }
 
+    const data: Partial<CreateListingRequest> = req.body;
+
+    if (data.price !== undefined) {
+      const price = typeof data.price === 'string' ? parseFloat(data.price) : data.price;
+      if (isNaN(price)) {
+        throw new AppError('Price must be a valid number', 400);
+      }
+      data.price = price;
+    }
+    if (data.landArea && typeof data.landArea === 'string') data.landArea = parseFloat(data.landArea);
+    if (data.buildingArea && typeof data.buildingArea === 'string') data.buildingArea = parseFloat(data.buildingArea);
+    if (data.bedrooms && typeof data.bedrooms === 'string') data.bedrooms = parseInt(data.bedrooms);
+    if (data.bathrooms && typeof data.bathrooms === 'string') data.bathrooms = parseInt(data.bathrooms);
+
+    const newFiles = req.files && Array.isArray(req.files) ? req.files : [];
+    if (existingListing.photos.length + newFiles.length > 10) {
+      throw new AppError('Jumlah total foto melebihi batas maksimal 10 foto', 400);
+    }
+
+    // Update listing text fields
+    await ListingModel.update(id, data);
+
+    // Save new photo uploads
+    if (newFiles.length > 0) {
+      const featuredIndex = data.featuredPhotoIndex !== undefined ? parseInt(data.featuredPhotoIndex as any) : -1;
+      for (let i = 0; i < newFiles.length; i++) {
+        const file = newFiles[i];
+        const photoUrl = `/uploads/${file.filename}`;
+        const order = existingListing.photos.length + i;
+        const isFeatured = (featuredIndex === i);
+        await ListingModel.addPhoto(id, photoUrl, order, isFeatured);
+      }
+    }
+
+    // Set featured photo ID if specified for an existing photo
+    if (data.featuredPhotoId) {
+      await ListingModel.setFeaturedPhoto(id, data.featuredPhotoId);
+    }
+
+    const updatedListing = await ListingModel.findByIdWithDetails(id);
+
     const response: ApiResponse = {
       success: true,
-      data: listing,
+      data: updatedListing,
     };
 
     res.json(response);
@@ -241,6 +294,27 @@ class ListingController {
     const response: ApiResponse = {
       success: true,
       message: 'Photo deleted successfully',
+    };
+
+    res.json(response);
+  });
+
+  /**
+   * Set photo as featured
+   * PATCH /api/listings/:listingId/photos/:photoId/featured
+   */
+  setFeaturedPhoto = asyncHandler(async (req: Request, res: Response) => {
+    const { listingId, photoId } = req.params;
+
+    const success = await ListingModel.setFeaturedPhoto(listingId, photoId);
+
+    if (!success) {
+      throw new AppError('Photo not found', 404);
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Foto utama berhasil diperbarui',
     };
 
     res.json(response);

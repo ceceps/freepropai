@@ -19,6 +19,7 @@ async function main() {
       status: 'draft',
     },
     {
+      id: '7ee51b5c-680e-4f40-bc6c-3adc8946a2c6',
       title: 'Rumah Minimalis BSD City',
       landArea: '120',
       buildingArea: '90',
@@ -31,6 +32,7 @@ async function main() {
       status: 'draft',
     },
     {
+      id: '91c92820-e7bd-4e18-af44-92ab443ea3fc',
       title: 'Apartemen Modern South Jakarta',
       landArea: '45',
       buildingArea: '45',
