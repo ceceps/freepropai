@@ -207,7 +207,7 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
   const currentTotalNewSize = photos.reduce((sum, f) => sum + f.size, 0);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-8">
       {/* Warning Message Banner */}
       {warningMessage && (
         <div className="card border-yellow-200 dark:border-yellow-900/30 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300 p-4 flex items-start gap-3">
@@ -220,7 +220,7 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
       <div className="card">
         <h3 className="text-lg font-semibold text-text-primary dark:text-text-primary-dark mb-4">Basic Information</h3>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div>
             <label className="label">
               Listing Title <span className="text-red-500">*</span>
@@ -293,7 +293,7 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
       <div className="card">
         <h3 className="text-lg font-semibold text-text-primary dark:text-text-primary-dark mb-4">Property Details</h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="label">Land Area (m²)</label>
             <input

@@ -7,6 +7,9 @@ import type {
   ListingSummary,
   CreateListingData,
   ListingDescription,
+  LoginCredentials,
+  RegisterData,
+  AuthResponse
 } from '../types';
 
 // Create axios instance
@@ -16,6 +19,70 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Auth API
+export const authApi = {
+  async login(credentials: LoginCredentials): Promise<ApiResponse<AuthResponse>> {
+    const response = await api.post<ApiResponse<AuthResponse>>('/auth/login', credentials);
+    return response.data;
+  },
+
+  async register(data: RegisterData): Promise<ApiResponse<AuthResponse>> {
+    const response = await api.post<ApiResponse<AuthResponse>>('/auth/register', data);
+    return response.data;
+  },
+
+  async logout(): Promise<ApiResponse> {
+    const response = await api.post<ApiResponse>('/auth/logout');
+    return response.data;
+  },
+
+  async refresh(): Promise<ApiResponse<{ accessToken: string }>> {
+    const response = await api.post<ApiResponse<{ accessToken: string }>>('/auth/refresh');
+    return response.data;
+  }
+};
+
+// Add interceptors
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('accessToken');
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Prevent infinite loops if refresh fails
+    if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/refresh' && originalRequest.url !== '/auth/login') {
+      originalRequest._retry = true;
+      try {
+        const response = await authApi.refresh();
+        if (response.success && response.data?.accessToken) {
+          localStorage.setItem('accessToken', response.data.accessToken);
+          originalRequest.headers.Authorization = `Bearer ${response.data.accessToken}`;
+          return api(originalRequest);
+        }
+      } catch (refreshError) {
+        // Refresh failed, redirect to login
+        localStorage.removeItem('accessToken');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
+
+    // Handle error messages from API
+    if (error.response?.data?.error) {
+      error.message = error.response.data.error;
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 // Listing API
 export const listingApi = {

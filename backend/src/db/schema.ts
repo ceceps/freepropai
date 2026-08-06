@@ -1,5 +1,53 @@
-import { pgTable, uuid, varchar, decimal, timestamp, text, integer, boolean, check } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, decimal, timestamp, text, integer, boolean, check, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+
+// Users table
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  phone: varchar('phone', { length: 50 }),
+  role: varchar('role', { length: 50 }).notNull().default('solo_agent'),
+  regionScope: varchar('region_scope', { length: 255 }),
+  avatarUrl: varchar('avatar_url', { length: 500 }),
+  refreshTokenHash: varchar('refresh_token_hash', { length: 255 }),
+  lastLoginAt: timestamp('last_login_at'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  emailIdx: uniqueIndex('users_email_idx').on(table.email),
+  roleIdx: index('users_role_idx').on(table.role),
+}));
+
+// Teams table
+export const teams = pgTable('teams', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 255 }).notNull(),
+  brandName: varchar('brand_name', { length: 255 }),
+  brandLogoUrl: varchar('brand_logo_url', { length: 500 }),
+  brandColor: varchar('brand_color', { length: 7 }),
+  brandTagline: text('brand_tagline'),
+  ownerId: uuid('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  ownerIdx: index('teams_owner_idx').on(table.ownerId),
+}));
+
+// Team members join table
+export const teamMembers = pgTable('team_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  teamId: uuid('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  role: varchar('role', { length: 50 }).notNull().default('agent'),
+  joinedAt: timestamp('joined_at').defaultNow().notNull(),
+}, (table) => ({
+  uniqueTeamUser: uniqueIndex('team_members_team_user_idx').on(table.teamId, table.userId),
+  teamIdx: index('team_members_team_idx').on(table.teamId),
+  userIdx: index('team_members_user_idx').on(table.userId),
+}));
 
 // Leads table
 export const leads = pgTable('leads', {
@@ -45,6 +93,8 @@ export const followUps = pgTable('follow_ups', {
 // Listings table
 export const listings = pgTable('listings', {
   id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  teamId: uuid('team_id').references(() => teams.id, { onDelete: 'set null' }),
   title: varchar('title', { length: 255 }).notNull(),
   landArea: decimal('land_area', { precision: 10, scale: 2 }),
   buildingArea: decimal('building_area', { precision: 10, scale: 2 }),

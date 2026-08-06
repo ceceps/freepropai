@@ -1,3 +1,41 @@
+// Auth Types
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  phone?: string;
+  role: 'solo_agent' | 'team_owner' | 'team_agent';
+  regionScope?: string;
+  avatarUrl?: string;
+  lastLoginAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuthState {
+  user: User | null;
+  accessToken: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+}
+
+export interface AuthResponse {
+  user: User;
+  accessToken: string;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password?: string;
+}
+
+export interface RegisterData extends LoginCredentials {
+  name: string;
+  phone?: string;
+  role?: 'solo_agent' | 'team_owner' | 'team_agent';
+  regionScope?: string;
+}
+
 // Listing Types
 export interface Listing {
   id: string;

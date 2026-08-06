@@ -1,11 +1,11 @@
 import { db, listings, listingPhotos, listingDescriptions } from '../db';
 import { eq, desc, isNull, and } from 'drizzle-orm';
-import type { 
-  Listing, 
-  ListingPhoto, 
+import type {
+  Listing,
+  ListingPhoto,
   ListingDescription,
   ListingWithDetails,
-  CreateListingRequest 
+  CreateListingRequest
 } from '../types';
 
 export class ListingModel {
@@ -22,6 +22,7 @@ export class ListingModel {
       propertyType: data.propertyType,
       additionalInfo: data.additionalInfo,
       status: 'draft',
+      userId: data.userId,
     }).returning();
 
     return this.mapToListing(listing);
@@ -56,10 +57,12 @@ export class ListingModel {
   async findAll(filters?: { status?: string }): Promise<Listing[]> {
     let query = db.select().from(listings)
       .where(isNull(listings.deletedAt))
-      .orderBy(desc(listings.createdAt));
+      .$dynamic();
 
     if (filters?.status) {
-      query = query.where(eq(listings.status, filters.status)) as any;
+      query = query.where(and(isNull(listings.deletedAt), eq(listings.status, filters.status)));
+    } else {
+      query = query.orderBy(desc(listings.createdAt));
     }
 
     const results = await query;

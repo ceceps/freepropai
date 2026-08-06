@@ -1,14 +1,15 @@
 import { ReactNode, useState, useEffect, useRef } from 'react';
-import { Link, useLocation, NavLink } from 'react-router-dom';
+import { Link, useLocation, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   Menu, Sun, Moon, Home, Users, MessageSquare,
   LayoutDashboard, ChevronLeft, ChevronRight, Bell,
   User, Search, Grid, LogOut, Settings, X
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface LayoutProps {
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 const navigation = [
@@ -20,7 +21,9 @@ const navigation = [
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -243,12 +246,20 @@ export default function Layout({ children }: LayoutProps) {
                     onClick={() => setShowUserMenu(!showUserMenu)}
                     className="flex items-center gap-3 pl-3 pr-4 py-2 border-l border-border dark:border-border hover:bg-secondary-50 dark:hover:bg-secondary-800/50 transition-colors rounded-r-lg"
                   >
-                    <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
-                      <User className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-                    </div>
+                    {user?.avatarUrl ? (
+                      <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                        <User className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                      </div>
+                    )}
                     <div className="hidden sm:block text-left">
-                      <p className="text-sm font-medium text-text-primary dark:text-text-primary">Admin</p>
-                      <p className="text-xs text-text-tertiary dark:text-text-tertiary">Administrator</p>
+                      <p className="text-sm font-medium text-text-primary dark:text-text-primary truncate max-w-[120px]">
+                        {user?.name || 'User'}
+                      </p>
+                      <p className="text-xs text-text-tertiary dark:text-text-tertiary capitalize">
+                        {user?.role.replace('_', ' ') || 'Agent'}
+                      </p>
                     </div>
                     <ChevronRight className="w-4 h-4 text-text-tertiary dark:text-text-tertiary hidden lg:block" />
                   </button>
@@ -256,8 +267,8 @@ export default function Layout({ children }: LayoutProps) {
                   {showUserMenu && (
                     <div className="dropdown">
                       <div className="px-4 py-3 border-b border-border dark:border-border">
-                        <p className="text-sm font-medium text-text-primary dark:text-text-primary">Admin User</p>
-                        <p className="text-xs text-text-tertiary dark:text-text-tertiary">admin@freepropai.com</p>
+                        <p className="text-sm font-medium text-text-primary dark:text-text-primary truncate">{user?.name}</p>
+                        <p className="text-xs text-text-tertiary dark:text-text-tertiary truncate">{user?.email}</p>
                       </div>
                       <button className="dropdown-item w-full text-left">
                         <User className="w-4 h-4" />
@@ -268,7 +279,13 @@ export default function Layout({ children }: LayoutProps) {
                         Settings
                       </button>
                       <div className="dropdown-divider" />
-                      <button className="dropdown-item w-full text-left text-danger-600 dark:text-danger-400">
+                      <button
+                        onClick={async () => {
+                          await logout();
+                          navigate('/login');
+                        }}
+                        className="dropdown-item w-full text-left text-danger-600 dark:text-danger-400"
+                      >
                         <LogOut className="w-4 h-4" />
                         Sign out
                       </button>
@@ -282,7 +299,7 @@ export default function Layout({ children }: LayoutProps) {
           {/* Page content */}
           <main className="p-4 lg:p-6">
             <div className="max-w-7xl">
-              {children}
+              {children || <Outlet />}
             </div>
           </main>
         </div>

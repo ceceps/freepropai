@@ -48,7 +48,10 @@ class ListingController {
     }
 
     // Create listing
-    const listing = await ListingModel.create(data);
+    const listing = await ListingModel.create({
+      ...data,
+      userId: req.user?.id,
+    } as CreateListingRequest & { userId?: string });
 
     // Handle photo uploads if present
     const featuredIndex = data.featuredPhotoIndex !== undefined ? parseInt(data.featuredPhotoIndex as any) : 0;

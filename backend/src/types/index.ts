@@ -1,3 +1,48 @@
+export type UserRole = 'solo_agent' | 'team_owner' | 'team_agent';
+export type TeamRole = 'owner' | 'agent';
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  phone?: string | null;
+  role: UserRole;
+  regionScope?: string | null;
+  avatarUrl?: string | null;
+  lastLoginAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  brandName?: string | null;
+  brandLogoUrl?: string | null;
+  brandColor?: string | null;
+  brandTagline?: string | null;
+  ownerId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AuthResponse {
+  user: User;
+  accessToken: string;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password?: string;
+}
+
+export interface RegisterData extends LoginCredentials {
+  name: string;
+  phone?: string;
+  role?: UserRole;
+  regionScope?: string;
+}
+
 // Lead Types
 export interface Lead {
   id: string;
@@ -74,6 +119,8 @@ export interface FollowUpWithLead extends FollowUp {
 // Listing Types
 export interface Listing {
   id: string;
+  user_id?: string | null;
+  team_id?: string | null;
   title: string;
   land_area?: number;
   building_area?: number;
@@ -124,6 +171,7 @@ export interface CreateListingRequest {
   additionalInfo?: string;
   featuredPhotoId?: string;
   featuredPhotoIndex?: number;
+  userId?: string;
 }
 
 export interface GeneratedDescriptions {

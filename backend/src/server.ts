@@ -2,15 +2,18 @@ import express, { Application } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import cookieParser from 'cookie-parser';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { validateLLMConfig } from './config/llm';
 import { testConnection } from './db';
+import { authMiddleware } from './middleware/auth.middleware';
 
 // Load environment variables
 dotenv.config();
 
 // Import routes
 import listingRoutes from './routes/listing.routes';
+import authRoutes from './routes/auth.routes';
 // import leadRoutes from './routes/lead.routes';
 // import followUpRoutes from './routes/followUp.routes';
 
@@ -25,6 +28,7 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Static files for uploads
 const uploadDir = process.env.UPLOAD_DIR || './uploads';
@@ -53,9 +57,10 @@ app.get('/api', (req, res) => {
 });
 
 // Mount routes
-app.use('/api/listings', listingRoutes);
-// app.use('/api/leads', leadRoutes);
-// app.use('/api/followups', followUpRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/listings', authMiddleware, listingRoutes);
+// app.use('/api/leads', authMiddleware, leadRoutes);
+// app.use('/api/followups', authMiddleware, followUpRoutes);
 
 // Error handling
 app.use(notFound);
