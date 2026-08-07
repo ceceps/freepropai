@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node -r dotenv/config migrations/run.js",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "migrate": "node -r dotenv/config migrations/run.js",

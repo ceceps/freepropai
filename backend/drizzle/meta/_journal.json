@@ -19,13 +19,6 @@
     {
       "idx": 2,
       "version": "7",
-      "when": 1785969435723,
-      "tag": "0002_sloppy_strong_guy",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
       "when": 1786033231501,
       "tag": "0003_hesitant_electro",
       "breakpoints": true

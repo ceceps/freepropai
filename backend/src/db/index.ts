@@ -3,10 +3,10 @@ import postgres from 'postgres';
 import dotenv from 'dotenv';
 import * as schema from './schema';
 
-dotenv.config();
+dotenv.config({ path: process.env.NODE_ENV === 'test' ? '.env.test' : '.env' });
 
 // Create postgres connection
-const connectionString = process.env.DATABASE_URL || 
+const connectionString = process.env.DATABASE_URL ||
   `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`;
 
 // For query purposes
