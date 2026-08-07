@@ -14,6 +14,7 @@ dotenv.config();
 // Import routes
 import listingRoutes from './routes/listing.routes';
 import authRoutes from './routes/auth.routes';
+import scrapingRoutes from './routes/scraping.routes';
 // import leadRoutes from './routes/lead.routes';
 // import followUpRoutes from './routes/followUp.routes';
 
@@ -59,6 +60,7 @@ app.get('/api', (req, res) => {
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
+app.use('/api/scraping', scrapingRoutes);
 // app.use('/api/leads', authMiddleware, leadRoutes);
 // app.use('/api/followups', authMiddleware, followUpRoutes);
 

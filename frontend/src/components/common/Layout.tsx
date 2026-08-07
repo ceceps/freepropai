@@ -3,7 +3,7 @@ import { Link, useLocation, NavLink, Outlet, useNavigate } from 'react-router-do
 import {
   Menu, Sun, Moon, Home, Users, MessageSquare,
   LayoutDashboard, ChevronLeft, ChevronRight, Bell,
-  User, Search, Grid, LogOut, Settings, X
+  User, Search, Grid, LogOut, Settings, X, Download
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -17,6 +17,7 @@ const navigation = [
   { name: 'Leads', href: '/leads', icon: Users },
   { name: 'Follow-ups', href: '/followups', icon: MessageSquare },
   { name: 'Listings', href: '/listings', icon: Home },
+  { name: 'Scraping', href: '/scraping', icon: Download },
 ];
 
 export default function Layout({ children }: LayoutProps) {

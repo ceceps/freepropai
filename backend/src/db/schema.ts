@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, decimal, timestamp, text, integer, boolean, check, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, decimal, timestamp, text, integer, boolean, check, uniqueIndex, index, jsonb } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 // Users table
@@ -131,4 +131,72 @@ export const listingDescriptions = pgTable('listing_descriptions', {
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => ({
   variantCheck: check('variant_check', sql`${table.variantType} IN ('formal', 'casual_1', 'casual_2')`),
+}));
+
+// Scraping jobs table
+export const scrapingJobs = pgTable('scraping_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceUrl: varchar('source_url', { length: 500 }).notNull(),
+  sourceName: varchar('source_name', { length: 100 }).notNull(),
+  status: varchar('status', { length: 50 }).default('pending'),
+  totalListingsFound: integer('total_listings_found').default(0),
+  totalListingsImported: integer('total_listings_imported').default(0),
+  errorMessage: text('error_message'),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  statusCheck: check('status_check', sql`${table.status} IN ('pending', 'running', 'completed', 'failed')`),
+  statusIdx: index('idx_scraping_jobs_status').on(table.status),
+  sourceIdx: index('idx_scraping_jobs_source').on(table.sourceName),
+  createdIdx: index('idx_scraping_jobs_created').on(table.createdAt),
+}));
+
+// Scraped listings table
+export const scrapedListings = pgTable('scraped_listings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  scrapingJobId: uuid('scraping_job_id').notNull().references(() => scrapingJobs.id, { onDelete: 'cascade' }),
+  sourceUrl: varchar('source_url', { length: 500 }).notNull(),
+  sourceId: varchar('source_id', { length: 255 }),
+  title: varchar('title', { length: 255 }).notNull(),
+  landArea: decimal('land_area', { precision: 10, scale: 2 }),
+  buildingArea: decimal('building_area', { precision: 10, scale: 2 }),
+  location: varchar('location', { length: 255 }),
+  price: decimal('price', { precision: 15, scale: 2 }),
+  bedrooms: integer('bedrooms'),
+  bathrooms: integer('bathrooms'),
+  propertyType: varchar('property_type', { length: 100 }),
+  description: text('description'),
+  imageUrls: text('image_urls').array(),
+  contactInfo: jsonb('contact_info'),
+  rawData: jsonb('raw_data'),
+  importStatus: varchar('import_status', { length: 50 }).default('pending'),
+  importedListingId: uuid('imported_listing_id').references(() => listings.id),
+  importedAt: timestamp('imported_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  importStatusCheck: check('import_status_check', sql`${table.importStatus} IN ('pending', 'imported', 'skipped', 'failed')`),
+  jobIdx: index('idx_scraped_listings_job').on(table.scrapingJobId),
+  importStatusIdx: index('idx_scraped_listings_import_status').on(table.importStatus),
+  sourceIdIdx: index('idx_scraped_listings_source_id').on(table.sourceId),
+}));
+
+// Scraping configs table
+export const scrapingConfigs = pgTable('scraping_configs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceName: varchar('source_name', { length: 100 }).notNull().unique(),
+  baseUrl: varchar('base_url', { length: 500 }).notNull(),
+  isActive: boolean('is_active').default(true),
+  scrapingPrompt: text('scraping_prompt').notNull(),
+  fieldMappings: jsonb('field_mappings').notNull(),
+  rateLimitDelay: integer('rate_limit_delay').default(2000),
+  maxPages: integer('max_pages').default(10),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  sourceIdx: index('idx_scraping_configs_source').on(table.sourceName),
+  activeIdx: index('idx_scraping_configs_active').on(table.isActive),
 }));

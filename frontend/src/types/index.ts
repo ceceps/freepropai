@@ -107,6 +107,7 @@ export interface ListingSummary {
   photos?: ListingPhoto[];
   land_area?: number;
   building_area?: number;
+  thumbnailUrl?: string | null;
 }
 
 // API Response Types
@@ -124,4 +125,87 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
     limit?: number;
     [key: string]: any;
   };
+}
+
+// Scraping Types
+export interface ScrapingJob {
+  id: string;
+  sourceUrl: string;
+  sourceName: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  totalListingsFound: number;
+  totalListingsImported: number;
+  errorMessage?: string;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScrapedListing {
+  id: string;
+  scrapingJobId: string;
+  sourceUrl: string;
+  sourceId?: string;
+  title: string;
+  landArea?: number;
+  buildingArea?: number;
+  location?: string;
+  price?: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  propertyType?: string;
+  description?: string;
+  imageUrls: string[];
+  contactInfo?: {
+    name?: string;
+    phone?: string;
+    whatsapp?: string;
+  };
+  rawData?: any;
+  importStatus: 'pending' | 'imported' | 'skipped' | 'failed';
+  importedListingId?: string;
+  importedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateScrapingJobData {
+  sourceUrl: string;
+  sourceName: string;
+  maxPages?: number;
+  filters?: {
+    location?: string;
+    propertyType?: string;
+    priceMin?: number;
+    priceMax?: number;
+  };
+}
+
+export interface ImportScrapedListingData {
+  downloadImages?: boolean;
+  generateDescriptions?: boolean;
+  additionalInfo?: string;
+}
+
+export interface BatchImportResult {
+  totalRequested: number;
+  successfulImports: number;
+  failedImports: number;
+  results: Array<{
+    scrapedListingId: string;
+    listingId?: string;
+    status: 'success' | 'failed';
+    error?: string;
+  }>;
+}
+
+export interface ScrapingConfig {
+  id: string;
+  sourceName: string;
+  baseUrl: string;
+  isActive: boolean;
+  maxPages: number;
+  rateLimitDelay: number;
+  notes?: string;
 }

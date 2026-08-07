@@ -9,7 +9,7 @@ class DescriptionGeneratorService {
    * - Casual #2: for Instagram story / WhatsApp status
    */
   async generateDescriptions(listing: Listing): Promise<GeneratedDescriptions> {
-    const systemPrompt = this.buildSystemPrompt();
+    const systemPrompt = this.buildSystemPrompt(listing);
     const userPrompt = this.buildUserPrompt(listing);
 
     try {
@@ -40,14 +40,18 @@ class DescriptionGeneratorService {
   /**
    * Build system prompt for LLM - simplified to avoid content blocking
    */
-  private buildSystemPrompt(): string {
-    return `You are a helpful assistant for Indonesian real estate agents. Generate 3 property description variants in Indonesian language.
+  private buildSystemPrompt(listing: Listing): string {
+    let additionalInfo = '';
+    if (listing.additional_info) {
+      additionalInfo = `${listing.additional_info}`;
+    }
 
+    return `You are a helpful assistant for Indonesian real estate agents. Generate 3 property description variants in Indonesian language.
 Return JSON format:
 {
-  "formal": "Professional description for listing websites",
-  "casual_1": "Friendly Instagram post with 2-3 emoji",
-  "casual_2": "Short casual message for stories with emoji"
+  "formal": "Professional description for listing websites based on info: ${additionalInfo}, property type, location, land area, building area, bedrooms, bathrooms, and price",
+  "casual_1": "Friendly Instagram post with 2-3 emoji based on  info: ${additionalInfo}, location, and price",
+  "casual_2": "Short casual message for stories with emoji based on  info: ${additionalInfo}"
 }
 
 Guidelines:
@@ -65,28 +69,24 @@ Guidelines:
     parts.push(`Create property descriptions for:`);
     parts.push(`Type: ${listing.property_type || 'Property'}`);
     parts.push(`Location: ${listing.location}`);
-    
+
     if (listing.land_area) {
       parts.push(`Land: ${listing.land_area} m²`);
     }
-    
+
     if (listing.building_area) {
       parts.push(`Building: ${listing.building_area} m²`);
     }
-    
+
     if (listing.bedrooms) {
       parts.push(`Bedrooms: ${listing.bedrooms}`);
     }
-    
+
     if (listing.bathrooms) {
       parts.push(`Bathrooms: ${listing.bathrooms}`);
     }
-    
+
     parts.push(`Price: Rp ${this.formatPrice(listing.price)}`);
-    
-    if (listing.additional_info) {
-      parts.push(`Info: ${listing.additional_info}`);
-    }
 
     return parts.join('\n');
   }

@@ -3,6 +3,7 @@ import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload,
 import { listingApi } from '../services/api';
 import ListingForm from '../components/listings/ListingForm';
 import DescriptionVariants from '../components/listings/DescriptionVariants';
+import ListingImage from '../components/listings/ListingImage';
 import type { ListingSummary, ListingWithDetails, CreateListingData } from '../types';
 
 type View = 'list' | 'create' | 'detail' | 'edit';
@@ -319,16 +320,18 @@ export default function ListingsPage() {
                 const statusConfig = getStatusConfig(listing.status);
                 return (
                   <div key={listing.id} className="card card-hover overflow-hidden">
-                    {/* Listing Image Placeholder */}
+                    {/* Listing Image with Shimmer Loading */}
                     <div className="relative h-40 bg-gradient-to-br from-primary-100 to-yellow-100 dark:from-primary-900/30 dark:to-yellow-900/30">
-                      {listing.photos && listing.photos.length > 0 && (
-                        <img
-                          src={`http://localhost:3001${listing.photos[0].photo_url}`}
-                          alt={listing.title}
-                          className="w-full h-full object-cover"
-                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                        />
-                      )}
+                      <ListingImage
+                        src={
+                          listing.thumbnailUrl
+                            ? `http://localhost:3001${listing.thumbnailUrl}`
+                            : listing.photos?.[0]
+                              ? `http://localhost:3001${listing.photos[0].photo_url}`
+                              : null
+                        }
+                        alt={listing.title}
+                      />
                       <div className="absolute top-3 right-3">
                         <span className={`badge ${statusConfig.badge}`}>
                           {statusConfig.label}

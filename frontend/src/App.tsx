@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import LeadsPage from './pages/LeadsPage';
 import FollowUpsPage from './pages/FollowUpsPage';
 import ListingsPage from './pages/ListingsPage';
+import ScrapingPage from './pages/ScrapingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 
@@ -24,6 +25,7 @@ function AppRoutes() {
         <Route path="/leads" element={<LeadsPage />} />
         <Route path="/followups" element={<FollowUpsPage />} />
         <Route path="/listings" element={<ListingsPage />} />
+        <Route path="/scraping" element={<ScrapingPage />} />
       </Route>
     </Routes>
   );
