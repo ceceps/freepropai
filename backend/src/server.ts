@@ -58,7 +58,7 @@ app.get('/api', (req, res) => {
 
 // Mount routes
 app.use('/api/auth', authRoutes);
-app.use('/api/listings', authMiddleware, listingRoutes);
+app.use('/api/listings', listingRoutes);
 // app.use('/api/leads', authMiddleware, leadRoutes);
 // app.use('/api/followups', authMiddleware, followUpRoutes);
 
