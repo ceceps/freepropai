@@ -39,6 +39,8 @@ export interface RegisterData extends LoginCredentials {
 // Listing Types
 export interface Listing {
   id: string;
+  user_id?: string | null;
+  team_id?: string | null;
   title: string;
   land_area?: number;
   building_area?: number;

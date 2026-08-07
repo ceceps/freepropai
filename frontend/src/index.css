@@ -160,8 +160,8 @@
 
   h1 { font-size: var(--font-size-3xl); font-weight: 700; }
   h2 { font-size: var(--font-size-2xl); font-weight: 600; }
-  h3 { font-size: var(--font-size-xl); font-weight: 600; }
-  h4 { font-size: var(--font-size-lg); font-weight: 600; }
+  h3 { font-size: var(--font-size-xl); font-weight: 500; }
+  h4 { font-size: var(--font-size-lg); font-weight: 300; }
 
   /* Focus styles */
   *:focus-visible {
@@ -268,7 +268,7 @@
   }
 
   .input-label {
-    @apply block font-medium text-text-secondary mb-2 text-base;
+    @apply block text-sm font-medium text-text-secondary mb-2 text-base;
   }
 
   select {

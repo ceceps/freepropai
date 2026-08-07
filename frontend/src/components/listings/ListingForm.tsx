@@ -217,7 +217,7 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
       )}
 
       {/* Basic Information */}
-      <div className="card">
+      <div className="card p-4">
         <h3 className="text-lg font-semibold text-text-primary dark:text-text-primary-dark mb-4">Basic Information</h3>
 
         <div className="space-y-6">
@@ -290,7 +290,7 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
       </div>
 
       {/* Property Details */}
-      <div className="card">
+      <div className="card p-4">
         <h3 className="text-lg font-semibold text-text-primary dark:text-text-primary-dark mb-4">Property Details</h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -361,7 +361,7 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
       </div>
 
       {/* Photo Upload */}
-      <div className="card">
+      <div className="card p-4">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold text-text-primary dark:text-text-primary-dark">Property Photos</h3>
           <span className="text-sm font-medium text-text-tertiary dark:text-text-tertiary-dark">
