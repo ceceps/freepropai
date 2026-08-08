@@ -1,6 +1,34 @@
 import * as cheerio from 'cheerio';
 import axios from 'axios';
 
+/**
+ * acehome.co.id "Wilayah" region codes -> readable names.
+ * Harvested from the live homepage region pill selector (?reg=CODE buttons).
+ */
+const REGION_MAP: Record<string, string> = {
+  BTM: 'Bandung Timur',
+  BBR: 'Bandung Barat',
+  BSL: 'Bandung Selatan',
+  BUT: 'Bandung Utara',
+  BTG: 'Bandung Tengah',
+  KWG: 'Karawang',
+  BKS: 'Bekasi',
+  PWK: 'Purwakarta',
+};
+
+/**
+ * acehome.co.id "Kategori" tokens (?kat=) -> normalized property type label.
+ */
+const KAT_MAP: Record<string, string> = {
+  rumah: 'rumah',
+  tanah: 'tanah',
+  rukost: 'rukost',
+  kost: 'rukost',
+  apartemen: 'apartement',
+  apartement: 'apartement',
+  komersil: 'komersil',
+};
+
 interface AcehomeScrapeOptions {
   url: string;
   maxPages?: number;
@@ -12,6 +40,12 @@ interface AcehomeScrapeOptions {
   };
 }
 
+/** Category + region derived once from the source listing URL, stamped on every row. */
+interface ScrapeMeta {
+  propertyType: string;
+  region: string | null;
+}
+
 interface ScrapedProperty {
   title: string;
   price: number | null;
@@ -21,6 +55,7 @@ interface ScrapedProperty {
   bedrooms: number | null;
   bathrooms: number | null;
   propertyType: string;
+  region: string | null;
   description: string;
   imageUrls: string[];
   contactInfo: any;
@@ -38,11 +73,14 @@ export class AcehomeScraperService {
     const { url, maxPages = 1 } = options;
     const allListings: ScrapedProperty[] = [];
 
-    console.log(`[AcehomeScraperService] Starting scrape for ${url}, max pages: ${maxPages}`);
+    // Derive category + region once from the source URL; stamp on every row.
+    const meta = this.deriveMeta(url);
+
+    console.log(`[AcehomeScraperService] Starting scrape for ${url}, max pages: ${maxPages} (type=${meta.propertyType}, region=${meta.region})`);
 
     try {
       // Scrape first page
-      const firstPageListings = await this.scrapePage(url);
+      const firstPageListings = await this.scrapePage(url, meta);
       allListings.push(...firstPageListings);
       console.log(`[AcehomeScraperService] Page 1: Found ${firstPageListings.length} listings`);
 
@@ -52,7 +90,7 @@ export class AcehomeScraperService {
           await this.delay(2000);
 
           const pageUrl = this.buildPageUrl(url, page);
-          const pageListings = await this.scrapePage(pageUrl);
+          const pageListings = await this.scrapePage(pageUrl, meta);
 
           if (pageListings.length === 0) {
             console.log(`[AcehomeScraperService] Page ${page}: No more listings found, stopping`);
@@ -76,7 +114,8 @@ export class AcehomeScraperService {
   /**
    * Scrape a single page using cheerio (no LLM needed)
    */
-  private async scrapePage(url: string): Promise<ScrapedProperty[]> {
+  private async scrapePage(url: string, meta?: ScrapeMeta): Promise<ScrapedProperty[]> {
+    const resolvedMeta = meta ?? this.deriveMeta(url);
     try {
       console.log(`[AcehomeScraperService] Fetching page: ${url}`);
 
@@ -118,19 +157,20 @@ export class AcehomeScraperService {
           const sourceId = this.extractIdFromUrl(detailUrl);
 
           listings.push({
-            title,
+            title: this.clamp(title, 255),
             price,
-            location: locationText || '',
+            location: this.clamp(locationText || '', 255),
             landArea: null,
             buildingArea: null,
             bedrooms: null,
             bathrooms: null,
-            propertyType: 'rumah',
+            propertyType: resolvedMeta.propertyType,
+            region: resolvedMeta.region,
             description: '',
             imageUrls: imageUrl ? [imageUrl] : [],
             contactInfo: null,
             listingUrl: detailUrl,
-            sourceId,
+            sourceId: this.clamp(sourceId, 255),
           });
         } catch (err) {
           console.warn(`[AcehomeScraperService] Error parsing card element:`, err);
@@ -144,7 +184,7 @@ export class AcehomeScraperService {
       for (const listing of listings) {
         await this.delay(1500);
         try {
-          const detail = await this.scrapeListingDetail(listing.listingUrl);
+          const detail = await this.scrapeListingDetail(listing.listingUrl, resolvedMeta);
           enrichedListings.push(detail || listing);
         } catch {
           enrichedListings.push(listing);
@@ -162,7 +202,9 @@ export class AcehomeScraperService {
   /**
    * Scrape detailed information from a single listing page
    */
-  async scrapeListingDetail(url: string): Promise<ScrapedProperty | null> {
+  async scrapeListingDetail(url: string, meta?: ScrapeMeta): Promise<ScrapedProperty | null> {
+    // Fall back to deriving category/region from the URL if not passed in.
+    const resolvedMeta = meta ?? this.deriveMeta(url);
     try {
       console.log(`[AcehomeScraperService] Scraping listing detail: ${url}`);
 
@@ -206,16 +248,18 @@ export class AcehomeScraperService {
       const landArea = this.extractNumber(detailText, /Luas Tanah:\s*(\d+)/);
       const buildingArea = this.extractNumber(detailText, /Luas Bangunan:\s*(\d+)/);
 
-      // Location - <strong>Lokasi</strong><br>Batu Indah Regency
+      // Location - exact <strong>Lokasi</strong> label only.
+      // NOTE: descriptions can contain sentences starting with "Lokasi ...", so a
+      // substring match (:contains) wrongly grabs the whole paragraph. Match the
+      // label exactly, then read the parent's remaining text (e.g. "pondok hijau").
       let location = '';
-      $('strong:contains("Lokasi")').each((_, el) => {
+      $('strong').each((_, el) => {
         if (location) return;
+        if ($(el).text().trim().toLowerCase() !== 'lokasi') return;
         const parent = $(el).parent();
         let text = parent.clone().children('strong').remove().end().text().trim();
-        if (!text && parent.is('p')) {
-          text = parent.text().replace(/Lokasi/i, '').trim();
-        }
-        location = text || '';
+        if (!text) text = parent.text().replace(/lokasi/i, '').trim();
+        location = text;
       });
 
       // Description - after <strong>Deskripsi</strong>, collect following p/ul siblings
@@ -231,19 +275,20 @@ export class AcehomeScraperService {
       });
 
       return {
-        title,
+        title: this.clamp(title, 255),
         price,
-        location,
+        location: this.clamp(location, 255),
         landArea,
         buildingArea,
         bedrooms,
         bathrooms,
-        propertyType: 'rumah',
+        propertyType: resolvedMeta.propertyType,
+        region: resolvedMeta.region,
         description,
         imageUrls,
         contactInfo: null,
         listingUrl: url,
-        sourceId,
+        sourceId: this.clamp(sourceId, 255),
       };
 
     } catch (error: any) {
@@ -269,6 +314,46 @@ export class AcehomeScraperService {
 
     const num = parseFloat(cleaned);
     return isNaN(num) ? null : num;
+  }
+
+  /**
+   * Clamp a string to a max length so it never overflows a VARCHAR column.
+   * DB columns: title/location/sourceId = 255, propertyType = 100, sourceUrl = 500.
+   */
+  private clamp(value: string, max: number): string {
+    if (!value) return value;
+    return value.length > max ? value.slice(0, max) : value;
+  }
+
+  /**
+   * Derive category (propertyType) + readable region from a listing-page URL.
+   * acehome URL shape: ?reg=BUT&kat=rumah[&status=jual|sewa]
+   * - status=sewa  -> propertyType 'sewa'
+   * - otherwise    -> KAT_MAP[kat] (rumah/tanah/rukost/apartement/komersil), default 'rumah'
+   * - region       -> REGION_MAP[reg] readable name, or null if unknown/absent
+   */
+  private deriveMeta(url: string): ScrapeMeta {
+    let propertyType = 'rumah';
+    let region: string | null = null;
+    try {
+      const params = new URL(url).searchParams;
+      const kat = (params.get('kat') || '').toLowerCase();
+      const status = (params.get('status') || '').toLowerCase();
+      const reg = (params.get('reg') || '').toUpperCase();
+
+      if (status === 'sewa') {
+        propertyType = 'sewa';
+      } else if (kat && KAT_MAP[kat]) {
+        propertyType = KAT_MAP[kat];
+      }
+
+      if (reg && REGION_MAP[reg]) {
+        region = REGION_MAP[reg];
+      }
+    } catch {
+      // malformed URL -> keep defaults
+    }
+    return { propertyType, region };
   }
 
   /**

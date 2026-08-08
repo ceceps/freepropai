@@ -49,6 +49,8 @@ export interface Listing {
   bedrooms?: number;
   bathrooms?: number;
   property_type?: string;
+  region?: string;
+  source_url?: string;
   additional_info?: string;
   status: string;
   created_at: string;
@@ -155,6 +157,7 @@ export interface ScrapedListing {
   bedrooms?: number;
   bathrooms?: number;
   propertyType?: string;
+  region?: string;
   description?: string;
   imageUrls: string[];
   contactInfo?: {

@@ -273,6 +273,16 @@ export default function ScrapingPage() {
                       {listing.title}
                     </h3>
                     <p className="text-sm text-gray-600 mb-2">{listing.location}</p>
+                    {(listing.propertyType || listing.region) && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {listing.propertyType && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 capitalize">{listing.propertyType}</span>
+                        )}
+                        {listing.region && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">{listing.region}</span>
+                        )}
+                      </div>
+                    )}
                     {listing.price != null && (
                       <p className="text-lg font-bold text-blue-600 mb-2">
                         Rp {Number(listing.price).toLocaleString('id-ID')}

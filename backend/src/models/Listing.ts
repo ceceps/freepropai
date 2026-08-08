@@ -238,6 +238,8 @@ export class ListingModel {
       bedrooms: data.bedrooms,
       bathrooms: data.bathrooms,
       property_type: data.propertyType,
+      region: data.region ?? undefined,
+      source_url: data.sourceUrl ?? undefined,
       additional_info: data.additionalInfo,
       status: data.status,
       created_at: data.createdAt,

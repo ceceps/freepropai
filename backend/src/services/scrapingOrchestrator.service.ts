@@ -117,16 +117,17 @@ export class ScrapingOrchestratorService {
       if (scrapedData.length > 0) {
         const listingsToInsert = scrapedData.map(item => ({
           scrapingJobId: jobId,
-          sourceUrl: item.listingUrl || job.sourceUrl,
-          sourceId: item.sourceId || null,
-          title: item.title,
+          sourceUrl: (item.listingUrl || job.sourceUrl).slice(0, 500),
+          sourceId: item.sourceId ? item.sourceId.slice(0, 255) : null,
+          title: (item.title || 'Untitled').slice(0, 255),
           landArea: item.landArea?.toString() || null,
           buildingArea: item.buildingArea?.toString() || null,
-          location: item.location || null,
+          location: item.location ? item.location.slice(0, 255) : null,
           price: item.price?.toString() || null,
           bedrooms: item.bedrooms || null,
           bathrooms: item.bathrooms || null,
-          propertyType: item.propertyType || null,
+          propertyType: item.propertyType ? item.propertyType.slice(0, 100) : null,
+          region: item.region ? item.region.slice(0, 100) : null,
           description: item.description || null,
           imageUrls: item.imageUrls || [],
           contactInfo: item.contactInfo || null,
@@ -134,7 +135,29 @@ export class ScrapingOrchestratorService {
           importStatus: 'pending',
         }));
 
-        await db.insert(scrapedListings).values(listingsToInsert);
+        // Resilient insert: try the batch first; if it fails (e.g. a single bad
+        // row), fall back to per-row inserts so one bad row can't lose the rest.
+        try {
+          await db.insert(scrapedListings).values(listingsToInsert);
+        } catch (batchError: any) {
+          console.warn(
+            `[ScrapingOrchestrator] Batch insert failed (${batchError.message}); retrying per-row`
+          );
+          let inserted = 0;
+          for (const row of listingsToInsert) {
+            try {
+              await db.insert(scrapedListings).values(row);
+              inserted++;
+            } catch (rowError: any) {
+              console.warn(
+                `[ScrapingOrchestrator] Skipped row "${row.title}" (${row.sourceId}): ${rowError.message}`
+              );
+            }
+          }
+          console.log(
+            `[ScrapingOrchestrator] Per-row insert stored ${inserted}/${listingsToInsert.length} listings`
+          );
+        }
       }
 
       // Update job as completed
@@ -195,11 +218,13 @@ export class ScrapingOrchestratorService {
         landArea: scraped.landArea,
         buildingArea: scraped.buildingArea,
         location: scraped.location || '',
+        region: scraped.region,
         price: scraped.price || '0',
         bedrooms: scraped.bedrooms,
         bathrooms: scraped.bathrooms,
         propertyType: scraped.propertyType,
-        additionalInfo: options.additionalInfo || `Imported from ${scraped.sourceUrl}`,
+        sourceUrl: scraped.sourceUrl,
+        additionalInfo: options.additionalInfo || null,
         status: 'active',
       }).returning();
 

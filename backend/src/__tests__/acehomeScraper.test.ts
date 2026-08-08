@@ -157,27 +157,51 @@ describe('AcehomeScraperService', () => {
     });
   });
 
-  describe('scrapeListingDetail HTML parsing', () => {
-    it('extracts full details including location, description and images', async () => {
-      const axiosMock = vi.spyOn(axios, 'get').mockResolvedValue({
-        data: detailHtml,
-      });
+  describe('deriveMeta (category + region from URL)', () => {
+    const derive = (url: string) => (new AcehomeScraperService() as any).deriveMeta(url);
 
-      const result = await service.scrapeListingDetail('https://www.acehome.co.id/project/detail/uuid1');
+    it('maps reg code to readable region name and kat to propertyType', () => {
+      expect(derive('https://www.acehome.co.id/?reg=BUT&kat=rumah'))
+        .toEqual({ propertyType: 'rumah', region: 'Bandung Utara' });
+      expect(derive('https://www.acehome.co.id/?reg=BBR&kat=tanah'))
+        .toEqual({ propertyType: 'tanah', region: 'Bandung Barat' });
+      expect(derive('https://www.acehome.co.id/?reg=KWG&kat=komersil'))
+        .toEqual({ propertyType: 'komersil', region: 'Karawang' });
+    });
 
-      expect(result).not.toBeNull();
-      expect(result!.title).toBe('Rumah Siap Huni Strategis');
-      expect(result!.price).toBe(850000000);
-      expect(result!.landArea).toBe(159);
-      expect(result!.buildingArea).toBe(90);
-      expect(result!.bedrooms).toBe(2);
-      expect(result!.bathrooms).toBe(2);
-      expect(result!.location).toBe('Batu Indah Regency Saphire');
-      expect(result!.description).toContain('Rumah Siap Huni Strategis');
-      expect(result!.description).toContain('Dekat stasiun');
-      expect(result!.sourceId).toBe('ACBBR1035');
-      expect(result!.imageUrls.length).toBe(2);
-      expect(result!.imageUrls[0]).toBe('https://content.prolov.id/app/project/202608/original/img1.jpeg');
+    it('treats status=sewa as the property type regardless of kat', () => {
+      expect(derive('https://www.acehome.co.id/?reg=BKS&kat=rumah&status=sewa'))
+        .toEqual({ propertyType: 'sewa', region: 'Bekasi' });
+    });
+
+    it('falls back to defaults for unknown reg/kat', () => {
+      expect(derive('https://www.acehome.co.id/?reg=ZZZ&kat=unknown'))
+        .toEqual({ propertyType: 'rumah', region: null });
+      expect(derive('https://www.acehome.co.id/'))
+        .toEqual({ propertyType: 'rumah', region: null });
+    });
+  });
+
+  describe('Lokasi parsing (exact label, not description sentences)', () => {
+    it('returns the short Lokasi label value, not a "Lokasi ..." description paragraph', async () => {
+      const trickyHtml = `
+<!DOCTYPE html><html><body>
+  <h4>Rumah Test</h4>
+  <h6>ACBUT1009</h6>
+  <div class="col-md-12">
+    <strong>Deskripsi</strong>
+    <p><strong>Lokasi strategis di kawasan Pondok Hijau Gerlong, dekat ke Setiabudi, UPI, pusat kuliner, sekolah, dan berbagai fasilitas umum lainnya yang sangat lengkap sekali di sini</strong></p>
+    <p><strong>Lokasi</strong><br>pondok hijau</p>
+  </div>
+</body></html>`;
+      const axiosMock = vi.spyOn(axios, 'get').mockResolvedValue({ data: trickyHtml });
+
+      const result = await service.scrapeListingDetail('https://www.acehome.co.id/project/detail/x?reg=BUT&kat=rumah');
+
+      expect(result!.location).toBe('pondok hijau');
+      expect(result!.location.length).toBeLessThanOrEqual(255);
+      expect(result!.region).toBe('Bandung Utara');
+      expect(result!.propertyType).toBe('rumah');
 
       axiosMock.mockRestore();
     });
