@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { scrapingApi } from '../services/api';
+import ZoomableImage from '../components/common/ZoomableImage';
 import type { ScrapingJob, ScrapedListing } from '../types';
 
 export default function ScrapingPage() {
@@ -262,10 +263,11 @@ export default function ScrapingPage() {
               {scrapedListings.map((listing) => (
                 <div key={listing.id} className="border rounded-lg overflow-hidden">
                   {listing.imageUrls && listing.imageUrls.length > 0 && (
-                    <img
+                    <ZoomableImage
                       src={listing.imageUrls[0]}
                       alt={listing.title}
-                      className="w-full h-48 object-cover"
+                      className="w-full h-48"
+                      downloadName={`scraped-${listing.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 30) || 'property'}.jpg`}
                     />
                   )}
                   <div className="p-4">

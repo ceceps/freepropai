@@ -4,6 +4,7 @@ export interface User {
   email: string;
   name: string;
   phone?: string;
+  location?: string;
   role: 'solo_agent' | 'team_owner' | 'team_agent';
   regionScope?: string;
   avatarUrl?: string;

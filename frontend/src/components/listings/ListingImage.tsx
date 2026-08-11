@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { ImageIcon } from 'lucide-react';
+import ZoomableImage from '../common/ZoomableImage';
 
 interface ListingImageProps {
   src?: string | null;
   alt: string;
   className?: string;
+  zoomable?: boolean;
 }
 
-export default function ListingImage({ src, alt, className = '' }: ListingImageProps) {
+export default function ListingImage({ src, alt, className = '', zoomable = true }: ListingImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
@@ -20,19 +22,22 @@ export default function ListingImage({ src, alt, className = '' }: ListingImageP
   }
 
   return (
-    <div className={`relative w-full h-full overflow-hidden ${className}`}>
-      {!isLoaded && <div className="absolute inset-0 shimmer" aria-hidden="true" />}
+    <ZoomableImage
+      src={src}
+      alt={alt}
+      zoomable={zoomable}
+      className={`w-full h-full ${className}`}
+      onError={() => setHasError(true)}
+    >
+      {!isLoaded && <div className="absolute inset-0 shimmer pointer-events-none" aria-hidden="true" />}
       <img
         src={src}
         alt={alt}
         loading="lazy"
         decoding="async"
+        className="absolute inset-0 w-full h-full object-cover opacity-0 pointer-events-none"
         onLoad={() => setIsLoaded(true)}
-        onError={() => setHasError(true)}
-        className={`w-full h-full object-cover transition-opacity duration-300 ${
-          isLoaded ? 'opacity-100' : 'opacity-0'
-        }`}
       />
-    </div>
+    </ZoomableImage>
   );
 }

@@ -67,7 +67,7 @@ export default function Layout({ children }: LayoutProps) {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <div className="min-h-screen bg-bg-primary dark:bg-bg-primary-dark transition-colors duration-200">
+    <div className="min-h-screen bg-bg-primary dark:bg-bg-primary transition-colors duration-200 font-mono">
       {/* Mobile overlay */}
       {isMobile && mobileMenuOpen && (
         <div
@@ -100,7 +100,7 @@ export default function Layout({ children }: LayoutProps) {
                   <Grid className="w-5 h-5 text-white" />
                 </div>
                 {sidebarOpen && (
-                  <span className="text-xl font-bold text-text-primary dark:text-text-primary truncate">
+                  <span className="text-xl font-bold text-text-primary dark:text-text-primary truncate font-mono">
                     FreePropAI
                   </span>
                 )}
@@ -108,7 +108,7 @@ export default function Layout({ children }: LayoutProps) {
               {!isMobile && (
                 <button
                   onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 transition-colors flex-shrink-0"
+                  className="p-2 rounded-lg hover:bg-grey-100 dark:hover:bg-grey-800 transition-colors flex-shrink-0"
                   aria-label="Toggle sidebar"
                 >
                   {sidebarOpen ? <ChevronLeft className="w-5 h-5 text-text-secondary" /> : <ChevronRight className="w-5 h-5 text-text-secondary" />}
@@ -128,24 +128,30 @@ export default function Layout({ children }: LayoutProps) {
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
                       isActive
                         ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400'
-                        : 'text-text-secondary dark:text-text-secondary hover:bg-secondary-100 dark:hover:bg-secondary-800'
+                        : 'text-text-secondary dark:text-text-secondary hover:bg-grey-100 dark:hover:bg-grey-800'
                     }`}
                     title={sidebarOpen ? undefined : item.name}
                   >
                     <Icon className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
-                    {sidebarOpen && <span className="font-medium truncate">{item.name}</span>}
+                    {sidebarOpen && <span className="font-medium truncate font-mono text-sm leading-5">{item.name}</span>}
                   </NavLink>
                 );
               })}
             </nav>
 
-            {/* Bottom section - Theme only */}
+            {/* Bottom section - Settings */}
             <div className="p-3 border-t border-border dark:border-border">
-              <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 transition-colors">
+              <Link
+                to="/settings"
+                className="flex items-center gap-3 p-2 rounded-lg hover:bg-grey-100 dark:hover:bg-grey-800 transition-colors"
+              >
                 <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center flex-shrink-0">
-                  <User className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                  <Settings className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                 </div>
-              </div>
+                {sidebarOpen && (
+                  <span className="font-medium truncate font-mono text-sm leading-5 text-text-primary">Settings</span>
+                )}
+              </Link>
             </div>
           </div>
         </aside>
@@ -153,18 +159,18 @@ export default function Layout({ children }: LayoutProps) {
         {/* Main content */}
         <div className="flex-1 min-w-0 transition-all duration-300">
           {/* Top Navigation */}
-          <header className="sticky top-0 z-30 bg-bg-primary/80 dark:bg-bg-primary-dark/80 backdrop-blur-sm border-b border-border dark:border-border">
+          <header className="sticky top-0 z-30 bg-bg-primary/80 dark:bg-bg-primary/80 backdrop-blur-sm border-b border-border dark:border-border">
             <div className="flex items-center justify-between h-16 px-4 lg:px-6">
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                  className="lg:hidden p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 transition-colors"
+                  className="lg:hidden p-2 rounded-lg hover:bg-grey-100 dark:hover:bg-grey-800 transition-colors"
                   aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
                 >
                   {mobileMenuOpen ? <ChevronRight className="w-6 h-6 text-text-primary" /> : <Menu className="w-6 h-6 text-text-primary" />}
                 </button>
                 {sidebarOpen && !isMobile && (
-                  <h1 className="text-lg font-semibold text-text-primary dark:text-text-primary hidden sm:block">
+                  <h1 className="text-lg font-semibold text-text-primary dark:text-text-primary hidden sm:block font-mono">
                     {currentNav.name}
                   </h1>
                 )}
@@ -177,14 +183,14 @@ export default function Layout({ children }: LayoutProps) {
                   <input
                     type="search"
                     placeholder="Search..."
-                    className="w-64 pl-10 pr-4 py-2 bg-secondary-100 dark:bg-secondary-800 border border-border dark:border-border rounded-lg text-text-primary dark:text-text-primary placeholder-text-tertiary dark:placeholder-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                    className="w-64 pl-10 pr-4 py-2 bg-grey-100 dark:bg-grey-800 border border-border dark:border-border rounded-lg text-text-primary dark:text-text-primary placeholder-text-tertiary dark:placeholder-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all font-mono text-sm"
                   />
                 </div>
 
                 {/* Theme toggle - moved to top nav before bell */}
                 <button
                   onClick={toggleTheme}
-                  className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 transition-colors"
+                  className="p-2 rounded-lg hover:bg-grey-100 dark:hover:bg-grey-800 transition-colors"
                   aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
                 >
                   {theme === 'light' ? <Moon className="w-5 h-5 text-text-secondary" /> : <Sun className="w-5 h-5 text-warning-500" />}
@@ -194,7 +200,7 @@ export default function Layout({ children }: LayoutProps) {
                 <div className="relative" ref={notificationRef}>
                   <button
                     onClick={() => setShowNotifications(!showNotifications)}
-                    className="relative p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 transition-colors"
+                    className="relative p-2 rounded-lg hover:bg-grey-100 dark:hover:bg-grey-800 transition-colors"
                   >
                     <Bell className="w-5 h-5 text-text-secondary dark:text-text-secondary" />
                     {unreadCount > 0 && (
@@ -205,10 +211,10 @@ export default function Layout({ children }: LayoutProps) {
                   {showNotifications && (
                     <div className="absolute right-0 mt-2 w-80 bg-surface dark:bg-surface border border-border dark:border-border rounded-lg shadow-dropdown py-2 z-50 animate-fade-in">
                       <div className="px-4 py-3 border-b border-border dark:border-border flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-text-primary dark:text-text-primary">Notifications</h3>
+                        <h3 className="text-sm font-semibold text-text-primary dark:text-text-primary font-mono">Notifications</h3>
                         <button
                           onClick={() => setShowNotifications(false)}
-                          className="p-1 rounded hover:bg-secondary-100 dark:hover:bg-secondary-800"
+                          className="p-1 rounded hover:bg-grey-100 dark:hover:bg-grey-800"
                         >
                           <X className="w-4 h-4 text-text-tertiary" />
                         </button>
@@ -217,23 +223,23 @@ export default function Layout({ children }: LayoutProps) {
                         {notifications.map((notif) => (
                           <button
                             key={notif.id}
-                            className={`dropdown-item w-full text-left p-3 ${!notif.read ? 'bg-secondary-50 dark:bg-secondary-800/50' : ''}`}
+                            className={`dropdown-item w-full text-left p-3 ${!notif.read ? 'bg-grey-50 dark:bg-grey-800/50' : ''}`}
                           >
                             <div className="flex items-start gap-3">
                               <div className={`flex-shrink-0 w-2 h-2 mt-2 rounded-full ${!notif.read ? 'bg-primary-500' : 'transparent border border-border'}`} />
                               <div className="flex-1 min-w-0">
-                                <p className={`text-sm font-medium ${!notif.read ? 'text-text-primary dark:text-text-primary' : 'text-text-secondary dark:text-text-secondary'}`}>
+                                <p className={`text-sm font-medium ${!notif.read ? 'text-text-primary dark:text-text-primary' : 'text-text-secondary dark:text-text-secondary'} font-mono`}>
                                   {notif.title}
                                 </p>
-                                <p className="text-xs text-text-tertiary dark:text-text-tertiary truncate">{notif.message}</p>
-                                <p className="text-xs text-text-tertiary dark:text-text-tertiary mt-1">{notif.time}</p>
+                                <p className="text-xs text-text-tertiary dark:text-text-tertiary truncate font-mono">{notif.message}</p>
+                                <p className="text-xs text-text-tertiary dark:text-text-tertiary mt-1 font-mono">{notif.time}</p>
                               </div>
                             </div>
                           </button>
                         ))}
                       </div>
                       <div className="px-4 py-2 border-t border-border dark:border-border">
-                        <button className="w-full text-center text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
+                        <button className="w-full text-center text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium font-mono">
                           View all notifications
                         </button>
                       </div>
@@ -245,7 +251,7 @@ export default function Layout({ children }: LayoutProps) {
                 <div className="user-menu relative" ref={userMenuRef}>
                   <button
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="flex items-center gap-3 pl-3 pr-4 py-2 border-l border-border dark:border-border hover:bg-secondary-50 dark:hover:bg-secondary-800/50 transition-colors rounded-r-lg"
+                    className="flex items-center gap-3 pl-3 pr-4 py-2 border-l border-border dark:border-border hover:bg-grey-50 dark:hover:bg-grey-800/50 transition-colors rounded-r-lg"
                   >
                     {user?.avatarUrl ? (
                       <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full object-cover" />
@@ -255,10 +261,10 @@ export default function Layout({ children }: LayoutProps) {
                       </div>
                     )}
                     <div className="hidden sm:block text-left">
-                      <p className="text-sm font-medium text-text-primary dark:text-text-primary truncate max-w-[120px]">
+                      <p className="text-sm font-medium text-text-primary dark:text-text-primary truncate max-w-[120px] font-mono">
                         {user?.name || 'User'}
                       </p>
-                      <p className="text-xs text-text-tertiary dark:text-text-tertiary capitalize">
+                      <p className="text-xs text-text-tertiary dark:text-text-tertiary capitalize font-mono">
                         {user?.role.replace('_', ' ') || 'Agent'}
                       </p>
                     </div>
@@ -268,24 +274,24 @@ export default function Layout({ children }: LayoutProps) {
                   {showUserMenu && (
                     <div className="dropdown">
                       <div className="px-4 py-3 border-b border-border dark:border-border">
-                        <p className="text-sm font-medium text-text-primary dark:text-text-primary truncate">{user?.name}</p>
-                        <p className="text-xs text-text-tertiary dark:text-text-tertiary truncate">{user?.email}</p>
+                        <p className="text-sm font-medium text-text-primary dark:text-text-primary truncate font-mono">{user?.name}</p>
+                        <p className="text-xs text-text-tertiary dark:text-text-tertiary truncate font-mono">{user?.email}</p>
                       </div>
-                      <button className="dropdown-item w-full text-left">
+                      <Link to="/profile" className="dropdown-item w-full text-left font-mono">
                         <User className="w-4 h-4" />
                         Profile
-                      </button>
-                      <button className="dropdown-item w-full text-left">
+                      </Link>
+                      <Link to="/settings" className="dropdown-item w-full text-left font-mono">
                         <Settings className="w-4 h-4" />
                         Settings
-                      </button>
+                      </Link>
                       <div className="dropdown-divider" />
                       <button
                         onClick={async () => {
                           await logout();
                           navigate('/login');
                         }}
-                        className="dropdown-item w-full text-left text-danger-600 dark:text-danger-400"
+                        className="dropdown-item w-full text-left text-danger-600 dark:text-danger-400 font-mono"
                       >
                         <LogOut className="w-4 h-4" />
                         Sign out

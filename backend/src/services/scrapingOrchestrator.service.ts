@@ -224,7 +224,7 @@ export class ScrapingOrchestratorService {
         bathrooms: scraped.bathrooms,
         propertyType: scraped.propertyType,
         sourceUrl: scraped.sourceUrl,
-        additionalInfo: options.additionalInfo || null,
+        additionalInfo: options.additionalInfo || this.buildAdditionalInfo(scraped),
         status: 'active',
       }).returning();
 
@@ -333,6 +333,37 @@ export class ScrapingOrchestratorService {
       failedImports: failCount,
       results,
     };
+  }
+
+  /**
+   * Build a human-readable "Additional Information" block from a scraped
+   * listing (Harga / Detail / Deskripsi / Lokasi). Falls back to the raw
+   * description text when structured fields are missing.
+   */
+  private buildAdditionalInfo(scraped: any): string {
+    const sections: string[] = [];
+
+    if (scraped.price != null && scraped.price !== '0') {
+      const formatted = Number(scraped.price).toLocaleString('id-ID');
+      sections.push(`Harga: Rp${formatted}`);
+    }
+
+    const details: string[] = [];
+    if (scraped.landArea != null) details.push(`Luas Tanah: ${scraped.landArea} m²`);
+    if (scraped.buildingArea != null) details.push(`Luas Bangunan: ${scraped.buildingArea} m²`);
+    if (scraped.bedrooms != null) details.push(`Kamar Tidur: ${scraped.bedrooms}`);
+    if (scraped.bathrooms != null) details.push(`Kamar Mandi: ${scraped.bathrooms}`);
+    if (details.length > 0) sections.push(`Detail:\n${details.join('\n')}`);
+
+    if (scraped.description && scraped.description.trim()) {
+      sections.push(`Deskripsi:\n${scraped.description.trim()}`);
+    }
+
+    if (scraped.location && scraped.location.trim()) {
+      sections.push(`Lokasi: ${scraped.location.trim()}`);
+    }
+
+    return sections.length > 0 ? sections.join('\n\n') : '';
   }
 
   /**

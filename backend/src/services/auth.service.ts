@@ -46,6 +46,7 @@ const mapUserRow = (row: typeof users.$inferSelect): User => ({
   email: row.email,
   name: row.name,
   phone: row.phone,
+  location: row.location,
   role: row.role as UserRole,
   regionScope: row.regionScope,
   avatarUrl: row.avatarUrl,
@@ -91,4 +92,26 @@ export const updateLastLogin = async (userId: string): Promise<void> => {
   await db.update(users)
     .set({ lastLoginAt: new Date(), updatedAt: new Date() })
     .where(eq(users.id, userId));
+};
+
+export interface UpdateProfileData {
+  name?: string;
+  phone?: string | null;
+  location?: string | null;
+  avatarUrl?: string | null;
+}
+
+export const updateUserProfile = async (userId: string, data: UpdateProfileData): Promise<User> => {
+  const patch: Partial<typeof users.$inferInsert> = { updatedAt: new Date() };
+  if (data.name !== undefined) patch.name = data.name.trim();
+  if (data.phone !== undefined) patch.phone = data.phone?.trim() || null;
+  if (data.location !== undefined) patch.location = data.location?.trim() || null;
+  if (data.avatarUrl !== undefined) patch.avatarUrl = data.avatarUrl || null;
+
+  const [row] = await db.update(users)
+    .set(patch)
+    .where(eq(users.id, userId))
+    .returning();
+
+  return mapUserRow(row);
 };

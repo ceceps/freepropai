@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin } from 'lucide-react';
+import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin, Download, Check } from 'lucide-react';
 import { listingApi } from '../services/api';
 import ListingForm from '../components/listings/ListingForm';
 import DescriptionVariants from '../components/listings/DescriptionVariants';
 import ListingImage from '../components/listings/ListingImage';
+import ZoomableImage from '../components/common/ZoomableImage';
 import type { ListingSummary, ListingWithDetails, CreateListingData } from '../types';
 
 type View = 'list' | 'create' | 'detail' | 'edit';
@@ -17,6 +18,7 @@ export default function ListingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
 
   // Load listings on mount
   useEffect(() => {
@@ -110,6 +112,7 @@ export default function ListingsPage() {
       const response = await listingApi.getById(id);
       if (response.success && response.data) {
         setSelectedListing(response.data);
+        setSelectedPhotoIds(new Set());
         setView('detail');
       }
     } catch (err) {
@@ -118,6 +121,40 @@ export default function ListingsPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const togglePhotoSelection = (photoId: string) => {
+    setSelectedPhotoIds(prev => {
+      const next = new Set(prev);
+      if (next.has(photoId)) {
+        next.delete(photoId);
+      } else {
+        next.add(photoId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllPhotos = () => {
+    if (!selectedListing) return;
+    if (selectedPhotoIds.size === selectedListing.photos.length) {
+      setSelectedPhotoIds(new Set());
+    } else {
+      setSelectedPhotoIds(new Set(selectedListing.photos.map(p => p.id)));
+    }
+  };
+
+  const downloadSelectedPhotos = () => {
+    if (!selectedListing) return;
+    const selected = selectedListing.photos.filter(p => selectedPhotoIds.has(p.id));
+    selected.forEach((photo, index) => {
+      const link = document.createElement('a');
+      link.href = photo.photo_url;
+      link.download = `${selectedListing.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 30) || 'property'}-${index + 1}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
   };
 
   const handleEditListing = async (id: string) => {
@@ -421,13 +458,15 @@ export default function ListingsPage() {
           <div className="card overflow-hidden">
             {selectedListing.photos.length > 0 && (
               <div className="relative h-64 md:h-80 lg:h-96">
-                <img
+                <ZoomableImage
                   src={selectedListing.photos.find(p => p.is_featured)?.photo_url || selectedListing.photos[0].photo_url}
                   alt={selectedListing.title}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                <div className="absolute bottom-4 left-4 right-4">
+                  variant="corner"
+                  className="w-full h-full"
+                  downloadName={`${selectedListing.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 30) || 'property'}.jpg`}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+                  <div className="absolute bottom-4 left-4 right-4 pointer-events-none">
                   <div className="flex items-end justify-between">
                     <div>
                       <span className={`badge ${getStatusConfig(selectedListing.status).badge} mb-2`}>
@@ -448,6 +487,7 @@ export default function ListingsPage() {
                     </div>
                   </div>
                 </div>
+                </ZoomableImage>
               </div>
             )}
             {/* Meta strip */}
@@ -514,39 +554,62 @@ export default function ListingsPage() {
 
           {/* Photo Gallery */}
           <div className="card p-4">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
               <h4 className="text-large font-semibold text-text-primary dark:text-text-primary-dark">Photos ({selectedListing.photos.length})</h4>
-              <button
-                onClick={() => handleEditListing(selectedListing.id)}
-                className="btn btn-secondary btn-sm flex items-center gap-1"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                Manage
-              </button>
+              <div className="flex items-center gap-2">
+                {selectedListing.photos.length > 0 && (
+                  <button
+                    onClick={toggleSelectAllPhotos}
+                    className="btn btn-ghost btn-sm flex items-center gap-1"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    {selectedPhotoIds.size === selectedListing.photos.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                )}
+                <button
+                  onClick={downloadSelectedPhotos}
+                  disabled={selectedPhotoIds.size === 0}
+                  className="btn btn-primary btn-sm flex items-center gap-1"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download Selected ({selectedPhotoIds.size})
+                </button>
+                <button
+                  onClick={() => handleEditListing(selectedListing.id)}
+                  className="btn btn-secondary btn-sm flex items-center gap-1"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  Manage
+                </button>
+              </div>
             </div>
             {selectedListing.photos.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {selectedListing.photos.map((photo, idx) => (
-                  <div key={photo.id} className={`relative rounded-lg overflow-hidden border-2 ${photo.is_featured ? 'border-yellow-400 ring-2 ring-yellow-300' : 'border-border dark:border-border-dark'}`}>
-                    <img
-                      src={photo.photo_url}
-                      alt={`Photo ${idx + 1}`}
-                      className="w-full h-36 object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"%3E%3Crect fill="%23e5e7eb" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="16" fill="%239ca3af"%3ENo Image%3C/text%3E%3C/svg%3E';
-                      }}
-                    />
+                  <ZoomableImage
+                    key={photo.id}
+                    src={photo.photo_url}
+                    alt={`Photo ${idx + 1}`}
+                    className={`relative rounded-lg overflow-hidden border-2 h-36 ${photo.is_featured ? 'border-yellow-400 ring-2 ring-yellow-300' : 'border-border dark:border-border-dark'}`}
+                    selectable
+                    selected={selectedPhotoIds.has(photo.id)}
+                    onToggleSelect={() => togglePhotoSelection(photo.id)}
+                    downloadName={`${selectedListing.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 30) || 'property'}-${idx + 1}.jpg`}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"%3E%3Crect fill="%23e5e7eb" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="16" fill="%239ca3af"%3ENo Image%3C/text%3E%3C/svg%3E';
+                    }}
+                  >
                     {photo.is_featured && (
-                      <div className="absolute top-2 left-2 bg-yellow-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 shadow">
+                      <div className="absolute top-2 right-2 bg-yellow-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 shadow pointer-events-none">
                         <Star className="w-3 h-3 fill-white" />
                         Featured
                       </div>
                     )}
-                    <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+                    <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded pointer-events-none">
                       #{idx + 1}
                     </div>
-                  </div>
+                  </ZoomableImage>
                 ))}
               </div>
             ) : (
