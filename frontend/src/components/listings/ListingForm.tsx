@@ -207,7 +207,7 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
   const currentTotalNewSize = photos.reduce((sum, f) => sum + f.size, 0);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-8">
       {/* Warning Message Banner */}
       {warningMessage && (
         <div className="card border-yellow-200 dark:border-yellow-900/30 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300 p-4 flex items-start gap-3">
@@ -217,10 +217,10 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
       )}
 
       {/* Basic Information */}
-      <div className="card">
+      <div className="card p-4">
         <h3 className="text-lg font-semibold text-text-primary dark:text-text-primary-dark mb-4">Basic Information</h3>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div>
             <label className="label">
               Listing Title <span className="text-red-500">*</span>
@@ -290,10 +290,10 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
       </div>
 
       {/* Property Details */}
-      <div className="card">
+      <div className="card p-4">
         <h3 className="text-lg font-semibold text-text-primary dark:text-text-primary-dark mb-4">Property Details</h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="label">Land Area (m²)</label>
             <input
@@ -361,7 +361,7 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
       </div>
 
       {/* Photo Upload */}
-      <div className="card">
+      <div className="card p-4">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold text-text-primary dark:text-text-primary-dark">Property Photos</h3>
           <span className="text-sm font-medium text-text-tertiary dark:text-text-tertiary-dark">
@@ -403,7 +403,7 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
                   return (
                     <div key={photo.id} className={`relative group border-2 rounded-xl overflow-hidden ${isFeatured ? 'border-yellow-500 ring-2 ring-yellow-400' : 'border-border dark:border-border-dark'}`}>
                       <img
-                        src={`http://localhost:3001${photo.url}`}
+                        src={photo.url}
                         alt="Property"
                         className="w-full h-32 object-cover"
                         onError={(e) => {

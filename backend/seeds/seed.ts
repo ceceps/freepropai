@@ -15,6 +15,8 @@ async function main() {
       bedrooms: 2,
       bathrooms: 1,
       propertyType: 'rumah',
+      region: 'Bandung Barat',
+      sourceUrl: 'https://www.acehome.co.id/?reg=BBR&kat=rumah',
       additionalInfo: '"RUMAH BISA DICARI, UNIT TERBAIK BELUM TENTU KEMBALI!"\n*TINGGAL 15 UNIT LAGI! AWAS KEHABISAN!*\n\nLegalitas TERJAMIN • PASTI DIBANGUN • PASTI SELESAI TEPAT WAKTU\n\n*OPEN HOUSE*\nSabtu s/d Minggu | Pukul 09.00 – 17.00 WIB\n\n🌿 Hunian Modern Bernuansa Villa dengan Udara Sejuk & Rumah Berkabut di 867 MDPL.\n📍1 Menit ke Kantor DPRD Bandung Barat\n🚄 7 Menit ke Stasiun KCIC Padalarang\n🛣 9 Menit ke Tol Padalarang\n🛍 10 Menit ke IKEA Kota Baru Parahyangan\n⛰ 30 Menit ke Lembang\n\nChat WA: 0877-2261-0091',
       status: 'draft',
     },

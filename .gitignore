@@ -39,9 +39,10 @@ uploads/
 *.sqlite
 
 # LLM  Dev Setup
-.bob/
+.bob
 .claude
 graphify-out/
+.github 
 
 # Testing
 coverage/

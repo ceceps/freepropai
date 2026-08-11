@@ -1,8 +1,8 @@
 # AI Co-worker untuk Agen Properti - Planning Document
 
 **Hackathon:** AI Builders Challenge with IBM Bob  
-**Kategori:** Wildcard - Intelligent Systems for the Future of Work  
-**Target User:** Agen properti freelance yang handle lead via WhatsApp
+**Category:** Wildcard - Intelligent Systems for the Future of Work  
+**Target User:** Property Agent freelance who handle lead in WhatsApp
 
 ---
 
@@ -350,7 +350,7 @@ graph TD
 
 **Installation:**
 ```bash
-npm install scrapegraph-js
+bun add scrapegraph-js
 ```
 
 **Basic Usage:**
@@ -359,7 +359,7 @@ import { ScrapeGraphAI } from 'scrapegraph-js';
 
 const scraper = new ScrapeGraphAI({
   apiKey: process.env.ANTHROPIC_API_KEY,
-  model: 'claude-3-5-sonnet-20241022'
+  model: 'claude-opus-4.8'
 });
 
 const result = await scraper.scrape({

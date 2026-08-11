@@ -11,10 +11,11 @@ interface DescriptionVariantsProps {
 export default function DescriptionVariants({
   descriptions,
   onSelect,
-  isGenerating = false
+  isGenerating = false,
 }: DescriptionVariantsProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectingId, setSelectingId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>('formal');
 
   const handleCopy = async (text: string, id: string) => {
     try {
@@ -38,13 +39,13 @@ export default function DescriptionVariants({
   const getVariantLabel = (type: string) => {
     switch (type) {
       case 'formal':
-        return { label: 'Formal', subtitle: 'For listing portals (OLX, Rumah123)' };
+        return { label: 'Formal', subtitle: 'Listing portals (OLX, Rumah123)', icon: '🏢' };
       case 'casual_1':
-        return { label: 'Casual #1', subtitle: 'For Instagram feed post' };
+        return { label: 'Casual #1', subtitle: 'Instagram feed post', icon: '📱' };
       case 'casual_2':
-        return { label: 'Casual #2', subtitle: 'For Instagram story / WhatsApp status' };
+        return { label: 'Casual #2', subtitle: 'Instagram story / WhatsApp', icon: '💬' };
       default:
-        return { label: type, subtitle: '' };
+        return { label: type, subtitle: '', icon: '📝' };
     }
   };
 
@@ -74,60 +75,81 @@ export default function DescriptionVariants({
     );
   }
 
+  const tabs = descriptions.map(d => d.variant_type);
+  const activeDesc = descriptions.find(d => d.variant_type === activeTab) || descriptions[0];
+  const activeInfo = getVariantLabel(activeDesc.variant_type);
+  const isCopied = copiedId === activeDesc.id;
+  const isSelecting = selectingId === activeDesc.id;
+
   return (
     <div className="space-y-4">
-      {descriptions.map((desc) => {
-        const { label, subtitle } = getVariantLabel(desc.variant_type);
-        const isCopied = copiedId === desc.id;
-        const isSelecting = selectingId === desc.id;
+      {/* Tab bar */}
+      <div className="flex gap-1 p-1 bg-secondary-100 dark:bg-secondary-800 rounded-xl">
+        {tabs.map((type) => {
+          const info = getVariantLabel(type);
+          const isActive = type === activeTab;
+          const desc = descriptions.find(d => d.variant_type === type);
+          return (
+            <button
+              key={type}
+              onClick={() => setActiveTab(type)}
+              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-start gap-2 ${isActive
+                  ? 'bg-white dark:bg-secondary-700 shadow-sm text-primary-600 dark:text-primary-400'
+                  : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-primary dark:hover:text-text-primary'
+                }`}
+            >
+              <span>{info.icon}</span>
+              <span className="text-xs font-semibold">{info.label}</span>
+              {desc?.is_selected && (
+                <span className="badge badge-success text-xs">Selected</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-        return (
-          <div
-            key={desc.id}
-            className={`card ${desc.is_selected ? 'ring-2 ring-primary-500 dark:ring-primary-400' : ''}`}
-          >
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h4 className="font-semibold text-text-primary dark:text-text-primary-dark">{label}</h4>
-                  {desc.is_selected && (
-                    <span className="badge badge-success text-xs">Selected</span>
-                  )}
-                </div>
-                <p className="text-sm text-text-secondary dark:text-text-secondary-dark">{subtitle}</p>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleCopy(desc.description_text, desc.id)}
-                  className="p-2 text-text-tertiary dark:text-text-tertiary-dark hover:text-primary-600 dark:hover:text-primary-400 hover:bg-accent dark:hover:bg-accent-dark rounded-lg transition-colors"
-                  title="Copy to clipboard"
-                >
-                  {isCopied ? (
-                    <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
-                  ) : (
-                    <Copy className="w-5 h-5" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-accent/50 dark:bg-accent-dark/50 rounded-lg p-4 mb-3">
-              <p className="text-text-primary dark:text-text-primary-dark whitespace-pre-wrap">{desc.description_text}</p>
-            </div>
-
-            {!desc.is_selected && (
-              <button
-                onClick={() => handleSelect(desc.id)}
-                disabled={isSelecting}
-                className="btn btn-secondary w-full"
-              >
-                {isSelecting ? 'Selecting...' : 'Select This Variant'}
-              </button>
-            )}
+      {/* Active tab content */}
+      <div className="card p-4">
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <h4 className="font-semibold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
+              <span>{activeInfo.icon}</span>
+              {activeInfo.label}
+            </h4>
+            <p className="text-sm text-text-tertiary dark:text-text-tertiary-dark mt-0.5">{activeInfo.subtitle}</p>
           </div>
-        );
-      })}
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleCopy(activeDesc.description_text, activeDesc.id)}
+              className="p-2 text-text-tertiary dark:text-text-tertiary-dark hover:text-primary-600 dark:hover:text-primary-400 hover:bg-accent dark:hover:bg-accent-dark rounded-lg transition-colors"
+              title="Copy to clipboard"
+            >
+              {isCopied ? (
+                <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
+              ) : (
+                <Copy className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+        </div>
+        <div className="bg-secondary-50 dark:bg-secondary-800 rounded-lg p-4 mb-3">
+          <p className="text-text-primary dark:text-text-primary-dark whitespace-pre-wrap leading-relaxed">
+            {activeDesc.description_text}
+          </p>
+        </div>
+        {!activeDesc.is_selected && (
+          <button
+            onClick={() => handleSelect(activeDesc.id)}
+            disabled={isSelecting}
+            className="btn btn-primary w-full"
+          >
+            {isSelecting ? 'Selecting...' : 'Select This Variant'}
+          </button>
+        )}
+        {activeDesc.is_selected && (
+          <div className="badge badge-success text-sm py-2">✓ This description is currently selected</div>
+        )}
+      </div>
     </div>
   );
 }

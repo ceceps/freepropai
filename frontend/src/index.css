@@ -72,6 +72,22 @@
 
   /* Fonts */
   --font-sans: 'Inter', system-ui, sans-serif;
+  --font-size-base: 13pt;
+  --font-size-sm: 12pt;
+  --font-size-lg: 14pt;
+  --font-size-xl: 16pt;
+  --font-size-2xl: 18pt;
+  --font-size-3xl: 22pt;
+
+  /* Tailwind font size utilities */
+  --text-xs: 0.75rem;      /* 12pt */
+  --text-sm: 0.8125rem;    /* 13pt */
+  --text-base: 0.8125rem;  /* 13pt */
+  --text-lg: 0.875rem;     /* 14pt */
+  --text-xl: 1rem;         /* 16pt */
+  --text-2xl: 1.125rem;    /* 18pt */
+  --text-3xl: 1.375rem;    /* 22pt */
+  --text-4xl: 1.5rem;      /* 24pt */
 
   /* Shadows */
   --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
@@ -135,10 +151,17 @@
     background-color: var(--color-bg-primary);
     color: var(--color-text-primary);
     font-family: var(--font-sans);
+    font-size: var(--font-size-base);
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     transition: background-color 0.2s ease, color 0.2s ease;
   }
+
+  h1 { font-size: var(--font-size-3xl); font-weight: 700; }
+  h2 { font-size: var(--font-size-2xl); font-weight: 600; }
+  h3 { font-size: var(--font-size-xl); font-weight: 500; }
+  h4 { font-size: var(--font-size-lg); font-weight: 300; }
 
   /* Focus styles */
   *:focus-visible {
@@ -235,7 +258,7 @@
 
   /* Inputs */
   .input {
-    @apply w-full px-4 py-2.5 bg-bg-primary border border-border rounded-lg text-text-primary placeholder-text-tertiary transition-all duration-200;
+    @apply w-full px-4 py-3 bg-bg-primary border border-border rounded-lg text-text-primary placeholder-text-tertiary transition-all duration-200 text-base;
     @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
     @apply disabled:bg-secondary-100 disabled:cursor-not-allowed;
   }
@@ -245,19 +268,19 @@
   }
 
   .input-label {
-    @apply block text-sm font-medium text-text-secondary mb-1.5;
+    @apply block text-sm font-medium text-text-secondary mb-2 text-base;
   }
 
-  .input-group {
-    @apply relative;
+  select {
+    @apply w-full px-4 py-3 bg-bg-primary border border-border rounded-lg text-text-primary placeholder-text-tertiary transition-all duration-200 text-base;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+    @apply disabled:bg-secondary-100 disabled:cursor-not-allowed;
   }
 
-  .input-group .input {
-    @apply pl-10;
-  }
-
-  .input-group-icon {
-    @apply absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary;
+  textarea {
+    @apply w-full px-4 py-3 bg-bg-primary border border-border rounded-lg text-text-primary placeholder-text-tertiary transition-all duration-200 text-base;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+    @apply disabled:bg-secondary-100 disabled:cursor-not-allowed;
   }
 
   /* Badges */
@@ -412,4 +435,34 @@
   .stagger-4 { animation-delay: 0.2s; }
   .stagger-5 { animation-delay: 0.25s; }
   .stagger-6 { animation-delay: 0.3s; }
+
+  /* Shimmer placeholder for lazy-loaded images */
+  .shimmer {
+    background-image: linear-gradient(
+      100deg,
+      theme(colors.secondary.200) 20%,
+      theme(colors.secondary.100) 40%,
+      theme(colors.secondary.200) 60%
+    );
+    background-size: 200% 100%;
+    animation: shimmer-sweep 1.4s ease-in-out infinite;
+  }
+
+  .dark .shimmer {
+    background-image: linear-gradient(
+      100deg,
+      theme(colors.secondary.800) 20%,
+      theme(colors.secondary.700) 40%,
+      theme(colors.secondary.800) 60%
+    );
+  }
+
+  @keyframes shimmer-sweep {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shimmer { animation: none; }
+  }
 }

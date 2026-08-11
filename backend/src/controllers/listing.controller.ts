@@ -1,4 +1,7 @@
 import { Request, Response } from 'express';
+import path from 'path';
+import fs from 'fs';
+import { generateThumbnail } from '../utils/image';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import { validatePhotoUploads } from '../middleware/upload';
 import ListingModel from '../models/Listing';
@@ -48,16 +51,27 @@ class ListingController {
     }
 
     // Create listing
-    const listing = await ListingModel.create(data);
+    const listing = await ListingModel.create({
+      ...data,
+      userId: req.user?.id,
+    } as CreateListingRequest & { userId?: string });
 
     // Handle photo uploads if present
     const featuredIndex = data.featuredPhotoIndex !== undefined ? parseInt(data.featuredPhotoIndex as any) : 0;
     const photos = [];
     if (files.length > 0) {
+      const uploadDir = path.join(__dirname, '..', '..', process.env.UPLOAD_DIR || './uploads');
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const photoUrl = `/uploads/${file.filename}`;
         const isFeatured = i === featuredIndex;
+
+        // Generate thumbnail for the first/featured photo
+        if (i === featuredIndex) {
+          const originalPath = path.join(uploadDir, file.filename);
+          await generateThumbnail(originalPath, uploadDir);
+        }
+
         const photo = await ListingModel.addPhoto(listing.id, photoUrl, i, isFeatured);
         photos.push(photo);
       }
@@ -90,7 +104,23 @@ class ListingController {
       listings.map(async (listing) => {
         const photos = await ListingModel.getPhotos(listing.id);
         const descriptions = await ListingModel.getDescriptions(listing.id);
-        
+
+        // Thumbnail for the featured photo — generated on first read if missing
+        let thumbnailUrl: string | null = null;
+        if (photos.length > 0) {
+          const featuredPhoto = photos.find(p => p.is_featured) || photos[0];
+          const originalFilename = path.basename(featuredPhoto.photo_url);
+          const uploadDir = path.join(__dirname, '..', '..', process.env.UPLOAD_DIR || './uploads');
+          const originalPath = path.join(uploadDir, originalFilename);
+
+          if (fs.existsSync(originalPath)) {
+            const { thumbnailUrl: url } = await generateThumbnail(originalPath, uploadDir);
+            thumbnailUrl = url;
+          } else {
+            thumbnailUrl = featuredPhoto.photo_url;
+          }
+        }
+
         return {
           id: listing.id,
           title: listing.title,
@@ -102,6 +132,7 @@ class ListingController {
           photoCount: photos.length,
           hasDescriptions: descriptions.length > 0,
           created_at: listing.created_at,
+          thumbnailUrl,
         };
       })
     );
@@ -175,11 +206,19 @@ class ListingController {
     // Save new photo uploads
     if (newFiles.length > 0) {
       const featuredIndex = data.featuredPhotoIndex !== undefined ? parseInt(data.featuredPhotoIndex as any) : -1;
+      const uploadDir = path.join(__dirname, '..', '..', process.env.UPLOAD_DIR || './uploads');
       for (let i = 0; i < newFiles.length; i++) {
         const file = newFiles[i];
         const photoUrl = `/uploads/${file.filename}`;
         const order = existingListing.photos.length + i;
         const isFeatured = (featuredIndex === i);
+
+        // Generate thumbnail for the featured photo
+        if (isFeatured) {
+          const originalPath = path.join(uploadDir, file.filename);
+          await generateThumbnail(originalPath, uploadDir);
+        }
+
         await ListingModel.addPhoto(id, photoUrl, order, isFeatured);
       }
     }
