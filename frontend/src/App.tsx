@@ -10,6 +10,8 @@ import ListingsPage from './pages/ListingsPage';
 import ScrapingPage from './pages/ScrapingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ProfilePage from './pages/ProfilePage';
+import SettingsPage from './pages/SettingsPage';
 
 function AppRoutes() {
   return (
@@ -26,6 +28,8 @@ function AppRoutes() {
         <Route path="/followups" element={<FollowUpsPage />} />
         <Route path="/listings" element={<ListingsPage />} />
         <Route path="/scraping" element={<ScrapingPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Route>
     </Routes>
   );

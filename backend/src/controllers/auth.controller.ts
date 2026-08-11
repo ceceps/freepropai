@@ -119,6 +119,30 @@ export const me = asyncHandler(async (req: Request, res: Response) => {
 
   res.json({
     success: true,
-    data: req.user
+    data: { user: req.user }
+  });
+});
+
+export const updateProfile = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) {
+    throw new AppError('Not authenticated', 401);
+  }
+
+  const { name, phone, location, avatarUrl } = req.body as {
+    name?: string;
+    phone?: string | null;
+    location?: string | null;
+    avatarUrl?: string | null;
+  };
+
+  if (name !== undefined && (!name || !name.trim())) {
+    throw new AppError('Name cannot be empty', 400);
+  }
+
+  const user = await authService.updateUserProfile(req.user.id, { name, phone, location, avatarUrl });
+
+  res.json({
+    success: true,
+    data: { user }
   });
 });

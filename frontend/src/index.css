@@ -1,30 +1,30 @@
 @import "tailwindcss";
 
 @theme {
-  /* Spike Admin inspired color palette */
-  --color-primary-50: #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-200: #c7d2fe;
-  --color-primary-300: #a5b4fc;
-  --color-primary-400: #818cf8;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
-  --color-primary-700: #4338ca;
-  --color-primary-800: #3730a3;
-  --color-primary-900: #312e81;
-  --color-primary-950: #1e1b4b;
+  /* Monkeycode Dashboard inspired color palette - Blue/Grey/White */
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+  --color-primary-950: #172554;
 
-  --color-secondary-50: #f8fafc;
-  --color-secondary-100: #f1f5f9;
-  --color-secondary-200: #e2e8f0;
-  --color-secondary-300: #cbd5e1;
-  --color-secondary-400: #94a3b8;
-  --color-secondary-500: #64748b;
-  --color-secondary-600: #475569;
-  --color-secondary-700: #334155;
-  --color-secondary-800: #1e293b;
-  --color-secondary-900: #0f172a;
-  --color-secondary-950: #020617;
+  --color-grey-50: #f8fafc;
+  --color-grey-100: #f1f5f9;
+  --color-grey-200: #e2e8f0;
+  --color-grey-300: #cbd5e1;
+  --color-grey-400: #94a3b8;
+  --color-grey-500: #64748b;
+  --color-grey-600: #475569;
+  --color-grey-700: #334155;
+  --color-grey-800: #1e293b;
+  --color-grey-900: #0f172a;
+  --color-grey-950: #020617;
 
   --color-success-50: #f0fdf4;
   --color-success-100: #dcfce7;
@@ -70,8 +70,9 @@
   --color-text-tertiary: #94a3b8;
   --color-text-inverse: #ffffff;
 
-  /* Fonts */
-  --font-sans: 'Inter', system-ui, sans-serif;
+  /* Fonts - JetBrains Mono Variable */
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-sans: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --font-size-base: 13pt;
   --font-size-sm: 12pt;
   --font-size-lg: 14pt;
@@ -80,14 +81,14 @@
   --font-size-3xl: 22pt;
 
   /* Tailwind font size utilities */
-  --text-xs: 0.75rem;      /* 12pt */
-  --text-sm: 0.8125rem;    /* 13pt */
-  --text-base: 0.8125rem;  /* 13pt */
-  --text-lg: 0.875rem;     /* 14pt */
-  --text-xl: 1rem;         /* 16pt */
-  --text-2xl: 1.125rem;    /* 18pt */
-  --text-3xl: 1.375rem;    /* 22pt */
-  --text-4xl: 1.5rem;      /* 24pt */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.8125rem;
+  --text-lg: 0.875rem;
+  --text-xl: 1rem;
+  --text-2xl: 1.125rem;
+  --text-3xl: 1.375rem;
+  --text-4xl: 1.5rem;
 
   /* Shadows */
   --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
@@ -158,10 +159,10 @@
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
-  h1 { font-size: var(--font-size-3xl); font-weight: 700; }
-  h2 { font-size: var(--font-size-2xl); font-weight: 600; }
-  h3 { font-size: var(--font-size-xl); font-weight: 500; }
-  h4 { font-size: var(--font-size-lg); font-weight: 300; }
+  h1 { font-size: var(--font-size-3xl); font-weight: 700; font-family: var(--font-sans); }
+  h2 { font-size: var(--font-size-2xl); font-weight: 600; font-family: var(--font-sans); }
+  h3 { font-size: var(--font-size-xl); font-weight: 500; font-family: var(--font-sans); }
+  h4 { font-size: var(--font-size-lg); font-weight: 300; font-family: var(--font-sans); }
 
   /* Focus styles */
   *:focus-visible {
@@ -192,7 +193,7 @@
 @layer components {
   /* Buttons */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-mono;
   }
 
   .btn-primary {
@@ -200,7 +201,7 @@
   }
 
   .btn-secondary {
-    @apply bg-secondary-100 text-secondary-700 border border-secondary-200 hover:bg-secondary-200;
+    @apply bg-grey-100 text-grey-700 border border-grey-200 hover:bg-grey-200;
   }
 
   .btn-outline {
@@ -208,7 +209,7 @@
   }
 
   .btn-ghost {
-    @apply bg-transparent text-text-secondary hover:bg-secondary-100;
+    @apply bg-transparent text-text-secondary hover:bg-grey-100;
   }
 
   .btn-danger {
@@ -249,18 +250,18 @@
   }
 
   .card-body {
-    @apply p-6;
+    @apply p-6 font-mono;
   }
 
   .card-footer {
-    @apply px-6 py-4 border-t border-border bg-secondary-50;
+    @apply px-6 py-4 border-t border-border bg-grey-50 font-mono;
   }
 
   /* Inputs */
   .input {
-    @apply w-full px-4 py-3 bg-bg-primary border border-border rounded-lg text-text-primary placeholder-text-tertiary transition-all duration-200 text-base;
+    @apply w-full px-4 py-3 bg-bg-primary border border-border rounded-lg text-text-primary placeholder-text-secondary transition-all duration-200 text-base font-mono;
     @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
-    @apply disabled:bg-secondary-100 disabled:cursor-not-allowed;
+    @apply disabled:bg-grey-100 disabled:cursor-not-allowed;
   }
 
   .input-error {
@@ -268,24 +269,24 @@
   }
 
   .input-label {
-    @apply block text-sm font-medium text-text-secondary mb-2 text-base;
+    @apply block text-sm font-medium text-text-secondary mb-2 text-base font-mono;
   }
 
   select {
-    @apply w-full px-4 py-3 bg-bg-primary border border-border rounded-lg text-text-primary placeholder-text-tertiary transition-all duration-200 text-base;
+    @apply w-full px-4 py-3 bg-bg-primary border border-border rounded-lg text-text-primary placeholder-text-secondary transition-all duration-200 text-base font-mono;
     @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
-    @apply disabled:bg-secondary-100 disabled:cursor-not-allowed;
+    @apply disabled:bg-grey-100 disabled:cursor-not-allowed;
   }
 
   textarea {
-    @apply w-full px-4 py-3 bg-bg-primary border border-border rounded-lg text-text-primary placeholder-text-tertiary transition-all duration-200 text-base;
+    @apply w-full px-4 py-3 bg-bg-primary border border-border rounded-lg text-text-primary placeholder-text-secondary transition-all duration-200 text-base font-mono;
     @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
-    @apply disabled:bg-secondary-100 disabled:cursor-not-allowed;
+    @apply disabled:bg-grey-100 disabled:cursor-not-allowed;
   }
 
   /* Badges */
   .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium font-mono;
   }
 
   .badge-primary {
@@ -293,19 +294,19 @@
   }
 
   .badge-secondary {
-    @apply bg-secondary-100 text-secondary-700;
+    @apply bg-grey-100 text-grey-700;
   }
 
   .badge-success {
-    @apply bg-success-100 text-success-800;
+    @apply bg-success-100 text-success-700;
   }
 
   .badge-warning {
-    @apply bg-warning-100 text-warning-800;
+    @apply bg-warning-100 text-warning-700;
   }
 
   .badge-danger {
-    @apply bg-danger-100 text-danger-800;
+    @apply bg-danger-100 text-danger-700;
   }
 
   .badge-info {
@@ -326,11 +327,11 @@
   }
 
   .section-title {
-    @apply text-2xl font-bold text-text-primary;
+    @apply text-2xl font-bold text-text-primary font-mono;
   }
 
   .section-subtitle {
-    @apply text-sm text-text-tertiary;
+    @apply text-sm text-text-secondary font-mono;
   }
 
   /* Glass morphism */
@@ -348,15 +349,15 @@
   }
 
   .table {
-    @apply w-full text-sm;
+    @apply w-full text-sm font-mono;
   }
 
   .table th {
-    @apply px-4 py-3 text-left font-semibold text-text-tertiary uppercase tracking-wider border-b border-border bg-secondary-50;
+    @apply px-4 py-3 text-left font-semibold text-text-tertiary uppercase tracking-wider border-b border-border bg-grey-50;
   }
 
   .table td {
-    @apply px-4 py-3 text-text-secondary border-b border-border opacity-50;
+    @apply px-4 py-3 text-text-secondary border-b border-border;
   }
 
   .table tr:last-child td {
@@ -364,7 +365,7 @@
   }
 
   .table tbody tr {
-    @apply hover:bg-secondary-50 transition-colors;
+    @apply hover:bg-grey-50 transition-colors;
   }
 
   /* Dropdown */
@@ -373,7 +374,7 @@
   }
 
   .dropdown-item {
-    @apply flex items-center gap-2 px-4 py-2 text-sm text-text-secondary hover:bg-secondary-100 transition-colors;
+    @apply flex items-center gap-2 px-4 py-2 text-sm text-text-primary hover:bg-grey-100 transition-colors font-mono;
   }
 
   .dropdown-divider {
@@ -408,7 +409,7 @@
   }
 
   .bg-gradient-secondary {
-    @apply bg-gradient-to-r from-secondary-600 to-secondary-500;
+    @apply bg-gradient-to-r from-grey-600 to-grey-500;
   }
 
   .bg-gradient-hero {
@@ -440,9 +441,9 @@
   .shimmer {
     background-image: linear-gradient(
       100deg,
-      theme(colors.secondary.200) 20%,
-      theme(colors.secondary.100) 40%,
-      theme(colors.secondary.200) 60%
+      theme(colors.grey.200) 20%,
+      theme(colors.grey.100) 40%,
+      theme(colors.grey.200) 60%
     );
     background-size: 200% 100%;
     animation: shimmer-sweep 1.4s ease-in-out infinite;
@@ -451,9 +452,9 @@
   .dark .shimmer {
     background-image: linear-gradient(
       100deg,
-      theme(colors.secondary.800) 20%,
-      theme(colors.secondary.700) 40%,
-      theme(colors.secondary.800) 60%
+      theme(colors.grey.800) 20%,
+      theme(colors.grey.700) 40%,
+      theme(colors.grey.800) 60%
     );
   }
 

@@ -81,3 +81,46 @@ The final result should require minimal redesign.
 ## Do NOT:
 - Fabricate client requirements beyond what's written in `clients/<client-name>/`
 - Ask clarifying questions about brand, tone, or color — that's what the client docs are for
+
+---
+
+# context-mode — routing rules
+
+context-mode MCP tools are available and protect the context window from flooding. Route large-output work through the sandbox tools below.
+
+## Think in Code — MANDATORY
+
+Analyze/count/filter/compare/search/parse/transform data: write code via `context-mode_ctx_execute(language, code)` and `console.log()` only the answer. Do NOT read raw data into context. Use Node.js built-ins only (`fs`, `path`, `child_process`). One script replaces ten tool calls.
+
+## BLOCKED — do NOT attempt
+
+- **curl / wget** — intercepted and blocked. Use `context-mode_ctx_fetch_and_index(url, source)` or `context-mode_ctx_execute(language: "javascript", code: "const r = await fetch(...)")`.
+- **Inline HTTP** — `fetch('http`, `requests.get(`, etc. Use `context-mode_ctx_execute`.
+- **Direct web fetching** — use `context-mode_ctx_fetch_and_index(url, source)` then `context-mode_ctx_search(queries)`.
+
+## REDIRECTED — use sandbox
+
+- **Shell (>20 lines output)** — Shell ONLY for: `git`, `mkdir`, `rm`, `mv`, `cd`, `ls`, `npm install`, `pip install`. Otherwise use `context-mode_ctx_batch_execute(commands, queries)` or `context-mode_ctx_execute`.
+- **File reading (for analysis)** — reading to edit is fine; reading to analyze/explore/summarize → `context-mode_ctx_execute_file(path, language, code)`.
+- **grep / search (large results)** — use `context-mode_ctx_execute` for portable filtering/counting.
+
+## Tool selection
+
+1. **MEMORY**: `context-mode_ctx_search(sort: "timeline")` — after resume, check prior context before asking user.
+2. **GATHER**: `context-mode_ctx_batch_execute(commands, queries)` — one call replaces 30+.
+3. **FOLLOW-UP**: `context-mode_ctx_search(queries: ["q1", "q2", ...])` — all questions in one call.
+4. **PROCESSING**: `context-mode_ctx_execute(language, code)` / `context-mode_ctx_execute_file(path, language, code)`.
+5. **WEB**: `context-mode_ctx_fetch_and_index(url, source)` then `context-mode_ctx_search(queries)`.
+6. **INDEX**: `context-mode_ctx_index(content, source)` — store in FTS5 for later search.
+
+## Parallel I/O batches
+
+For multi-URL fetches or multi-API calls, include `concurrency: N` (1-8). Use concurrency 4-8 for I/O-bound work, keep 1 for CPU-bound or shared-state commands. GitHub API: cap at 4.
+
+## Output
+
+Write artifacts to FILES — never inline. Return: file path + 1-line description. Use descriptive source labels for `search(source: "label")`.
+
+## Memory
+
+Session history is persistent and searchable. On resume, search BEFORE asking the user. Do NOT ask "what were we working on?" — search first. If search returns 0 results, proceed as a fresh session.

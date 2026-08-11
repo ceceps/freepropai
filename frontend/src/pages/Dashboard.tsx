@@ -25,8 +25,8 @@ function StatCard({ title, value, change, changeType = 'neutral', icon, iconColo
     >
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm font-medium text-text-secondary dark:text-text-secondary-dark mb-1">{title}</p>
-          <p className="text-3xl font-bold text-text-primary dark:text-text-primary-dark mb-2">{value}</p>
+          <p className="text-sm font-medium text-text-secondary mb-1">{title}</p>
+          <p className="text-3xl font-bold text-text-primary mb-2">{value}</p>
           {change && (
             <div className="flex items-center gap-1">
               <span className={`text-sm font-medium ${
@@ -38,7 +38,7 @@ function StatCard({ title, value, change, changeType = 'neutral', icon, iconColo
                 {changeType === 'negative' && <ArrowUpRight className="w-3.5 h-3.5 rotate-180" />}
                 {change}
               </span>
-              <span className="text-xs text-text-tertiary dark:text-text-tertiary-dark">vs last month</span>
+              <span className="text-xs text-text-tertiary">vs last month</span>
             </div>
           )}
         </div>

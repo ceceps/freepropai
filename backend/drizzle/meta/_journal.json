@@ -36,6 +36,13 @@
       "when": 1786417273528,
       "tag": "0004_windy_roughhouse",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786468811167,
+      "tag": "0005_quick_proteus",
+      "breakpoints": true
     }
   ]
 }

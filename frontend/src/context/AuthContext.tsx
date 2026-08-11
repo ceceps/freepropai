@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import api, { authApi } from '../services/api';
-import type { AuthState, AuthResponse, LoginCredentials, RegisterData, ApiResponse } from '../types';
+import type { AuthState, AuthResponse, LoginCredentials, RegisterData, ApiResponse, User } from '../types';
 
 interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<void>;
@@ -8,6 +8,7 @@ interface AuthContextType extends AuthState {
   logout: () => Promise<void>;
   refreshAccessToken: () => Promise<string | null>;
   loadUser: () => Promise<void>;
+  updateProfile: (data: { name: string; email: string; phone?: string; location?: string; avatarUrl?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -120,8 +121,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return null;
   };
 
+  const updateProfile = async (data: { name: string; email: string; phone?: string; location?: string; avatarUrl?: string }) => {
+    const token = localStorage.getItem(STORAGE_KEY);
+    if (!token) throw new Error('Not authenticated');
+    
+    const response = await api.put<ApiResponse<{ user: User }>>('/auth/profile', data, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    
+    const userData = response.data.data?.user;
+    if (response.data.success && userData) {
+      setState(s => ({ ...s, user: userData }));
+    } else {
+      throw new Error(response.data.error || 'Failed to update profile');
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, refreshAccessToken, loadUser }}>
+    <AuthContext.Provider value={{ ...state, login, register, logout, refreshAccessToken, loadUser, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

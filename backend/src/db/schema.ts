@@ -8,6 +8,7 @@ export const users = pgTable('users', {
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
   name: varchar('name', { length: 255 }).notNull(),
   phone: varchar('phone', { length: 50 }),
+  location: varchar('location', { length: 255 }),
   role: varchar('role', { length: 50 }).notNull().default('solo_agent'),
   regionScope: varchar('region_scope', { length: 255 }),
   avatarUrl: varchar('avatar_url', { length: 500 }),
