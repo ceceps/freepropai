@@ -1,5 +1,5 @@
 {
-  "id": "2c4e13a0-98e8-43b6-a8f2-ac2490874c7a",
+  "id": "788afde6-233b-4251-a5c0-e23ca6514dc8",
   "prevId": "bc2412a3-3947-40e7-aa64-d2869ea20ac8",
   "version": "7",
   "dialect": "postgresql",
@@ -452,18 +452,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "region": {
-          "name": "region",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source_url": {
-          "name": "source_url",
-          "type": "varchar(500)",
-          "primaryKey": false,
-          "notNull": false
-        },
         "additional_info": {
           "name": "additional_info",
           "type": "text",
@@ -606,12 +594,6 @@
         },
         "property_type": {
           "name": "property_type",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "region": {
-          "name": "region",
           "type": "varchar(100)",
           "primaryKey": false,
           "notNull": false
