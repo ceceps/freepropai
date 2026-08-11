@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "real-estate-expert": {
+      "source": "personamanagmentlayer/pcl",
+      "sourceType": "github",
+      "skillPath": "stdlib/domains/real-estate-expert/SKILL.md",
+      "computedHash": "47cf88cf1835a5e7da3e9868ba50e52d865f5d3e60541227e4c5fad3ed0f65d0"
+    }
+  }
+}
