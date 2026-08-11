@@ -403,7 +403,7 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
                   return (
                     <div key={photo.id} className={`relative group border-2 rounded-xl overflow-hidden ${isFeatured ? 'border-yellow-500 ring-2 ring-yellow-400' : 'border-border dark:border-border-dark'}`}>
                       <img
-                        src={`http://localhost:3001${photo.url}`}
+                        src={photo.url}
                         alt="Property"
                         className="w-full h-32 object-cover"
                         onError={(e) => {

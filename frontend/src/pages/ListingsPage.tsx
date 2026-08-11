@@ -323,13 +323,7 @@ export default function ListingsPage() {
                     {/* Listing Image with Shimmer Loading */}
                     <div className="relative h-40 bg-gradient-to-br from-primary-100 to-yellow-100 dark:from-primary-900/30 dark:to-yellow-900/30">
                       <ListingImage
-                        src={
-                          listing.thumbnailUrl
-                            ? `http://localhost:3001${listing.thumbnailUrl}`
-                            : listing.photos?.[0]
-                              ? `http://localhost:3001${listing.photos[0].photo_url}`
-                              : null
-                        }
+                        src={listing.thumbnailUrl || listing.photos?.[0]?.photo_url || null}
                         alt={listing.title}
                       />
                       <div className="absolute top-3 right-3">
@@ -428,7 +422,7 @@ export default function ListingsPage() {
             {selectedListing.photos.length > 0 && (
               <div className="relative h-64 md:h-80 lg:h-96">
                 <img
-                  src={`http://localhost:3001${selectedListing.photos.find(p => p.is_featured)?.photo_url || selectedListing.photos[0].photo_url}`}
+                  src={selectedListing.photos.find(p => p.is_featured)?.photo_url || selectedListing.photos[0].photo_url}
                   alt={selectedListing.title}
                   className="w-full h-full object-cover"
                 />
@@ -523,7 +517,7 @@ export default function ListingsPage() {
                 {selectedListing.photos.map((photo, idx) => (
                   <div key={photo.id} className={`relative rounded-lg overflow-hidden border-2 ${photo.is_featured ? 'border-yellow-400 ring-2 ring-yellow-300' : 'border-border dark:border-border-dark'}`}>
                     <img
-                      src={`http://localhost:3001${photo.photo_url}`}
+                      src={photo.photo_url}
                       alt={`Photo ${idx + 1}`}
                       className="w-full h-36 object-cover"
                       onError={(e) => {
