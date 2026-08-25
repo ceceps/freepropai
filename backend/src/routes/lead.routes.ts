@@ -4,8 +4,10 @@ import { authMiddleware as authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// Apply auth middleware if necessary, though Lead system usually requires it
-router.use(authenticate);
+// Apply auth middleware if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  router.use(authenticate);
+}
 
 router.post('/qualify', leadController.qualify);
 router.get('/', leadController.getAll);

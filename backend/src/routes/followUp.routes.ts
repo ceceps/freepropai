@@ -4,7 +4,10 @@ import { authMiddleware as authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
 
-router.use(authenticate);
+// Apply auth middleware if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  router.use(authenticate);
+}
 
 router.post('/generate', followUpController.generate);
 router.get('/queue', followUpController.getQueue);

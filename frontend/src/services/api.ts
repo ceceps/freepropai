@@ -117,14 +117,14 @@ export const listingApi = {
     // Append listing data
     formData.append('title', data.title);
     formData.append('location', data.location);
-    formData.append('price', data.price.toString());
+    formData.append('price', String(data.price));
     
-    if (data.landArea) formData.append('landArea', data.landArea.toString());
-    if (data.buildingArea) formData.append('buildingArea', data.buildingArea.toString());
-    if (data.bedrooms) formData.append('bedrooms', data.bedrooms.toString());
-    if (data.bathrooms) formData.append('bathrooms', data.bathrooms.toString());
-    if (data.propertyType) formData.append('propertyType', data.propertyType);
-    if (data.additionalInfo) formData.append('additionalInfo', data.additionalInfo);
+    if (data.landArea !== undefined && data.landArea !== null) formData.append('landArea', String(data.landArea));
+    if (data.buildingArea !== undefined && data.buildingArea !== null) formData.append('buildingArea', String(data.buildingArea));
+    if (data.bedrooms !== undefined && data.bedrooms !== null) formData.append('bedrooms', String(data.bedrooms));
+    if (data.bathrooms !== undefined && data.bathrooms !== null) formData.append('bathrooms', String(data.bathrooms));
+    if (data.propertyType !== undefined && data.propertyType !== null) formData.append('propertyType', data.propertyType);
+    if (data.additionalInfo !== undefined && data.additionalInfo !== null) formData.append('additionalInfo', data.additionalInfo);
     
     // Append photos
     if (photos && photos.length > 0) {
@@ -159,18 +159,18 @@ export const listingApi = {
   async update(id: string, data: Partial<CreateListingData>, photos?: File[]): Promise<ApiResponse<ListingWithDetails>> {
     const formData = new FormData();
 
-    if (data.title !== undefined) formData.append('title', data.title);
-    if (data.location !== undefined) formData.append('location', data.location);
-    if (data.price !== undefined) formData.append('price', data.price.toString());
+    if (data.title !== undefined && data.title !== null) formData.append('title', data.title);
+    if (data.location !== undefined && data.location !== null) formData.append('location', data.location);
+    if (data.price !== undefined && data.price !== null) formData.append('price', String(data.price));
 
-    if (data.landArea !== undefined) formData.append('landArea', data.landArea.toString());
-    if (data.buildingArea !== undefined) formData.append('buildingArea', data.buildingArea.toString());
-    if (data.bedrooms !== undefined) formData.append('bedrooms', data.bedrooms.toString());
-    if (data.bathrooms !== undefined) formData.append('bathrooms', data.bathrooms.toString());
-    if (data.propertyType !== undefined) formData.append('propertyType', data.propertyType);
-    if (data.additionalInfo !== undefined) formData.append('additionalInfo', data.additionalInfo);
+    if (data.landArea !== undefined && data.landArea !== null) formData.append('landArea', String(data.landArea));
+    if (data.buildingArea !== undefined && data.buildingArea !== null) formData.append('buildingArea', String(data.buildingArea));
+    if (data.bedrooms !== undefined && data.bedrooms !== null) formData.append('bedrooms', String(data.bedrooms));
+    if (data.bathrooms !== undefined && data.bathrooms !== null) formData.append('bathrooms', String(data.bathrooms));
+    if (data.propertyType !== undefined && data.propertyType !== null) formData.append('propertyType', data.propertyType);
+    if (data.additionalInfo !== undefined && data.additionalInfo !== null) formData.append('additionalInfo', data.additionalInfo);
     if (data.featuredPhotoId) formData.append('featuredPhotoId', data.featuredPhotoId);
-    if (data.featuredPhotoIndex !== undefined) formData.append('featuredPhotoIndex', data.featuredPhotoIndex.toString());
+    if (data.featuredPhotoIndex !== undefined && data.featuredPhotoIndex !== null) formData.append('featuredPhotoIndex', String(data.featuredPhotoIndex));
 
     if (photos && photos.length > 0) {
       photos.forEach((photo) => {

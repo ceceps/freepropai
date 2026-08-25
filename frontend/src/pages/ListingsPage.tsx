@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin, Download, Check, Info, FileText, Video, Copy } from 'lucide-react';
+import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin, Download, Check, Info, Video, Copy } from 'lucide-react';
 import { listingApi } from '../services/api';
 import ListingForm from '../components/listings/ListingForm';
 import DescriptionVariants from '../components/listings/DescriptionVariants';

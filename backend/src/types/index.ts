@@ -92,6 +92,22 @@ export interface LeadQualifyResponse {
   reasoning: string;
 }
 
+// Lead CRUD request
+export interface CreateLeadRequest {
+  name: string;
+  phone: string;
+  budgetMin?: number;
+  budgetMax?: number;
+  location?: string;
+  unitType?: string;
+  urgency?: 'immediate' | 'soon' | 'flexible';
+  score?: 'Hot' | 'Warm' | 'Cold';
+  rawChatText?: string;
+  lastContactAt?: Date;
+  status?: string;
+  notes?: string;
+}
+
 // Follow-up Types
 export interface FollowUp {
   id: string;
@@ -112,9 +128,28 @@ export interface FollowUpWithLead extends FollowUp {
   lead: {
     id: string;
     name: string;
+    phone: string;
     score: string;
+    unit_type?: string;
+    location?: string;
     last_contact_at?: Date;
   };
+}
+
+export interface CreateFollowUpRequest {
+  leadId: string;
+  messageDraft: string;
+  scheduledFor: Date;
+}
+
+export interface GenerateFollowUpsRequest {
+  leadId: string;
+}
+
+export interface FollowUpDraft {
+  messageDraft: string;
+  scheduledInHours: number;
+  tone?: string;
 }
 
 // Listing Types
