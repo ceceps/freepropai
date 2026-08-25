@@ -121,45 +121,45 @@ export default function ScrapingPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'text-green-600 bg-green-50';
-      case 'running': return 'text-blue-600 bg-blue-50';
-      case 'failed': return 'text-red-600 bg-red-50';
-      default: return 'text-gray-600 bg-gray-50';
+      case 'completed': return 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800';
+      case 'running': return 'text-blue-700 bg-blue-50 dark:text-blue-300 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800';
+      case 'failed': return 'text-red-700 bg-red-50 dark:text-red-300 dark:bg-red-950/50 border border-red-200 dark:border-red-800';
+      default: return 'text-text-secondary bg-grey-100 dark:bg-grey-800 border border-border';
     }
   };
 
   const getImportStatusColor = (status: string) => {
     switch (status) {
-      case 'imported': return 'text-green-600 bg-green-50';
-      case 'pending': return 'text-yellow-600 bg-yellow-50';
-      case 'skipped': return 'text-gray-600 bg-gray-50';
-      case 'failed': return 'text-red-600 bg-red-50';
-      default: return 'text-gray-600 bg-gray-50';
+      case 'imported': return 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800';
+      case 'pending': return 'text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800';
+      case 'skipped': return 'text-text-secondary bg-grey-100 dark:bg-grey-800 border border-border';
+      case 'failed': return 'text-red-700 bg-red-50 dark:text-red-300 dark:bg-red-950/50 border border-red-200 dark:border-red-800';
+      default: return 'text-text-secondary bg-grey-100 dark:bg-grey-800 border border-border';
     }
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">Property Scraping</h1>
+    <div className="container mx-auto px-4 py-8 space-y-8 animate-fade-in">
+      <h1 className="text-3xl font-bold text-text-primary">Property Scraping</h1>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
+        <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg">
           {error}
         </div>
       )}
 
       {/* Scraping Form */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <h2 className="text-xl font-semibold mb-4">Start New Scraping Job</h2>
+      <div className="card p-6">
+        <h2 className="text-xl font-semibold mb-4 text-text-primary">Start New Scraping Job</h2>
         <form onSubmit={handleStartScraping} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="input-label">
               Source Website
             </label>
             <select
               value={sourceName}
               onChange={(e) => setSourceName(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="input"
             >
               <option value="acehome">Acehome.com</option>
               <option value="rumah123" disabled>Rumah123 (Coming Soon)</option>
@@ -168,7 +168,7 @@ export default function ScrapingPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="input-label">
               URL to Scrape
             </label>
             <input
@@ -176,13 +176,13 @@ export default function ScrapingPage() {
               value={sourceUrl}
               onChange={(e) => setSourceUrl(e.target.value)}
               placeholder="https://www.acehome.co.id/?reg=BBR&kat=rumah"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="input"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="input-label">
               Max Pages to Scrape
             </label>
             <input
@@ -191,14 +191,14 @@ export default function ScrapingPage() {
               onChange={(e) => setMaxPages(parseInt(e.target.value))}
               min="1"
               max="20"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="input"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+            className="btn btn-primary w-full py-3"
           >
             {loading ? 'Starting...' : 'Start Scraping'}
           </button>
@@ -206,39 +206,41 @@ export default function ScrapingPage() {
       </div>
 
       {/* Jobs List */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+      <div className="card p-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Scraping Jobs</h2>
+          <h2 className="text-xl font-semibold text-text-primary">Scraping Jobs</h2>
           <button
             onClick={fetchJobs}
-            className="text-blue-600 hover:text-blue-700 font-medium"
+            className="btn btn-ghost text-primary-600 hover:text-primary-700 font-medium"
           >
             Refresh
           </button>
         </div>
 
         {jobs.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">No scraping jobs yet</p>
+          <p className="text-text-tertiary text-center py-8">No scraping jobs yet</p>
         ) : (
           <div className="space-y-3">
             {jobs.map((job) => (
               <div
                 key={job.id}
                 onClick={() => setSelectedJob(job)}
-                className={`p-4 border rounded-lg cursor-pointer hover:border-blue-500 transition ${
-                  selectedJob?.id === job.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                className={`p-4 border rounded-lg cursor-pointer transition ${
+                  selectedJob?.id === job.id 
+                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-950/30' 
+                    : 'border-border hover:border-primary-400'
                 }`}
               >
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex-1">
-                    <p className="font-medium text-gray-900">{job.sourceName}</p>
-                    <p className="text-sm text-gray-600 truncate">{job.sourceUrl}</p>
+                    <p className="font-medium text-text-primary">{job.sourceName}</p>
+                    <p className="text-sm text-text-secondary truncate">{job.sourceUrl}</p>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(job.status)}`}>
                     {job.status}
                   </span>
                 </div>
-                <div className="flex gap-4 text-sm text-gray-600">
+                <div className="flex gap-4 text-sm text-text-tertiary">
                   <span>Found: {job.totalListingsFound}</span>
                   <span>Imported: {job.totalListingsImported}</span>
                   <span>{new Date(job.createdAt).toLocaleDateString()}</span>
@@ -251,17 +253,17 @@ export default function ScrapingPage() {
 
       {/* Scraped Listings */}
       {selectedJob && (
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4">
+        <div className="card p-6">
+          <h2 className="text-xl font-semibold mb-4 text-text-primary">
             Scraped Listings ({scrapedListings.length})
           </h2>
 
           {scrapedListings.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No listings found</p>
+            <p className="text-text-tertiary text-center py-8">No listings found</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {scrapedListings.map((listing) => (
-                <div key={listing.id} className="border rounded-lg overflow-hidden">
+                <div key={listing.id} className="border border-border rounded-lg overflow-hidden bg-surface">
                   {listing.imageUrls && listing.imageUrls.length > 0 && (
                     <ZoomableImage
                       src={listing.imageUrls[0]}
@@ -270,50 +272,50 @@ export default function ScrapingPage() {
                       downloadName={`scraped-${listing.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 30) || 'property'}.jpg`}
                     />
                   )}
-                  <div className="p-4">
-                    <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
+                  <div className="p-4 space-y-2">
+                    <h3 className="font-semibold text-text-primary line-clamp-2">
                       {listing.title}
                     </h3>
-                    <p className="text-sm text-gray-600 mb-2">{listing.location}</p>
+                    <p className="text-sm text-text-secondary">{listing.location}</p>
                     {(listing.propertyType || listing.region) && (
-                      <div className="flex flex-wrap gap-2 mb-2">
+                      <div className="flex flex-wrap gap-2">
                         {listing.propertyType && (
-                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 capitalize">{listing.propertyType}</span>
+                          <span className="badge badge-primary capitalize">{listing.propertyType}</span>
                         )}
                         {listing.region && (
-                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">{listing.region}</span>
+                          <span className="badge badge-warning">{listing.region}</span>
                         )}
                       </div>
                     )}
                     {listing.price != null && (
-                      <p className="text-lg font-bold text-blue-600 mb-2">
+                      <p className="text-lg font-bold text-primary-600 dark:text-primary-400">
                         Rp {Number(listing.price).toLocaleString('id-ID')}
                       </p>
                     )}
-                    <div className="flex gap-2 text-sm text-gray-600 mb-3">
+                    <div className="flex gap-2 text-sm text-text-tertiary">
                       {listing.bedrooms && <span>{listing.bedrooms} KT</span>}
                       {listing.bathrooms && <span>{listing.bathrooms} KM</span>}
                       {listing.landArea && <span>{listing.landArea}m²</span>}
                     </div>
                     
-                    <div className="mb-3">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${getImportStatusColor(listing.importStatus)}`}>
+                    <div className="pt-2">
+                      <span className={`px-2.5 py-1 rounded-md text-xs font-medium ${getImportStatusColor(listing.importStatus)}`}>
                         {listing.importStatus}
                       </span>
                     </div>
 
                     {listing.importStatus === 'pending' && (
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 pt-2">
                         <button
                           onClick={() => handleImportListing(listing.id)}
                           disabled={loading}
-                          className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:bg-gray-400 text-sm font-medium"
+                          className="btn btn-success btn-sm flex-1"
                         >
                           Import
                         </button>
                         <button
                           onClick={() => handleSkipListing(listing.id)}
-                          className="flex-1 bg-gray-200 text-gray-700 py-2 rounded hover:bg-gray-300 text-sm font-medium"
+                          className="btn btn-secondary btn-sm flex-1"
                         >
                           Skip
                         </button>

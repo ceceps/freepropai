@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin, Download, Check } from 'lucide-react';
+import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin, Download, Check, Info, FileText, Video, Copy } from 'lucide-react';
 import { listingApi } from '../services/api';
 import ListingForm from '../components/listings/ListingForm';
 import DescriptionVariants from '../components/listings/DescriptionVariants';
@@ -11,6 +11,31 @@ type View = 'list' | 'create' | 'detail' | 'edit';
 
 export default function ListingsPage() {
   const [view, setView] = useState<View>('list');
+  const [activeTab, setActiveTab] = useState<'info' | 'ai' | 'video'>('info');
+  const [videoScript, setVideoScript] = useState<string | null>(null);
+  const [isVideoGenerating, setIsVideoGenerating] = useState(false);
+
+  const handleGenerateVideoScript = async () => {
+    if (!selectedListing) return;
+    if (selectedListing.photos.length === 0) {
+      alert('Property must have at least one photo to generate a video script.');
+      return;
+    }
+
+    try {
+      setIsVideoGenerating(true);
+      setError(null);
+      const response = await listingApi.generateVideoScript(selectedListing.id);
+      if (response.success && response.data) {
+        setVideoScript(response.data.script);
+      }
+    } catch (err: any) {
+      console.error('Failed to generate video script:', err);
+      setError('Failed to generate video script');
+    } finally {
+      setIsVideoGenerating(false);
+    }
+  };
   const [listings, setListings] = useState<ListingSummary[]>([]);
   const [selectedListing, setSelectedListing] = useState<ListingWithDetails | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -552,106 +577,192 @@ export default function ListingsPage() {
             )}
           </div>
 
-          {/* Photo Gallery */}
-          <div className="card p-4">
-            <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-              <h4 className="text-large font-semibold text-text-primary dark:text-text-primary-dark">Photos ({selectedListing.photos.length})</h4>
-              <div className="flex items-center gap-2">
-                {selectedListing.photos.length > 0 && (
-                  <button
-                    onClick={toggleSelectAllPhotos}
-                    className="btn btn-ghost btn-sm flex items-center gap-1"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    {selectedPhotoIds.size === selectedListing.photos.length ? 'Deselect All' : 'Select All'}
-                  </button>
-                )}
+          {/* TABS NAVIGATION */}
+          <div className="card">
+            <div className="border-b border-border">
+              <nav className="flex gap-1 p-1">
                 <button
-                  onClick={downloadSelectedPhotos}
-                  disabled={selectedPhotoIds.size === 0}
-                  className="btn btn-primary btn-sm flex items-center gap-1"
+                  onClick={() => setActiveTab('info')}
+                  className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === 'info'
+                      ? 'bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 shadow-sm'
+                      : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50'
+                  }`}
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  Download Selected ({selectedPhotoIds.size})
+                  <Info className="w-4 h-4" /> Info
                 </button>
                 <button
-                  onClick={() => handleEditListing(selectedListing.id)}
-                  className="btn btn-secondary btn-sm flex items-center gap-1"
+                  onClick={() => setActiveTab('ai')}
+                  className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === 'ai'
+                      ? 'bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 shadow-sm'
+                      : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50'
+                  }`}
                 >
-                  <Upload className="w-3.5 h-3.5" />
-                  Manage
+                  <Sparkles className="w-4 h-4" /> AI Generated
                 </button>
-              </div>
+                <button
+                  onClick={() => setActiveTab('video')}
+                  className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === 'video'
+                      ? 'bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 shadow-sm'
+                      : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50'
+                  }`}
+                >
+                  <Video className="w-4 h-4" /> AI Video Prompt
+                </button>
+              </nav>
             </div>
-            {selectedListing.photos.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {selectedListing.photos.map((photo, idx) => (
-                  <ZoomableImage
-                    key={photo.id}
-                    src={photo.photo_url}
-                    alt={`Photo ${idx + 1}`}
-                    className={`relative rounded-lg overflow-hidden border-2 h-36 ${photo.is_featured ? 'border-yellow-400 ring-2 ring-yellow-300' : 'border-border dark:border-border-dark'}`}
-                    selectable
-                    selected={selectedPhotoIds.has(photo.id)}
-                    onToggleSelect={() => togglePhotoSelection(photo.id)}
-                    downloadName={`${selectedListing.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 30) || 'property'}-${idx + 1}.jpg`}
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"%3E%3Crect fill="%23e5e7eb" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="16" fill="%239ca3af"%3ENo Image%3C/text%3E%3C/svg%3E';
-                    }}
-                  >
-                    {photo.is_featured && (
-                      <div className="absolute top-2 right-2 bg-yellow-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 shadow pointer-events-none">
-                        <Star className="w-3 h-3 fill-white" />
-                        Featured
+
+            <div className="p-6">
+              {activeTab === 'info' && (
+                <div className="space-y-6">
+                  {/* Photo Gallery */}
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap justify-between items-center gap-3">
+                      <h4 className="text-large font-semibold text-text-primary dark:text-text-primary-dark">Photos ({selectedListing.photos.length})</h4>
+                      <div className="flex items-center gap-2">
+                        {selectedListing.photos.length > 0 && (
+                          <button
+                            onClick={toggleSelectAllPhotos}
+                            className="btn btn-ghost btn-sm flex items-center gap-1"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            {selectedPhotoIds.size === selectedListing.photos.length ? 'Deselect All' : 'Select All'}
+                          </button>
+                        )}
+                        <button
+                          onClick={downloadSelectedPhotos}
+                          disabled={selectedPhotoIds.size === 0}
+                          className="btn btn-primary btn-sm flex items-center gap-1"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Download ({selectedPhotoIds.size})
+                        </button>
+                        <button
+                          onClick={() => handleEditListing(selectedListing.id)}
+                          className="btn btn-secondary btn-sm flex items-center gap-1"
+                        >
+                          <Upload className="w-3.5 h-3.5" /> Manage
+                        </button>
+                      </div>
+                    </div>
+                    {selectedListing.photos.length > 0 ? (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {selectedListing.photos.map((photo, idx) => (
+                          <ZoomableImage
+                            key={photo.id}
+                            src={photo.photo_url}
+                            alt={`Photo ${idx + 1}`}
+                            className={`relative rounded-lg overflow-hidden border-2 h-36 ${photo.is_featured ? 'border-yellow-400 ring-2 ring-yellow-300' : 'border-border'}`}
+                            selectable
+                            selected={selectedPhotoIds.has(photo.id)}
+                            onToggleSelect={() => togglePhotoSelection(photo.id)}
+                          >
+                            {photo.is_featured && (
+                              <div className="absolute top-2 right-2 bg-yellow-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 shadow pointer-events-none">
+                                <Star className="w-3 h-3 fill-white" /> Featured
+                              </div>
+                            )}
+                          </ZoomableImage>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-8 border-2 border-dashed border-border rounded-lg text-center">
+                        <Image className="w-12 h-12 text-text-tertiary mx-auto mb-2" />
+                        <p className="text-text-secondary">No photos uploaded</p>
                       </div>
                     )}
-                    <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded pointer-events-none">
-                      #{idx + 1}
+                  </div>
+
+                  {/* Description */}
+                  {selectedListing.additional_info && (
+                    <div className="space-y-3 pt-6 border-t border-border">
+                      <h4 className="text-large font-semibold text-text-primary">Detailed Information</h4>
+                      <p className="text-md text-text-secondary leading-relaxed whitespace-pre-wrap">{selectedListing.additional_info}</p>
                     </div>
-                  </ZoomableImage>
-                ))}
-              </div>
-            ) : (
-              <div className="p-8 border-2 border-dashed border-border dark:border-border-dark rounded-lg text-center">
-                <Image className="w-12 h-12 text-text-tertiary dark:text-text-tertiary-dark mx-auto mb-2" />
-                <p className="text-text-secondary dark:text-text-secondary-dark">No photos uploaded</p>
-              </div>
-            )}
-          </div>
+                  )}
+                </div>
+              )}
 
-          {/* Description */}
-          {selectedListing.additional_info && (
-            <div className="card p-4">
-              <h4 className="text-large font-semibold text-text-primary dark:text-text-primary-dark mb-3">Additional Information</h4>
-              <p className="text-md text-text-secondary dark:text-text-secondary-dark leading-relaxed whitespace-pre-wrap">{selectedListing.additional_info}</p>
-            </div>
-          )}
+              {activeTab === 'ai' && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-large font-semibold text-text-primary">AI-Generated Descriptions</h4>
+                    {selectedListing.descriptions.length === 0 && (
+                      <button
+                        onClick={handleGenerateDescriptions}
+                        disabled={isGenerating}
+                        className="btn btn-primary flex items-center gap-2"
+                      >
+                        <Sparkles className="w-5 h-5" />
+                        <span>{isGenerating ? 'Generating...' : 'Generate Descriptions'}</span>
+                      </button>
+                    )}
+                  </div>
+                  <DescriptionVariants
+                    descriptions={selectedListing.descriptions}
+                    onSelect={handleSelectDescription}
+                    isGenerating={isGenerating}
+                  />
+                </div>
+              )}
 
-          {/* AI Descriptions */}
-          <div className="card p-4">
-            <div className="flex justify-between items-center mb-4">
-              <h4 className="text-large font-semibold text-text-primary dark:text-text-primary-dark">AI-Generated Descriptions</h4>
-              {selectedListing.descriptions.length === 0 && (
-                <button
-                  onClick={handleGenerateDescriptions}
-                  disabled={isGenerating}
-                  className="btn btn-primary flex items-center gap-2"
-                >
-                  <Sparkles className="w-5 h-5" />
-                  <span>{isGenerating ? 'Generating...' : 'Generate Descriptions'}</span>
-                </button>
+               {activeTab === 'video' && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-large font-semibold text-text-primary">AI Video Prompt (Google Flow / Runway Ready)</h4>
+                    <button
+                      onClick={handleGenerateVideoScript}
+                      disabled={isVideoGenerating || selectedListing.photos.length === 0}
+                      className="btn btn-primary flex items-center gap-2"
+                    >
+                      <Video className="w-5 h-5" />
+                      <span>{isVideoGenerating ? 'Generating Prompt...' : 'Generate Video Prompt'}</span>
+                    </button>
+                  </div>
+
+                  {selectedListing.photos.length === 0 && (
+                    <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 p-4 rounded-lg flex items-start gap-3">
+                      <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm">Video prompt creation requires at least one property photo for visual reference.</p>
+                    </div>
+                  )}
+
+                  {videoScript ? (
+                    <div className="space-y-4">
+                      <div className="relative bg-grey-50 dark:bg-grey-900/40 border border-border p-6 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap">
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(videoScript);
+                            alert('Copied prompt to clipboard!');
+                          }}
+                          className="absolute top-4 right-4 p-2 bg-surface border border-border rounded-lg hover:bg-grey-100 transition-colors flex items-center gap-1.5 text-xs font-sans font-medium"
+                          title="Copy prompt"
+                        >
+                          <Copy className="w-4 h-4" />
+                          <span>Copy Prompt</span>
+                        </button>
+                        {videoScript}
+                      </div>
+                      <p className="text-xs text-text-tertiary">
+                        *This prompt is optimized for text-to-video tools like Google Vids, Runway Gen-2, Pika, and Sora.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-12 text-center border-2 border-dashed border-border rounded-xl">
+                      <Video className="w-12 h-12 text-text-tertiary mx-auto mb-4 opacity-50" />
+                      <p className="text-text-secondary mb-2">No prompt generated yet.</p>
+                      <p className="text-sm text-text-tertiary">Click the button above to generate a ready-to-use AI Video prompt for Google Flow/Vids or Runway.</p>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
-            <DescriptionVariants
-              descriptions={selectedListing.descriptions}
-              onSelect={handleSelectDescription}
-              isGenerating={isGenerating}
-            />
           </div>
 
           {/* Action bar */}
-          <div className="flex gap-3 justify-end">
+          <div className="flex gap-3 justify-end pt-4">
             <button
               onClick={() => handleEditListing(selectedListing.id)}
               className="btn btn-secondary flex items-center gap-2"

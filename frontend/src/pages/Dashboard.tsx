@@ -77,12 +77,12 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'listings' | 'leads'>('overview');
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-8 animate-fade-in p-4 sm:p-6 lg:p-8">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-text-primary dark:text-text-primary-dark">Dashboard</h1>
-            <p className="text-text-secondary dark:text-text-secondary-dark mt-1">
+            <h1 className="text-3xl font-bold text-text-primary">Dashboard</h1>
+            <p className="text-text-secondary mt-1">
               Welcome back! Here&apos;s what&apos;s happening with your properties today.
             </p>
           </div>
@@ -107,7 +107,7 @@ export default function Dashboard() {
             changeType="positive"
             icon={<Users className="w-6 h-6" />}
             iconColor="text-primary-600 dark:text-primary-400"
-            bgColor="bg-primary-100 dark:bg-primary-900/30"
+            bgColor="bg-primary-50 dark:bg-primary-950/30"
             href="/leads"
           />
           <StatCard
@@ -116,8 +116,8 @@ export default function Dashboard() {
             change="+3"
             changeType="positive"
             icon={<Home className="w-6 h-6" />}
-            iconColor="text-green-600 dark:text-green-400"
-            bgColor="bg-green-100 dark:bg-green-900/30"
+            iconColor="text-emerald-600 dark:text-emerald-400"
+            bgColor="bg-emerald-50 dark:bg-emerald-950/30"
             href="/listings"
           />
           <StatCard
@@ -126,8 +126,8 @@ export default function Dashboard() {
             change="-5"
             changeType="positive"
             icon={<MessageSquare className="w-6 h-6" />}
-            iconColor="text-yellow-600 dark:text-yellow-400"
-            bgColor="bg-yellow-100 dark:bg-yellow-900/30"
+            iconColor="text-amber-600 dark:text-amber-400"
+            bgColor="bg-amber-50 dark:bg-amber-950/30"
             href="/followups"
           />
           <StatCard
@@ -136,14 +136,14 @@ export default function Dashboard() {
             change="+2.1%"
             changeType="positive"
             icon={<TrendingUp className="w-6 h-6" />}
-            iconColor="text-purple-600 dark:text-purple-400"
-            bgColor="bg-purple-100 dark:bg-purple-900/30"
+            iconColor="text-indigo-600 dark:text-indigo-400"
+            bgColor="bg-indigo-50 dark:bg-indigo-950/30"
           />
         </div>
 
         {/* Tabs */}
         <div className="card">
-          <div className="border-b border-border dark:border-border-dark">
+          <div className="border-b border-border">
             <nav className="flex gap-1 p-1" aria-label="Dashboard tabs">
               {[
                 { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -157,8 +157,8 @@ export default function Dashboard() {
                     onClick={() => setActiveTab(tab.id as typeof activeTab)}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                       activeTab === tab.id
-                        ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 shadow-sm'
-                        : 'text-text-secondary dark:text-text-secondary-dark hover:bg-accent dark:hover:bg-accent-dark hover:text-text-primary dark:hover:text-text-primary-dark'
+                        ? 'bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 shadow-sm'
+                        : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50 hover:text-text-primary'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -171,11 +171,11 @@ export default function Dashboard() {
 
           <div className="p-6">
             {activeTab === 'overview' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Recent Activity */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-text-primary dark:text-text-primary-dark">Recent Activity</h3>
+                    <h3 className="text-lg font-semibold text-text-primary">Recent Activity</h3>
                     <Link to="/activity" className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">
                       View all
                     </Link>
@@ -184,13 +184,13 @@ export default function Dashboard() {
                     {recentActivity.map((activity) => (
                       <div
                         key={activity.id}
-                        className="flex items-start gap-4 p-4 bg-accent/50 dark:bg-accent-dark/50 rounded-xl hover:bg-accent dark:hover:bg-accent-dark transition-colors"
+                        className="flex items-start gap-4 p-4 border border-border bg-surface hover:bg-grey-50 dark:hover:bg-grey-800/30 rounded-xl transition-colors"
                       >
                         <div className={`p-2 rounded-lg flex-shrink-0 ${
-                          activity.type === 'lead' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' :
-                          activity.type === 'followup' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400' :
-                          activity.type === 'listing' ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' :
-                          'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                          activity.type === 'lead' ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400' :
+                          activity.type === 'followup' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400' :
+                          activity.type === 'listing' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400' :
+                          'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400'
                         }`}>
                           {activity.type === 'lead' && <Users className="w-4 h-4" />}
                           {activity.type === 'followup' && <MessageSquare className="w-4 h-4" />}
@@ -198,19 +198,19 @@ export default function Dashboard() {
                           {activity.type === 'system' && <Activity className="w-4 h-4" />}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-text-primary dark:text-text-primary-dark">{activity.title}</p>
-                          <p className="text-sm text-text-secondary dark:text-text-secondary-dark mt-0.5">{activity.description}</p>
+                          <p className="text-sm font-medium text-text-primary">{activity.title}</p>
+                          <p className="text-sm text-text-secondary mt-0.5">{activity.description}</p>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-col items-end gap-2">
                           <span className={`badge ${
                             activity.status === 'new' ? 'badge-primary' :
-                            activity.status === 'pending' ? 'badge-yellow' :
+                            activity.status === 'pending' ? 'badge-warning' :
                             activity.status === 'completed' ? 'badge-success' :
                             'badge-danger'
                           }`}>
                             {activity.status.charAt(0).toUpperCase() + activity.status.slice(1)}
                           </span>
-                          <span className="text-xs text-text-tertiary dark:text-text-tertiary-dark whitespace-nowrap">{activity.time}</span>
+                          <span className="text-xs text-text-tertiary whitespace-nowrap">{activity.time}</span>
                         </div>
                       </div>
                     ))}
@@ -220,32 +220,32 @@ export default function Dashboard() {
                 {/* Quick Stats & Charts Placeholder */}
                 <div className="space-y-6">
                   <div>
-                    <h3 className="text-lg font-semibold text-text-primary dark:text-text-primary-dark mb-4">Performance Overview</h3>
-                    <div className="card p-6 h-full">
+                    <h3 className="text-lg font-semibold text-text-primary mb-4">Performance Overview</h3>
+                    <div className="card p-6 h-full bg-grey-50/50 dark:bg-grey-900/20">
                       <div className="grid grid-cols-2 gap-4 mb-6">
-                        <div className="text-center p-4 bg-accent/50 dark:bg-accent-dark/50 rounded-xl">
+                        <div className="text-center p-4 bg-surface border border-border rounded-xl shadow-sm">
                           <p className="text-3xl font-bold text-primary-600 dark:text-primary-400">2,847</p>
-                          <p className="text-sm text-text-secondary dark:text-text-secondary-dark">Total Views</p>
+                          <p className="text-sm text-text-secondary">Total Views</p>
                         </div>
-                        <div className="text-center p-4 bg-accent/50 dark:bg-accent-dark/50 rounded-xl">
-                          <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">156</p>
-                          <p className="text-sm text-text-secondary dark:text-text-secondary-dark">Inquiries</p>
+                        <div className="text-center p-4 bg-surface border border-border rounded-xl shadow-sm">
+                          <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">156</p>
+                          <p className="text-sm text-text-secondary">Inquiries</p>
                         </div>
                       </div>
                       <div className="space-y-3">
                         {[
-                          { label: 'Lead Response Time', value: '< 2 hours', trend: 'Excellent', color: 'text-green-600 dark:text-green-400' },
+                          { label: 'Lead Response Time', value: '< 2 hours', trend: 'Excellent', color: 'text-emerald-600 dark:text-emerald-400' },
                           { label: 'Listing Quality Score', value: '94/100', trend: 'Above Average', color: 'text-blue-600 dark:text-blue-400' },
-                          { label: 'AI Description Usage', value: '78%', trend: 'Increasing', color: 'text-purple-600 dark:text-purple-400' },
-                          { label: 'Mobile Traffic', value: '67%', trend: 'Stable', color: 'text-orange-600 dark:text-orange-400' },
+                          { label: 'AI Description Usage', value: '78%', trend: 'Increasing', color: 'text-indigo-600 dark:text-indigo-400' },
+                          { label: 'Mobile Traffic', value: '67%', trend: 'Stable', color: 'text-amber-600 dark:text-amber-400' },
                         ].map((item, i) => (
-                          <div key={i} className="flex items-center justify-between p-3 bg-accent/30 dark:bg-accent-dark/30 rounded-lg">
+                          <div key={i} className="flex items-center justify-between p-3 border border-border bg-surface rounded-lg">
                             <div>
-                              <p className="text-sm font-medium text-text-primary dark:text-text-primary-dark">{item.label}</p>
-                              <p className="text-xs text-text-tertiary dark:text-text-tertiary-dark">{item.trend}</p>
+                              <p className="text-sm font-medium text-text-primary">{item.label}</p>
+                              <p className="text-xs text-text-tertiary">{item.trend}</p>
                             </div>
                             <div className="text-right">
-                              <p className="text-lg font-bold text-text-primary dark:text-text-primary-dark">{item.value}</p>
+                              <p className="text-lg font-bold text-text-primary">{item.value}</p>
                               <p className={`text-xs font-medium ${item.color}`}>{item.trend}</p>
                             </div>
                           </div>
@@ -255,18 +255,18 @@ export default function Dashboard() {
                   </div>
 
                   {/* AI Insights */}
-                  <div className="card p-6 bg-gradient-to-br from-primary-50 to-yellow-50 dark:from-primary-900/20 dark:to-yellow-900/20 border-primary-200/50 dark:border-primary-800/50">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-lg bg-primary-600 dark:bg-primary-500">
+                  <div className="card p-6 bg-gradient-to-br from-primary-50 to-amber-50 dark:from-primary-900/10 dark:to-amber-900/10 border-primary-100 dark:border-primary-900/30">
+                    <div className="flex items-start gap-4">
+                      <div className="p-2.5 rounded-xl bg-primary-600 dark:bg-primary-500 shadow-lg shadow-primary-500/20">
                         <Zap className="w-5 h-5 text-white" />
                       </div>
                       <div className="flex-1">
-                        <h4 className="font-semibold text-text-primary dark:text-text-primary-dark mb-1">AI Insight</h4>
-                        <p className="text-sm text-text-secondary dark:text-text-secondary-dark mb-3">
-                          Your listings with AI-generated descriptions receive <strong className="text-text-primary dark:text-text-primary-dark">34% more inquiries</strong> on average.
+                        <h4 className="font-bold text-text-primary mb-1">AI Insight</h4>
+                        <p className="text-sm text-text-secondary leading-relaxed mb-4">
+                          Your listings with AI-generated descriptions receive <strong className="text-text-primary font-bold">34% more inquiries</strong> on average.
                           Consider generating descriptions for your 12 listings without AI content.
                         </p>
-                        <button className="btn btn-primary btn-sm">
+                        <button className="btn btn-primary btn-sm shadow-md">
                           <Plus className="w-3.5 h-3.5" />
                           Generate Descriptions
                         </button>
@@ -280,13 +280,13 @@ export default function Dashboard() {
             {activeTab === 'listings' && (
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-1">
                     <input
                       type="search"
                       placeholder="Search listings..."
-                      className="input w-full sm:w-64"
+                      className="input max-w-xs"
                     />
-                    <select className="input w-full sm:w-40">
+                    <select className="input w-40">
                       <option>All Status</option>
                       <option>Active</option>
                       <option>Pending</option>
@@ -303,54 +303,48 @@ export default function Dashboard() {
                   </Link>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="table-container border border-border rounded-xl">
+                  <table className="table">
                     <thead>
-                      <tr className="border-b border-border dark:border-border-dark">
+                      <tr>
                         {['Property', 'Location', 'Price', 'Status', 'Views', 'Inquiries', 'Actions'].map((header, i) => (
-                          <th key={i} className="text-left py-3 px-4 text-xs font-semibold text-text-tertiary dark:text-text-tertiary-dark uppercase tracking-wider">
-                            {header}
-                          </th>
+                          <th key={i}>{header}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border dark:divide-border-dark">
+                    <tbody className="divide-y divide-border">
                       {topListings.map((listing) => (
-                        <tr key={listing.id} className="hover:bg-accent/50 dark:hover:bg-accent-dark/50 transition-colors">
-                          <td className="py-4 px-4">
+                        <tr key={listing.id}>
+                          <td className="py-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-12 h-12 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                              <div className="w-10 h-10 rounded-lg bg-primary-50 dark:bg-primary-950/30 flex items-center justify-center border border-primary-100 dark:border-primary-900/30">
                                 <Home className="w-5 h-5 text-primary-600 dark:text-primary-400" />
                               </div>
                               <div>
-                                <p className="font-medium text-text-primary dark:text-text-primary-dark">{listing.title}</p>
-                                <p className="text-xs text-text-tertiary dark:text-text-tertiary-dark">{listing.id}</p>
+                                <p className="font-bold text-text-primary">{listing.title}</p>
+                                <p className="text-xs text-text-tertiary">{listing.id}</p>
                               </div>
                             </div>
                           </td>
-                          <td className="py-4 px-4 text-sm text-text-secondary dark:text-text-secondary-dark">
-                            <MapPin className="w-3.5 h-3.5 inline mr-1" />
-                            {listing.location}
+                          <td>
+                            <div className="flex items-center gap-1.5 text-text-secondary">
+                              <MapPin className="w-3.5 h-3.5" />
+                              {listing.location}
+                            </div>
                           </td>
-                          <td className="py-4 px-4 text-sm font-medium text-text-primary dark:text-text-primary-dark">{listing.price}</td>
-                          <td className="py-4 px-4">
-                            <span className={`badge ${listing.status === 'Active' ? 'badge-success' : 'badge-yellow'}`}>
+                          <td className="font-bold text-text-primary">{listing.price}</td>
+                          <td>
+                            <span className={`badge ${listing.status === 'Active' ? 'badge-success' : 'badge-warning'}`}>
                               {listing.status}
                             </span>
                           </td>
-                          <td className="py-4 px-4 text-sm text-text-secondary dark:text-text-secondary-dark">{listing.views.toLocaleString()}</td>
-                          <td className="py-4 px-4 text-sm text-text-secondary dark:text-text-secondary-dark">{listing.inquiries}</td>
-                          <td className="py-4 px-4">
-                            <div className="flex items-center gap-2">
-                              <button className="p-2 rounded-lg hover:bg-accent dark:hover:bg-accent-dark transition-colors" title="View">
-                                <Eye className="w-4 h-4 text-text-tertiary dark:text-text-tertiary-dark" />
-                              </button>
-                              <button className="p-2 rounded-lg hover:bg-accent dark:hover:bg-accent-dark transition-colors" title="Edit">
-                                <Edit className="w-4 h-4 text-text-tertiary dark:text-text-tertiary-dark" />
-                              </button>
-                              <button className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors" title="Delete">
-                                <Trash2 className="w-4 h-4 text-red-500" />
-                              </button>
+                          <td className="text-text-secondary">{listing.views.toLocaleString()}</td>
+                          <td className="text-text-secondary">{listing.inquiries}</td>
+                          <td>
+                            <div className="flex items-center gap-1">
+                              <button className="btn btn-ghost btn-icon" title="View"><Eye className="w-4 h-4" /></button>
+                              <button className="btn btn-ghost btn-icon" title="Edit"><Edit className="w-4 h-4" /></button>
+                              <button className="btn btn-ghost btn-icon text-danger-600" title="Delete"><Trash2 className="w-4 h-4" /></button>
                             </div>
                           </td>
                         </tr>
@@ -362,15 +356,15 @@ export default function Dashboard() {
             )}
 
             {activeTab === 'leads' && (
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                  <div className="flex items-center gap-2">
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
+                  <div className="flex items-center gap-2 flex-1">
                     <input
                       type="search"
                       placeholder="Search leads..."
-                      className="input w-full sm:w-64"
+                      className="input max-w-xs"
                     />
-                    <select className="input w-full sm:w-40">
+                    <select className="input w-40">
                       <option>All Status</option>
                       <option>Hot</option>
                       <option>Warm</option>
@@ -383,7 +377,7 @@ export default function Dashboard() {
                   </Link>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[
                     { name: 'John Doe', email: 'john@example.com', phone: '+62 812-3456-7890', status: 'Hot', source: 'Website', lastContact: 'Today', tags: ['Villa', 'Kemang', 'Urgent'] },
                     { name: 'Sarah Wilson', email: 'sarah@company.com', phone: '+62 813-9876-5432', status: 'Warm', source: 'Referral', lastContact: '2 days ago', tags: ['Apartment', 'SCBD'] },
@@ -392,30 +386,30 @@ export default function Dashboard() {
                     { name: 'David Kim', email: 'david.kim@corp.com', phone: '+62 813-7777-8888', status: 'Warm', source: 'Event', lastContact: '3 days ago', tags: ['Commercial', 'Sudirman'] },
                     { name: 'Lisa Tan', email: 'lisa.tan@startup.io', phone: '+62 811-2222-3333', status: 'Hot', source: 'Referral', lastContact: 'Today', tags: ['Condo', 'Kuningan', 'Rental'] },
                   ].map((lead, i) => (
-                    <div key={i} className="card card-hover p-5">
-                      <div className="flex items-start justify-between mb-3">
+                    <div key={i} className="card card-hover p-6 border-border group">
+                      <div className="flex items-start justify-between mb-4">
                         <div>
-                          <p className="font-semibold text-text-primary dark:text-text-primary-dark">{lead.name}</p>
-                          <p className="text-sm text-text-tertiary dark:text-text-tertiary-dark">{lead.email}</p>
+                          <p className="font-bold text-lg text-text-primary">{lead.name}</p>
+                          <p className="text-xs text-text-tertiary font-mono">{lead.email}</p>
                         </div>
-                        <span className={`badge ${lead.status === 'Hot' ? 'badge-danger' : lead.status === 'Warm' ? 'badge-yellow' : 'badge-neutral'}`}>
+                        <span className={`badge ${lead.status === 'Hot' ? 'badge-danger' : lead.status === 'Warm' ? 'badge-warning' : 'badge-secondary'}`}>
                           {lead.status}
                         </span>
                       </div>
-                      <div className="space-y-2 text-sm text-text-secondary dark:text-text-secondary-dark mb-3">
-                        <div className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> {lead.phone}</div>
-                        <div className="flex items-center gap-1"><Tag className="w-3.5 h-3.5" /> {lead.source}</div>
-                        <div className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> Last contact: {lead.lastContact}</div>
+                      <div className="space-y-2.5 text-sm text-text-secondary mb-5">
+                        <div className="flex items-center gap-2.5"><Phone className="w-3.5 h-3.5 text-text-tertiary" /> {lead.phone}</div>
+                        <div className="flex items-center gap-2.5"><Tag className="w-3.5 h-3.5 text-text-tertiary" /> {lead.source}</div>
+                        <div className="flex items-center gap-2.5"><Clock className="w-3.5 h-3.5 text-text-tertiary" /> Last contact: {lead.lastContact}</div>
                       </div>
-                      <div className="flex flex-wrap gap-1 mb-4">
+                      <div className="flex flex-wrap gap-1.5 mb-6">
                         {lead.tags.map((tag, ti) => (
-                          <span key={ti} className="badge badge-primary text-xs">{tag}</span>
+                          <span key={ti} className="px-2 py-0.5 bg-primary-50 dark:bg-primary-950/30 text-primary-700 dark:text-primary-300 text-[10px] font-bold rounded uppercase tracking-wider border border-primary-100 dark:border-primary-900/30">{tag}</span>
                         ))}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button className="btn btn-ghost btn-sm flex-1"><MessageSquare className="w-3.5 h-3.5" /> Message</button>
-                        <button className="btn btn-ghost btn-sm flex-1"><Phone className="w-3.5 h-3.5" /> Call</button>
-                        <button className="btn btn-primary btn-sm flex-1"><ArrowUpRight className="w-3.5 h-3.5" /> Follow-up</button>
+                      <div className="flex items-center gap-2 pt-2 border-t border-border">
+                        <button className="btn btn-ghost btn-sm flex-1 text-xs px-1">Message</button>
+                        <button className="btn btn-ghost btn-sm flex-1 text-xs px-1">Call</button>
+                        <button className="btn btn-primary btn-sm flex-1 text-xs px-1">Follow-up</button>
                       </div>
                     </div>
                   ))}

@@ -63,21 +63,39 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Prevent infinite loops if refresh fails
-    if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/refresh' && originalRequest.url !== '/auth/login') {
-      originalRequest._retry = true;
-      try {
-        const response = await authApi.refresh();
-        if (response.success && response.data?.accessToken) {
-          localStorage.setItem('accessToken', response.data.accessToken);
-          originalRequest.headers.Authorization = `Bearer ${response.data.accessToken}`;
-          return api(originalRequest);
+    // Handle 401 Unauthenticated
+    if (error.response?.status === 401) {
+      // Avoid infinite loop during login/refresh
+      if (originalRequest.url === '/auth/login') {
+        if (error.response?.data?.error) {
+          error.message = error.response.data.error;
         }
-      } catch (refreshError) {
-        // Refresh failed, redirect to login
+        return Promise.reject(error);
+      }
+
+      if (!originalRequest._retry && originalRequest.url !== '/auth/refresh') {
+        originalRequest._retry = true;
+        try {
+          const response = await authApi.refresh();
+          if (response.success && response.data?.accessToken) {
+            localStorage.setItem('accessToken', response.data.accessToken);
+            originalRequest.headers.Authorization = `Bearer ${response.data.accessToken}`;
+            return api(originalRequest);
+          }
+        } catch (refreshError) {
+          // Refresh failed, redirect to login page
+          localStorage.removeItem('accessToken');
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
+          return Promise.reject(refreshError);
+        }
+      } else {
+        // Token is invalid/expired and refresh failed or was already tried
         localStorage.removeItem('accessToken');
-        window.location.href = '/login';
-        return Promise.reject(refreshError);
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
       }
     }
 
@@ -179,6 +197,15 @@ export const listingApi = {
   async generateDescriptions(id: string): Promise<ApiResponse<{ listingId: string; descriptions: ListingDescription[] }>> {
     const response = await api.post<ApiResponse<{ listingId: string; descriptions: ListingDescription[] }>>(
       `/listings/${id}/generate-descriptions`
+    );
+    return response.data;
+  },
+
+  // Generate video script
+  async generateVideoScript(id: string, customInstructions?: string): Promise<ApiResponse<{ listingId: string; script: string }>> {
+    const response = await api.post<ApiResponse<{ listingId: string; script: string }>>(
+      `/listings/${id}/generate-video-script`,
+      { customInstructions }
     );
     return response.data;
   },
