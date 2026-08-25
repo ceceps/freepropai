@@ -1,51 +1,162 @@
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import {
-  Search, Filter, Plus, Phone, Mail,
-  Tag, Clock, Eye, Edit, Trash2, ArrowUpRight
+  Search, Plus, Phone,
+  Clock, Eye, Edit, Trash2, ArrowUpRight,
+  Sparkles, AlertCircle, X
 } from 'lucide-react';
-import { useState } from 'react';
-
-interface Lead {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  status: 'Hot' | 'Warm' | 'Cold';
-  source: string;
-  lastContact: string;
-  tags: string[];
-}
-
-const mockLeads: Lead[] = [
-  { id: 'LD-001', name: 'John Doe', email: 'john@example.com', phone: '+62 812-3456-7890', status: 'Hot', source: 'Website', lastContact: 'Today', tags: ['Villa', 'Kemang', 'Urgent'] },
-  { id: 'LD-002', name: 'Sarah Wilson', email: 'sarah@company.com', phone: '+62 813-9876-5432', status: 'Warm', source: 'Referral', lastContact: '2 days ago', tags: ['Apartment', 'SCBD'] },
-  { id: 'LD-003', name: 'Michael Chen', email: 'mchen@email.com', phone: '+62 811-5555-1234', status: 'Hot', source: 'Social Media', lastContact: 'Yesterday', tags: ['House', 'Pondok Indah', 'Investment'] },
-  { id: 'LD-004', name: 'Emily Park', email: 'emily.park@mail.com', phone: '+62 812-4444-9999', status: 'Cold', source: 'Website', lastContact: '1 week ago', tags: ['Land', 'Bogor'] },
-  { id: 'LD-005', name: 'David Kim', email: 'david.kim@corp.com', phone: '+62 813-7777-8888', status: 'Warm', source: 'Event', lastContact: '3 days ago', tags: ['Commercial', 'Sudirman'] },
-  { id: 'LD-006', name: 'Lisa Tan', email: 'lisa.tan@startup.io', phone: '+62 811-2222-3333', status: 'Hot', source: 'Referral', lastContact: 'Today', tags: ['Condo', 'Kuningan', 'Rental'] },
-  { id: 'LD-007', name: 'Robert Brown', email: 'robert@brown.com', phone: '+62 812-1111-2222', status: 'Warm', source: 'Website', lastContact: '4 days ago', tags: ['Townhouse', 'Cipete'] },
-  { id: 'LD-008', name: 'Jennifer Lee', email: 'jlee@mail.com', phone: '+62 813-3333-4444', status: 'Cold', source: 'Social Media', lastContact: '2 weeks ago', tags: ['Land', 'Bintaro'] },
-];
+import { leadApi, followUpApi } from '../services/api';
+import type { Lead } from '../types';
 
 export default function LeadsPage() {
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [sortBy, setSortBy] = useState('recent');
+  
+  // Modals
+  const [isQualifyModalOpen, setIsQualifyModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  
+  // Selected / Form States
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [qualifyData, setQualifyData] = useState({ name: '', phone: '', rawChatText: '' });
+  const [editData, setEditData] = useState<Partial<Lead>>({});
+  const [scheduleData, setScheduleData] = useState({ contextMessage: '', scheduledForDays: 1 });
+  const [submitting, setSubmitting] = useState(false);
 
-  const filteredLeads = mockLeads.filter(lead => {
-    const matchesSearch = lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesStatus = statusFilter === 'All' || lead.status === statusFilter;
+  useEffect(() => {
+    fetchLeads();
+  }, []);
+
+  const fetchLeads = async () => {
+    setLoading(true);
+    try {
+      const response = await leadApi.getAll();
+      if (response.success && response.data) {
+        setLeads(response.data);
+      } else {
+        setError(response.error || 'Failed to fetch leads');
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred while fetching leads');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQualifyLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!qualifyData.rawChatText) return;
+    setSubmitting(true);
+    try {
+      const response = await leadApi.qualify(qualifyData);
+      if (response.success && response.data) {
+        setLeads((prev) => [response.data!, ...prev]);
+        setIsQualifyModalOpen(false);
+        setQualifyData({ name: '', phone: '', rawChatText: '' });
+      } else {
+        alert(response.error || 'Failed to qualify lead');
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdateLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLead) return;
+    setSubmitting(true);
+    try {
+      const response = await leadApi.update(selectedLead.id, editData);
+      if (response.success && response.data) {
+        setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? response.data! : l)));
+        setIsEditModalOpen(false);
+        setSelectedLead(null);
+      } else {
+        alert(response.error || 'Failed to update lead');
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteLead = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this lead?')) return;
+    try {
+      const response = await leadApi.delete(id);
+      if (response.success) {
+        setLeads((prev) => prev.filter((l) => l.id !== id));
+      } else {
+        alert(response.error || 'Failed to delete lead');
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred');
+    }
+  };
+
+  const handleScheduleFollowUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLead) return;
+    setSubmitting(true);
+    try {
+      const response = await followUpApi.generate({
+        leadId: selectedLead.id,
+        contextMessage: scheduleData.contextMessage || undefined,
+        scheduledForDays: scheduleData.scheduledForDays,
+      });
+      if (response.success) {
+        alert('Follow-up scheduled successfully!');
+        setIsScheduleModalOpen(false);
+        setScheduleData({ contextMessage: '', scheduledForDays: 1 });
+        setSelectedLead(null);
+      } else {
+        alert(response.error || 'Failed to schedule follow-up');
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const filteredLeads = leads.filter((lead) => {
+    const matchesSearch =
+      lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.phone.includes(searchTerm) ||
+      (lead.location && lead.location.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (lead.unitType && lead.unitType.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesStatus = statusFilter === 'All' || lead.score === statusFilter;
+    
     return matchesSearch && matchesStatus;
   });
 
-  const getStatusBadge = (status: Lead['status']) => {
-    switch (status) {
-      case 'Hot': return 'badge-danger';
-      case 'Warm': return 'badge-yellow';
-      case 'Cold': return 'badge-neutral';
+  const getScoreBadge = (score: Lead['score']) => {
+    switch (score) {
+      case 'Hot': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+      case 'Warm': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
+      case 'Cold': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+      default: return 'bg-neutral-100 text-neutral-800 dark:bg-neutral-900/30 dark:text-neutral-400';
     }
+  };
+
+  const formatPrice = (price?: number | null) => {
+    if (price === undefined || price === null) return '-';
+    if (price >= 1_000_000_000) {
+      return `Rp ${(price / 1_000_000_000).toFixed(1)} M`;
+    }
+    if (price >= 1_000_000) {
+      return `Rp ${(price / 1_000_000).toFixed(0)} Jt`;
+    }
+    return `Rp ${price.toLocaleString()}`;
   };
 
   return (
@@ -55,13 +166,13 @@ export default function LeadsPage() {
         <div>
           <h1 className="text-3xl font-bold text-text-primary dark:text-text-primary-dark">Leads Management</h1>
           <p className="text-text-secondary dark:text-text-secondary-dark mt-1">
-            Track and manage all your property leads in one place.
+            Qualify leads with AI from WhatsApp chat text and track follow-ups.
           </p>
         </div>
-        <Link to="/leads/new" className="btn btn-primary">
+        <button onClick={() => setIsQualifyModalOpen(true)} className="btn btn-primary">
           <Plus className="w-4 h-4" />
-          Add New Lead
-        </Link>
+          AI Qualify Lead
+        </button>
       </div>
 
       {/* Search & Filters */}
@@ -71,7 +182,7 @@ export default function LeadsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary dark:text-text-tertiary-dark" />
             <input
               type="search"
-              placeholder="Search leads by name, email, or tags..."
+              placeholder="Search leads by name, phone, location, property..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="input pl-10"
@@ -80,113 +191,439 @@ export default function LeadsPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="input w-full sm:w-40"
+            className="input w-full sm:w-48"
           >
-            <option value="All">All Status</option>
-            <option value="Hot">Hot</option>
-            <option value="Warm">Warm</option>
-            <option value="Cold">Cold</option>
+            <option value="All">All Lead Score</option>
+            <option value="Hot">Hot Leads</option>
+            <option value="Warm">Warm Leads</option>
+            <option value="Cold">Cold Leads</option>
           </select>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="input w-full sm:w-40"
-          >
-            <option value="recent">Most Recent</option>
-            <option value="name">Name A-Z</option>
-            <option value="status">Status</option>
-          </select>
-          <button className="btn btn-secondary">
-            <Filter className="w-4 h-4" />
-            Advanced Filters
-          </button>
         </div>
       </div>
 
-      {/* Leads Grid */}
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border dark:border-border-dark bg-accent/50 dark:bg-accent-dark/50">
-                {['Lead', 'Contact', 'Status', 'Source', 'Last Contact', 'Tags', 'Actions'].map((header, i) => (
-                  <th key={i} className="text-left py-3 px-4 text-xs font-semibold text-text-tertiary dark:text-text-tertiary-dark uppercase tracking-wider">
-                    {header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border dark:divide-border-dark">
-              {filteredLeads.map((lead) => (
-                <tr key={lead.id} className="hover:bg-accent/50 dark:hover:bg-accent-dark/50 transition-colors">
-                  <td className="py-4 px-4">
-                    <div>
-                      <p className="font-medium text-text-primary dark:text-text-primary-dark">{lead.name}</p>
-                      <p className="text-xs text-text-tertiary dark:text-text-tertiary-dark">{lead.id}</p>
-                    </div>
-                  </td>
-                  <td className="py-4 px-4 text-sm text-text-secondary dark:text-text-secondary-dark">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" /> {lead.email}</div>
-                      <div className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> {lead.phone}</div>
-                    </div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <span className={`badge ${getStatusBadge(lead.status)}`}>
-                      {lead.status}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 text-sm text-text-secondary dark:text-text-secondary-dark">
-                    <Tag className="w-3.5 h-3.5 inline mr-1" />
-                    {lead.source}
-                  </td>
-                  <td className="py-4 px-4 text-sm text-text-secondary dark:text-text-secondary-dark">
-                    <Clock className="w-3.5 h-3.5 inline mr-1" />
-                    {lead.lastContact}
-                  </td>
-                  <td className="py-4 px-4">
-                    <div className="flex flex-wrap gap-1">
-                      {lead.tags.map((tag, ti) => (
-                        <span key={ti} className="badge badge-primary text-xs">{tag}</span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <div className="flex items-center gap-1">
-                      <button className="p-2 rounded-lg hover:bg-accent dark:hover:bg-accent-dark transition-colors" title="View details">
-                        <Eye className="w-4 h-4 text-text-tertiary dark:text-text-tertiary-dark" />
-                      </button>
-                      <button className="p-2 rounded-lg hover:bg-accent dark:hover:bg-accent-dark transition-colors" title="Edit">
-                        <Edit className="w-4 h-4 text-text-tertiary dark:text-text-tertiary-dark" />
-                      </button>
-                      <button className="p-2 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors" title="Create follow-up">
-                        <ArrowUpRight className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
-                      </button>
-                      <button className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors" title="Delete">
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Leads Table */}
+      {loading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
         </div>
-
-        {/* Pagination */}
-        <div className="p-4 border-t border-border dark:border-border-dark flex items-center justify-between">
-          <p className="text-sm text-text-tertiary dark:text-text-tertiary-dark">
-            Showing {filteredLeads.length} of {mockLeads.length} leads
+      ) : error ? (
+        <div className="card p-6 flex flex-col items-center justify-center text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mb-2" />
+          <p className="text-red-500 font-medium">{error}</p>
+          <button onClick={fetchLeads} className="btn btn-secondary mt-4">Retry</button>
+        </div>
+      ) : filteredLeads.length === 0 ? (
+        <div className="card p-12 text-center">
+          <Clock className="w-12 h-12 text-text-tertiary dark:text-text-tertiary-dark mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-text-primary dark:text-text-primary-dark">No leads found</h3>
+          <p className="text-text-secondary dark:text-text-secondary-dark mt-1">
+            Try adjusting your search filters or qualify a new lead with AI.
           </p>
-          <div className="flex items-center gap-2">
-            <button className="btn btn-ghost btn-sm" disabled>Previous</button>
-            <button className="btn btn-primary btn-sm">1</button>
-            <button className="btn btn-ghost btn-sm">2</button>
-            <button className="btn btn-ghost btn-sm">3</button>
-            <button className="btn btn-ghost btn-sm">Next</button>
+        </div>
+      ) : (
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border dark:border-border-dark bg-accent/50 dark:bg-accent-dark/50">
+                  {['Lead', 'Score', 'Requirement', 'Budget', 'Urgency', 'Created', 'Actions'].map((header, i) => (
+                    <th key={i} className="text-left py-3 px-4 text-xs font-semibold text-text-tertiary dark:text-text-tertiary-dark uppercase tracking-wider">
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border dark:divide-border-dark">
+                {filteredLeads.map((lead) => (
+                  <tr key={lead.id} className="hover:bg-accent/50 dark:hover:bg-accent-dark/50 transition-colors">
+                    <td className="py-4 px-4">
+                      <div>
+                        <p className="font-medium text-text-primary dark:text-text-primary-dark">{lead.name}</p>
+                        <p className="text-xs text-text-tertiary dark:text-text-tertiary-dark flex items-center gap-1 mt-0.5">
+                          <Phone className="w-3.5 h-3.5 inline" /> {lead.phone}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getScoreBadge(lead.score)}`}>
+                        {lead.score}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-sm text-text-secondary dark:text-text-secondary-dark">
+                      <div>
+                        <p className="font-medium text-text-primary dark:text-text-primary-dark">{lead.unitType || 'Any Property'}</p>
+                        <p className="text-xs text-text-tertiary dark:text-text-tertiary-dark mt-0.5">{lead.location || 'Any Location'}</p>
+                      </div>
+                    </td>
+                    <td className="py-4 px-4 text-sm text-text-secondary dark:text-text-secondary-dark">
+                      {lead.budgetMin || lead.budgetMax ? (
+                        <span>
+                          {lead.budgetMin ? formatPrice(Number(lead.budgetMin)) : 'Min'} - {lead.budgetMax ? formatPrice(Number(lead.budgetMax)) : 'Max'}
+                        </span>
+                      ) : (
+                        <span className="text-text-tertiary dark:text-text-tertiary-dark">Flexible</span>
+                      )}
+                    </td>
+                    <td className="py-4 px-4 text-sm text-text-secondary dark:text-text-secondary-dark capitalize">
+                      {lead.urgency}
+                    </td>
+                    <td className="py-4 px-4 text-sm text-text-secondary dark:text-text-secondary-dark">
+                      {new Date(lead.createdAt).toLocaleDateString('id-ID')}
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => { setSelectedLead(lead); setIsViewModalOpen(true); }}
+                          className="p-2 rounded-lg hover:bg-accent dark:hover:bg-accent-dark transition-colors"
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4 text-text-tertiary dark:text-text-tertiary-dark" />
+                        </button>
+                        <button
+                          onClick={() => { setSelectedLead(lead); setEditData(lead); setIsEditModalOpen(true); }}
+                          className="p-2 rounded-lg hover:bg-accent dark:hover:bg-accent-dark transition-colors"
+                          title="Edit"
+                        >
+                          <Edit className="w-4 h-4 text-text-tertiary dark:text-text-tertiary-dark" />
+                        </button>
+                        <button
+                          onClick={() => { setSelectedLead(lead); setIsScheduleModalOpen(true); }}
+                          className="p-2 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors"
+                          title="Schedule Follow-up"
+                        >
+                          <ArrowUpRight className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteLead(lead.id)}
+                          className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="p-4 border-t border-border dark:border-border-dark flex items-center justify-between">
+            <p className="text-sm text-text-tertiary dark:text-text-tertiary-dark">
+              Showing {filteredLeads.length} of {leads.length} leads
+            </p>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* 1. AI Qualify Lead Modal */}
+      {isQualifyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-lg overflow-hidden animate-slide-up">
+            <div className="flex items-center justify-between p-6 border-b border-border dark:border-border-dark">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary-500" /> AI Lead Qualifier
+              </h2>
+              <button onClick={() => setIsQualifyModalOpen(false)} className="p-1 hover:bg-accent dark:hover:bg-accent-dark rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleQualifyLead} className="p-6 space-y-4">
+              <div>
+                <label className="label">Contact Name (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. John Doe"
+                  value={qualifyData.name}
+                  onChange={(e) => setQualifyData({ ...qualifyData, name: e.target.value })}
+                  className="input"
+                />
+              </div>
+              <div>
+                <label className="label">Phone / WhatsApp Number (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 0812345678"
+                  value={qualifyData.phone}
+                  onChange={(e) => setQualifyData({ ...qualifyData, phone: e.target.value })}
+                  className="input"
+                />
+              </div>
+              <div>
+                <label className="label">WhatsApp Chat Text (Required)</label>
+                <textarea
+                  required
+                  rows={5}
+                  placeholder="Paste WhatsApp conversation here..."
+                  value={qualifyData.rawChatText}
+                  onChange={(e) => setQualifyData({ ...qualifyData, rawChatText: e.target.value })}
+                  className="input font-mono text-sm"
+                />
+                <p className="text-xs text-text-tertiary mt-1">
+                  AI will analyze the message to extract budget, location, property preference, urgency, and score.
+                </p>
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-border dark:border-border-dark">
+                <button type="button" onClick={() => setIsQualifyModalOpen(false)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" disabled={submitting} className="btn btn-primary">
+                  {submitting ? 'Analyzing...' : 'Qualify Lead'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. View Lead Details Modal */}
+      {isViewModalOpen && selectedLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-xl overflow-hidden animate-slide-up">
+            <div className="flex items-center justify-between p-6 border-b border-border dark:border-border-dark">
+              <h2 className="text-xl font-bold">Lead Profile: {selectedLead.name}</h2>
+              <button onClick={() => setIsViewModalOpen(false)} className="p-1 hover:bg-accent dark:hover:bg-accent-dark rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-6 overflow-y-auto max-h-[70vh]">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-text-tertiary uppercase">Name</p>
+                  <p className="font-semibold text-text-primary dark:text-text-primary-dark">{selectedLead.name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary uppercase">Phone</p>
+                  <p className="font-semibold text-text-primary dark:text-text-primary-dark">{selectedLead.phone}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary uppercase">Property Type</p>
+                  <p className="font-semibold text-text-primary dark:text-text-primary-dark">{selectedLead.unitType || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary uppercase">Preferred Location</p>
+                  <p className="font-semibold text-text-primary dark:text-text-primary-dark">{selectedLead.location || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary uppercase">Budget Range</p>
+                  <p className="font-semibold text-text-primary dark:text-text-primary-dark">
+                    {selectedLead.budgetMin || selectedLead.budgetMax ? (
+                      <span>
+                        {selectedLead.budgetMin ? formatPrice(Number(selectedLead.budgetMin)) : 'Min'} - {selectedLead.budgetMax ? formatPrice(Number(selectedLead.budgetMax)) : 'Max'}
+                      </span>
+                    ) : 'Flexible'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary uppercase">Lead Score & Urgency</p>
+                  <p className="font-semibold flex items-center gap-2 mt-1">
+                    <span className={`px-2 py-0.5 rounded text-xs ${getScoreBadge(selectedLead.score)}`}>{selectedLead.score}</span>
+                    <span className="capitalize text-sm text-text-secondary">({selectedLead.urgency})</span>
+                  </p>
+                </div>
+              </div>
+
+              {selectedLead.notes && (
+                <div>
+                  <p className="text-xs text-text-tertiary uppercase mb-1">AI Reasoning & Notes</p>
+                  <div className="p-3 bg-accent/30 dark:bg-accent-dark/30 rounded-lg text-sm text-text-secondary border border-border dark:border-border-dark whitespace-pre-wrap">
+                    {selectedLead.notes}
+                  </div>
+                </div>
+              )}
+
+              {selectedLead.rawChatText && (
+                <div>
+                  <p className="text-xs text-text-tertiary uppercase mb-1">Raw Chat Message</p>
+                  <div className="p-3 bg-neutral-50 dark:bg-neutral-900 rounded-lg text-xs font-mono text-text-tertiary border border-border dark:border-border-dark max-h-40 overflow-y-auto">
+                    {selectedLead.rawChatText}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t border-border dark:border-border-dark flex justify-end gap-3">
+              <button onClick={() => { setIsViewModalOpen(false); setEditData(selectedLead); setIsEditModalOpen(true); }} className="btn btn-secondary">
+                Edit Lead
+              </button>
+              <button onClick={() => setIsViewModalOpen(false)} className="btn btn-primary">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Edit Lead Modal */}
+      {isEditModalOpen && selectedLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-lg overflow-hidden animate-slide-up">
+            <div className="flex items-center justify-between p-6 border-b border-border dark:border-border-dark">
+              <h2 className="text-xl font-bold">Edit Lead Info</h2>
+              <button onClick={() => setIsEditModalOpen(false)} className="p-1 hover:bg-accent dark:hover:bg-accent-dark rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateLead} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div>
+                <label className="label">Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editData.name || ''}
+                  onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                  className="input"
+                />
+              </div>
+              <div>
+                <label className="label">Phone</label>
+                <input
+                  type="text"
+                  required
+                  value={editData.phone || ''}
+                  onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                  className="input"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Min Budget</label>
+                  <input
+                    type="number"
+                    value={editData.budgetMin || ''}
+                    onChange={(e) => setEditData({ ...editData, budgetMin: e.target.value ? Number(e.target.value) : null })}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="label">Max Budget</label>
+                  <input
+                    type="number"
+                    value={editData.budgetMax || ''}
+                    onChange={(e) => setEditData({ ...editData, budgetMax: e.target.value ? Number(e.target.value) : null })}
+                    className="input"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Unit Type</label>
+                  <input
+                    type="text"
+                    value={editData.unitType || ''}
+                    onChange={(e) => setEditData({ ...editData, unitType: e.target.value })}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="label">Location</label>
+                  <input
+                    type="text"
+                    value={editData.location || ''}
+                    onChange={(e) => setEditData({ ...editData, location: e.target.value })}
+                    className="input"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Lead Score</label>
+                  <select
+                    value={editData.score || 'Warm'}
+                    onChange={(e) => setEditData({ ...editData, score: e.target.value as any })}
+                    className="input"
+                  >
+                    <option value="Hot">Hot</option>
+                    <option value="Warm">Warm</option>
+                    <option value="Cold">Cold</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Urgency</label>
+                  <select
+                    value={editData.urgency || 'flexible'}
+                    onChange={(e) => setEditData({ ...editData, urgency: e.target.value as any })}
+                    className="input"
+                  >
+                    <option value="immediate">Immediate</option>
+                    <option value="soon">Soon</option>
+                    <option value="flexible">Flexible</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="label">Notes / Requirements Summary</label>
+                <textarea
+                  rows={3}
+                  value={editData.notes || ''}
+                  onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
+                  className="input text-sm"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-border dark:border-border-dark">
+                <button type="button" onClick={() => setIsEditModalOpen(false)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" disabled={submitting} className="btn btn-primary">
+                  {submitting ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Schedule Follow-up Modal */}
+      {isScheduleModalOpen && selectedLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-lg overflow-hidden animate-slide-up">
+            <div className="flex items-center justify-between p-6 border-b border-border dark:border-border-dark">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-yellow-500" /> Schedule AI Follow-up
+              </h2>
+              <button onClick={() => setIsScheduleModalOpen(false)} className="p-1 hover:bg-accent dark:hover:bg-accent-dark rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleScheduleFollowUp} className="p-6 space-y-4">
+              <div className="p-3 bg-accent/30 dark:bg-accent-dark/30 rounded-lg text-sm border border-border dark:border-border-dark">
+                <p className="font-semibold text-text-primary dark:text-text-primary-dark">Scheduling for: {selectedLead.name}</p>
+                <p className="text-xs text-text-secondary mt-1">AI will compose a context-aware property recommendation message based on the lead profile.</p>
+              </div>
+              <div>
+                <label className="label">Custom Context (Optional)</label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. Recommend the new Batam Residence Villa that fits their budget..."
+                  value={scheduleData.contextMessage}
+                  onChange={(e) => setScheduleData({ ...scheduleData, contextMessage: e.target.value })}
+                  className="input text-sm"
+                />
+              </div>
+              <div>
+                <label className="label">Schedule For (Days from now)</label>
+                <select
+                  value={scheduleData.scheduledForDays}
+                  onChange={(e) => setScheduleData({ ...scheduleData, scheduledForDays: Number(e.target.value) })}
+                  className="input"
+                >
+                  <option value={1}>Tomorrow (1 Day)</option>
+                  <option value={2}>In 2 Days</option>
+                  <option value={3}>In 3 Days</option>
+                  <option value={5}>In 5 Days</option>
+                  <option value={7}>In 1 Week (7 Days)</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-border dark:border-border-dark">
+                <button type="button" onClick={() => setIsScheduleModalOpen(false)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" disabled={submitting} className="btn btn-primary">
+                  {submitting ? 'Composing...' : 'Schedule AI Follow-up'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

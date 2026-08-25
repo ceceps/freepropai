@@ -1,71 +1,172 @@
+import { useState, useEffect } from 'react';
 import {
-  MessageSquare, Search, Plus, Phone, Mail, MapPin,
+  MessageSquare, Search, Plus, Phone,
   Clock, CheckCircle, AlertCircle, XCircle,
-  User, Calendar, RotateCcw, Eye, Edit, Trash2
+  Calendar, Edit, Trash2, Check, X
 } from 'lucide-react';
-import { useState } from 'react';
-
-interface FollowUp {
-  id: string;
-  leadName: string;
-  leadEmail: string;
-  leadPhone: string;
-  type: 'call' | 'email' | 'meeting' | 'site_visit';
-  status: 'pending' | 'completed' | 'overdue' | 'cancelled';
-  priority: 'high' | 'medium' | 'low';
-  scheduledAt: string;
-  completedAt?: string;
-  notes: string;
-  assignedTo: string;
-}
-
-const mockFollowUps: FollowUp[] = [
-  { id: 'FU-001', leadName: 'John Doe', leadEmail: 'john@example.com', leadPhone: '+62 812-3456-7890', type: 'call', status: 'overdue', priority: 'high', scheduledAt: '2024-01-15 10:00', notes: 'Discuss villa options in Kemang', assignedTo: 'Admin' },
-  { id: 'FU-002', leadName: 'Sarah Wilson', leadEmail: 'sarah@company.com', leadPhone: '+62 813-9876-5432', type: 'email', status: 'pending', priority: 'medium', scheduledAt: '2024-01-16 14:00', notes: 'Send apartment listings in SCBD', assignedTo: 'Admin' },
-  { id: 'FU-003', leadName: 'Michael Chen', leadEmail: 'mchen@email.com', leadPhone: '+62 811-5555-1234', type: 'meeting', status: 'pending', priority: 'high', scheduledAt: '2024-01-17 09:00', notes: 'Site visit for Pondok Indah house', assignedTo: 'Admin' },
-  { id: 'FU-004', leadName: 'Emily Park', leadEmail: 'emily.park@mail.com', leadPhone: '+62 812-4444-9999', type: 'call', status: 'completed', priority: 'low', scheduledAt: '2024-01-14 16:00', completedAt: '2024-01-14 16:30', notes: 'Follow up on land inquiry in Bogor', assignedTo: 'Admin' },
-  { id: 'FU-005', leadName: 'David Kim', leadEmail: 'david.kim@corp.com', leadPhone: '+62 813-7777-8888', type: 'site_visit', status: 'pending', priority: 'medium', scheduledAt: '2024-01-18 11:00', notes: 'Show commercial property in Sudirman', assignedTo: 'Admin' },
-  { id: 'FU-006', leadName: 'Lisa Tan', leadEmail: 'lisa.tan@startup.io', leadPhone: '+62 811-2222-3333', type: 'call', status: 'pending', priority: 'high', scheduledAt: '2024-01-16 15:00', notes: 'Discuss condo rental in Kuningan', assignedTo: 'Admin' },
-];
+import { followUpApi, leadApi } from '../services/api';
+import type { FollowUp, Lead } from '../types';
 
 export default function FollowUpsPage() {
+  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [typeFilter, setTypeFilter] = useState('All');
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  
+  // Modals
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [isComposeModalOpen, setIsComposeModalOpen] = useState(false);
+  
+  // Form/Selected States
+  const [selectedFollowUp, setSelectedFollowUp] = useState<FollowUp | null>(null);
+  const [editedDraft, setEditedDraft] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [composeData, setComposeData] = useState({ leadId: '', contextMessage: '', scheduledForDays: 1 });
+  const [submitting, setSubmitting] = useState(false);
 
-  const filteredFollowUps = mockFollowUps.filter(fu => {
-    const matchesSearch = fu.leadName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fu.leadEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fu.notes.toLowerCase().includes(searchTerm.toLowerCase());
+  useEffect(() => {
+    fetchFollowUps();
+    fetchLeads();
+  }, []);
+
+  const fetchFollowUps = async () => {
+    setLoading(true);
+    try {
+      const response = await followUpApi.getQueue();
+      if (response.success && response.data) {
+        setFollowUps(response.data);
+      } else {
+        setError(response.error || 'Failed to fetch follow-ups');
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred while fetching follow-ups');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchLeads = async () => {
+    try {
+      const response = await leadApi.getAll();
+      if (response.success && response.data) {
+        setLeads(response.data);
+      }
+    } catch (err) {
+      console.error('Failed to load leads for compose dropdown:', err);
+    }
+  };
+
+  const handleApprove = async (id: string) => {
+    try {
+      const response = await followUpApi.approve(id, 'Agent');
+      if (response.success && response.data) {
+        setFollowUps((prev) => prev.map((f) => (f.id === id ? { ...f, ...response.data } : f)));
+      } else {
+        alert(response.error || 'Failed to approve');
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred');
+    }
+  };
+
+  const handleReject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFollowUp) return;
+    setSubmitting(true);
+    try {
+      const response = await followUpApi.reject(selectedFollowUp.id, rejectionReason);
+      if (response.success && response.data) {
+        setFollowUps((prev) => prev.map((f) => (f.id === selectedFollowUp.id ? { ...f, ...response.data } : f)));
+        setIsRejectModalOpen(false);
+        setSelectedFollowUp(null);
+        setRejectionReason('');
+      } else {
+        alert(response.error || 'Failed to reject');
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditDraft = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFollowUp) return;
+    setSubmitting(true);
+    try {
+      const response = await followUpApi.edit(selectedFollowUp.id, editedDraft);
+      if (response.success && response.data) {
+        setFollowUps((prev) => prev.map((f) => (f.id === selectedFollowUp.id ? { ...f, ...response.data } : f)));
+        setIsEditModalOpen(false);
+        setSelectedFollowUp(null);
+        setEditedDraft('');
+      } else {
+        alert(response.error || 'Failed to update draft');
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this follow-up?')) return;
+    try {
+      const response = await followUpApi.delete(id);
+      if (response.success) {
+        setFollowUps((prev) => prev.filter((f) => f.id !== id));
+      } else {
+        alert(response.error || 'Failed to delete follow-up');
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred');
+    }
+  };
+
+  const handleCompose = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!composeData.leadId) return;
+    setSubmitting(true);
+    try {
+      const response = await followUpApi.generate(composeData);
+      if (response.success && response.data) {
+        // Fetch queue again to get the populated lead relation correctly
+        await fetchFollowUps();
+        setIsComposeModalOpen(false);
+        setComposeData({ leadId: '', contextMessage: '', scheduledForDays: 1 });
+      } else {
+        alert(response.error || 'Failed to generate follow-up');
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const filteredFollowUps = followUps.filter((fu) => {
+    const leadName = fu.lead?.name || 'Unknown Lead';
+    const matchesSearch =
+      leadName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      fu.messageDraft.toLowerCase().includes(searchTerm.toLowerCase());
+    
     const matchesStatus = statusFilter === 'All' || fu.status === statusFilter;
-    const matchesType = typeFilter === 'All' || fu.type === typeFilter;
-    return matchesSearch && matchesStatus && matchesType;
+    
+    return matchesSearch && matchesStatus;
   });
 
   const getStatusConfig = (status: FollowUp['status']) => {
     switch (status) {
-      case 'pending': return { badge: 'badge-primary', icon: Clock, label: 'Pending' };
-      case 'completed': return { badge: 'badge-success', icon: CheckCircle, label: 'Completed' };
-      case 'overdue': return { badge: 'badge-danger', icon: AlertCircle, label: 'Overdue' };
-      case 'cancelled': return { badge: 'badge-neutral', icon: XCircle, label: 'Cancelled' };
-    }
-  };
-
-  const getTypeConfig = (type: FollowUp['type']) => {
-    switch (type) {
-      case 'call': return { icon: Phone, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/30', label: 'Call' };
-      case 'email': return { icon: Mail, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', label: 'Email' };
-      case 'meeting': return { icon: User, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-100 dark:bg-purple-900/30', label: 'Meeting' };
-      case 'site_visit': return { icon: MapPin, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/30', label: 'Site Visit' };
-    }
-  };
-
-  const getPriorityConfig = (priority: FollowUp['priority']) => {
-    switch (priority) {
-      case 'high': return { color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30' };
-      case 'medium': return { color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30' };
-      case 'low': return { color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/30' };
+      case 'pending': return { badge: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', icon: Clock, label: 'Pending' };
+      case 'approved': return { badge: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle, label: 'Approved' };
+      case 'rejected': return { badge: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', icon: XCircle, label: 'Rejected' };
+      case 'sent': return { badge: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400', icon: CheckCircle, label: 'Sent' };
     }
   };
 
@@ -76,10 +177,10 @@ export default function FollowUpsPage() {
         <div>
           <h1 className="text-3xl font-bold text-text-primary dark:text-text-primary-dark">Follow-ups</h1>
           <p className="text-text-secondary dark:text-text-secondary-dark mt-1">
-            Manage and track all your follow-up activities.
+            Manage and approve AI-generated WhatsApp follow-up recommendations.
           </p>
         </div>
-        <button className="btn btn-primary">
+        <button onClick={() => setIsComposeModalOpen(true)} className="btn btn-primary">
           <Plus className="w-4 h-4" />
           Schedule Follow-up
         </button>
@@ -88,20 +189,18 @@ export default function FollowUpsPage() {
       {/* Stats Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Pending', count: mockFollowUps.filter(f => f.status === 'pending').length, color: 'text-primary-600 dark:text-primary-400', bg: 'bg-primary-100 dark:bg-primary-900/30', icon: Clock },
-          { label: 'Overdue', count: mockFollowUps.filter(f => f.status === 'overdue').length, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', icon: AlertCircle },
-          { label: 'Completed', count: mockFollowUps.filter(f => f.status === 'completed').length, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/30', icon: CheckCircle },
-          { label: 'This Week', count: mockFollowUps.filter(f => f.status === 'pending' || f.status === 'overdue').length, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', icon: Calendar },
+          { label: 'Pending', count: followUps.filter(f => f.status === 'pending').length, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', icon: Clock },
+          { label: 'Approved', count: followUps.filter(f => f.status === 'approved').length, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/30', icon: CheckCircle },
+          { label: 'Rejected', count: followUps.filter(f => f.status === 'rejected').length, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', icon: XCircle },
+          { label: 'Total Queue', count: followUps.length, color: 'text-primary-600 dark:text-primary-400', bg: 'bg-primary-100 dark:bg-primary-900/30', icon: Calendar },
         ].map((stat, i) => (
-          <div key={i} className="card p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-text-secondary dark:text-text-secondary-dark">{stat.label}</p>
-                <p className="text-2xl font-bold text-text-primary dark:text-text-primary-dark">{stat.count}</p>
-              </div>
-              <div className={`p-2 rounded-xl ${stat.bg}`}>
-                <stat.icon className={`w-5 h-5 ${stat.color}`} />
-              </div>
+          <div key={i} className="card p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-text-secondary dark:text-text-secondary-dark">{stat.label}</p>
+              <p className="text-2xl font-bold text-text-primary dark:text-text-primary-dark mt-1">{stat.count}</p>
+            </div>
+            <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
+              <stat.icon className="w-6 h-6" />
             </div>
           </div>
         ))}
@@ -114,7 +213,7 @@ export default function FollowUpsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary dark:text-text-tertiary-dark" />
             <input
               type="search"
-              placeholder="Search follow-ups by lead, notes..."
+              placeholder="Search follow-ups by lead name or message..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="input pl-10"
@@ -123,176 +222,245 @@ export default function FollowUpsPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="input w-full sm:w-36"
+            className="input w-full sm:w-48"
           >
-            <option value="All">All Status</option>
+            <option value="All">All Statuses</option>
             <option value="pending">Pending</option>
-            <option value="overdue">Overdue</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="sent">Sent</option>
           </select>
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="input w-full sm:w-36"
-          >
-            <option value="All">All Types</option>
-            <option value="call">Call</option>
-            <option value="email">Email</option>
-            <option value="meeting">Meeting</option>
-            <option value="site_visit">Site Visit</option>
-          </select>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setViewMode('table')}
-              className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400' : 'hover:bg-accent dark:hover:bg-accent-dark'}`}
-              title="Table view"
-            >
-              <MessageSquare className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setViewMode('cards')}
-              className={`p-2 rounded-lg transition-colors ${viewMode === 'cards' ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400' : 'hover:bg-accent dark:hover:bg-accent-dark'}`}
-              title="Card view"
-            >
-              <RotateCcw className="w-5 h-5" />
-            </button>
-          </div>
         </div>
       </div>
 
       {/* Follow-ups List */}
-      <div className="card overflow-hidden">
-        {viewMode === 'table' ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border dark:border-border-dark bg-accent/50 dark:bg-accent-dark/50">
-                  {['Follow-up', 'Lead', 'Type', 'Status', 'Priority', 'Scheduled', 'Assigned', 'Actions'].map((header, i) => (
-                    <th key={i} className="text-left py-3 px-4 text-xs font-semibold text-text-tertiary dark:text-text-tertiary-dark uppercase tracking-wider">
-                      {header}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border dark:divide-border-dark">
-                {filteredFollowUps.map((fu) => {
-                  const statusConfig = getStatusConfig(fu.status);
-                  const typeConfig = getTypeConfig(fu.type);
-                  const priorityConfig = getPriorityConfig(fu.priority);
-                  const StatusIcon = statusConfig.icon;
-                  const TypeIcon = typeConfig.icon;
-
-                  return (
-                    <tr key={fu.id} className="hover:bg-accent/50 dark:hover:bg-accent-dark/50 transition-colors">
-                      <td className="py-4 px-4">
-                        <div>
-                          <p className="font-medium text-text-primary dark:text-text-primary-dark">{fu.id}</p>
-                          <p className="text-xs text-text-tertiary dark:text-text-tertiary-dark line-clamp-1">{fu.notes}</p>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="space-y-1">
-                          <p className="font-medium text-text-primary dark:text-text-primary-dark">{fu.leadName}</p>
-                          <p className="text-xs text-text-tertiary dark:text-text-tertiary-dark">{fu.leadEmail}</p>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${typeConfig.bg} ${typeConfig.color}`}>
-                          <TypeIcon className="w-3 h-3" />
-                          {typeConfig.label}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className={`badge ${statusConfig.badge} flex items-center gap-1`}>
-                          <StatusIcon className="w-3 h-3" />
-                          {statusConfig.label}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className={`badge text-xs ${priorityConfig.bg} ${priorityConfig.color}`}>
-                          {fu.priority.charAt(0).toUpperCase() + fu.priority.slice(1)}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-sm text-text-secondary dark:text-text-secondary-dark">
-                        <Calendar className="w-3.5 h-3.5 inline mr-1" />
-                        {fu.scheduledAt}
-                      </td>
-                      <td className="py-4 px-4 text-sm text-text-secondary dark:text-text-secondary-dark">{fu.assignedTo}</td>
-                      <td className="py-4 px-4">
-                        <div className="flex items-center gap-1">
-                          <button className="p-2 rounded-lg hover:bg-accent dark:hover:bg-accent-dark transition-colors" title="View">
-                            <Eye className="w-4 h-4 text-text-tertiary dark:text-text-tertiary-dark" />
-                          </button>
-                          <button className="p-2 rounded-lg hover:bg-accent dark:hover:bg-accent-dark transition-colors" title="Edit">
-                            <Edit className="w-4 h-4 text-text-tertiary dark:text-text-tertiary-dark" />
-                          </button>
-                          {fu.status === 'pending' || fu.status === 'overdue' ? (
-                            <button className="p-2 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors" title="Mark complete">
-                              <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-                            </button>
-                          ) : null}
-                          <button className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors" title="Delete">
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredFollowUps.map((fu) => {
-                const statusConfig = getStatusConfig(fu.status);
-                const typeConfig = getTypeConfig(fu.type);
-                const priorityConfig = getPriorityConfig(fu.priority);
-                const StatusIcon = statusConfig.icon;
-                const TypeIcon = typeConfig.icon;
-
-                return (
-                  <div key={fu.id} className="card card-hover p-5">
-                    <div className="flex items-start justify-between mb-3">
-                      <span className={`badge ${statusConfig.badge} flex items-center gap-1`}>
-                        <StatusIcon className="w-3 h-3" />
-                        {statusConfig.label}
+      {loading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
+        </div>
+      ) : error ? (
+        <div className="card p-6 flex flex-col items-center justify-center text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mb-2" />
+          <p className="text-red-500 font-medium">{error}</p>
+          <button onClick={fetchFollowUps} className="btn btn-secondary mt-4">Retry</button>
+        </div>
+      ) : filteredFollowUps.length === 0 ? (
+        <div className="card p-12 text-center">
+          <MessageSquare className="w-12 h-12 text-text-tertiary dark:text-text-tertiary-dark mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-text-primary dark:text-text-primary-dark">No follow-ups scheduled</h3>
+          <p className="text-text-secondary dark:text-text-secondary-dark mt-1">
+            Schedule a follow-up draft for any qualified lead to get started.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          {filteredFollowUps.map((fu) => {
+            const config = getStatusConfig(fu.status);
+            return (
+              <div key={fu.id} className="card p-6 flex flex-col md:flex-row md:items-start justify-between gap-4 border-l-4 border-l-primary-500">
+                <div className="space-y-3 flex-1">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h3 className="font-bold text-text-primary dark:text-text-primary-dark text-lg">
+                      {fu.lead?.name || 'Unknown Lead'}
+                    </h3>
+                    {fu.lead?.phone && (
+                      <span className="text-sm text-text-tertiary dark:text-text-tertiary-dark flex items-center gap-1">
+                        <Phone className="w-3.5 h-3.5" /> {fu.lead.phone}
                       </span>
-                      <span className={`badge text-xs ${priorityConfig.bg} ${priorityConfig.color}`}>
-                        {fu.priority.charAt(0).toUpperCase() + fu.priority.slice(1)}
-                      </span>
-                    </div>
-                    <div className="mb-3">
-                      <p className="font-medium text-text-primary dark:text-text-primary-dark">{fu.leadName}</p>
-                      <p className="text-sm text-text-tertiary dark:text-text-tertiary-dark">{fu.leadEmail}</p>
-                    </div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${typeConfig.bg} ${typeConfig.color}`}>
-                        <TypeIcon className="w-3 h-3" />
-                        {typeConfig.label}
-                      </span>
-                      <span className="text-xs text-text-tertiary dark:text-text-tertiary-dark flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {fu.scheduledAt}
-                      </span>
-                    </div>
-                    <p className="text-sm text-text-secondary dark:text-text-secondary-dark mb-4 line-clamp-2">{fu.notes}</p>
-                    <div className="flex items-center gap-2 pt-3 border-t border-border dark:border-border-dark">
-                      <button className="btn btn-ghost btn-sm flex-1"><Eye className="w-3.5 h-3.5" /> View</button>
-                      <button className="btn btn-ghost btn-sm flex-1"><Edit className="w-3.5 h-3.5" /> Edit</button>
-                      {(fu.status === 'pending' || fu.status === 'overdue') && (
-                        <button className="btn btn-success btn-sm flex-1"><CheckCircle className="w-3.5 h-3.5" /> Complete</button>
-                      )}
-                    </div>
+                    )}
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${config?.badge}`}>
+                      {config && <config.icon className="w-3.5 h-3.5" />}
+                      {config?.label}
+                    </span>
                   </div>
-                );
-              })}
+
+                  <div className="p-3 bg-accent/30 dark:bg-accent-dark/30 rounded-lg text-sm text-text-secondary border border-border dark:border-border-dark whitespace-pre-wrap font-mono">
+                    {fu.messageDraft}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-4 text-xs text-text-tertiary dark:text-text-tertiary-dark">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      Scheduled for: {new Date(fu.scheduledFor).toLocaleDateString('id-ID')}
+                    </span>
+                    {fu.rejectionReason && (
+                      <span className="text-red-500 font-medium">
+                        Reason: {fu.rejectionReason}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-row md:flex-col items-center md:items-stretch gap-2 pt-2 md:pt-0">
+                  {fu.status === 'pending' && (
+                    <>
+                      <button
+                        onClick={() => handleApprove(fu.id)}
+                        className="btn btn-primary flex items-center justify-center gap-1 py-1.5 px-3 text-sm"
+                      >
+                        <Check className="w-4 h-4" /> Approve
+                      </button>
+                      <button
+                        onClick={() => { setSelectedFollowUp(fu); setIsRejectModalOpen(true); }}
+                        className="btn btn-secondary flex items-center justify-center gap-1 py-1.5 px-3 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"
+                      >
+                        <X className="w-4 h-4" /> Reject
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => { setSelectedFollowUp(fu); setEditedDraft(fu.messageDraft); setIsEditModalOpen(true); }}
+                    className="btn btn-ghost flex items-center justify-center gap-1 py-1.5 px-3 text-sm text-text-secondary"
+                  >
+                    <Edit className="w-4 h-4" /> Edit Draft
+                  </button>
+                  <button
+                    onClick={() => handleDelete(fu.id)}
+                    className="btn btn-ghost flex items-center justify-center gap-1 py-1.5 px-3 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 1. Edit Draft Modal */}
+      {isEditModalOpen && selectedFollowUp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-lg overflow-hidden animate-slide-up">
+            <div className="flex items-center justify-between p-6 border-b border-border dark:border-border-dark">
+              <h2 className="text-xl font-bold">Edit Message Draft</h2>
+              <button onClick={() => setIsEditModalOpen(false)} className="p-1 hover:bg-accent dark:hover:bg-accent-dark rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
             </div>
+            <form onSubmit={handleEditDraft} className="p-6 space-y-4">
+              <div>
+                <label className="label font-semibold text-text-primary dark:text-text-primary-dark">
+                  Message Draft for {selectedFollowUp.lead?.name}
+                </label>
+                <textarea
+                  required
+                  rows={8}
+                  value={editedDraft}
+                  onChange={(e) => setEditedDraft(e.target.value)}
+                  className="input font-mono text-sm leading-relaxed"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-border dark:border-border-dark">
+                <button type="button" onClick={() => setIsEditModalOpen(false)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" disabled={submitting} className="btn btn-primary">
+                  {submitting ? 'Saving...' : 'Save Draft'}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* 2. Reject Modal */}
+      {isRejectModalOpen && selectedFollowUp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-lg overflow-hidden animate-slide-up">
+            <div className="flex items-center justify-between p-6 border-b border-border dark:border-border-dark">
+              <h2 className="text-xl font-bold text-red-600 dark:text-red-400">Reject Follow-up Draft</h2>
+              <button onClick={() => setIsRejectModalOpen(false)} className="p-1 hover:bg-accent dark:hover:bg-accent-dark rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleReject} className="p-6 space-y-4">
+              <div>
+                <label className="label">Rejection Reason</label>
+                <textarea
+                  required
+                  rows={4}
+                  placeholder="e.g. Price details are incorrect, need more casual tone..."
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  className="input text-sm"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-border dark:border-border-dark">
+                <button type="button" onClick={() => setIsRejectModalOpen(false)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" disabled={submitting} className="btn btn-primary bg-red-600 hover:bg-red-700 text-white border-none">
+                  {submitting ? 'Rejecting...' : 'Reject Draft'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Compose Follow-up Modal */}
+      {isComposeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-lg overflow-hidden animate-slide-up">
+            <div className="flex items-center justify-between p-6 border-b border-border dark:border-border-dark">
+              <h2 className="text-xl font-bold">Schedule AI Follow-up</h2>
+              <button onClick={() => setIsComposeModalOpen(false)} className="p-1 hover:bg-accent dark:hover:bg-accent-dark rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCompose} className="p-6 space-y-4">
+              <div>
+                <label className="label">Select Lead</label>
+                <select
+                  required
+                  value={composeData.leadId}
+                  onChange={(e) => setComposeData({ ...composeData, leadId: e.target.value })}
+                  className="input"
+                >
+                  <option value="">-- Choose a Qualified Lead --</option>
+                  {leads.map((lead) => (
+                    <option key={lead.id} value={lead.id}>
+                      {lead.name} ({lead.phone}) - {lead.score}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">Custom Context / Instructions (Optional)</label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. Recommend a cozy townhouse with 3 bedrooms in Batam Residence..."
+                  value={composeData.contextMessage}
+                  onChange={(e) => setComposeData({ ...composeData, contextMessage: e.target.value })}
+                  className="input text-sm"
+                />
+              </div>
+              <div>
+                <label className="label">Schedule For (Days from now)</label>
+                <select
+                  value={composeData.scheduledForDays}
+                  onChange={(e) => setComposeData({ ...composeData, scheduledForDays: Number(e.target.value) })}
+                  className="input"
+                >
+                  <option value={1}>Tomorrow (1 Day)</option>
+                  <option value={2}>In 2 Days</option>
+                  <option value={3}>In 3 Days</option>
+                  <option value={5}>In 5 Days</option>
+                  <option value={7}>In 1 Week (7 Days)</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-border dark:border-border-dark">
+                <button type="button" onClick={() => setIsComposeModalOpen(false)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" disabled={submitting} className="btn btn-primary">
+                  {submitting ? 'Generating...' : 'Compose & Schedule'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

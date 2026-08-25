@@ -213,3 +213,52 @@ export interface ScrapingConfig {
   rateLimitDelay: number;
   notes?: string;
 }
+
+// Lead Types
+export interface Lead {
+  id: string;
+  name: string;
+  phone: string;
+  budgetMin?: number | null;
+  budgetMax?: number | null;
+  location?: string | null;
+  unitType?: string | null;
+  urgency: 'immediate' | 'soon' | 'flexible';
+  score: 'Hot' | 'Warm' | 'Cold';
+  rawChatText?: string | null;
+  extractedAt?: string;
+  lastContactAt?: string | null;
+  status: string;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QualifyLeadData {
+  rawChatText: string;
+  name?: string;
+  phone?: string;
+}
+
+// Follow-up Types
+export interface FollowUp {
+  id: string;
+  leadId: string;
+  messageDraft: string;
+  scheduledFor: string;
+  status: 'pending' | 'approved' | 'rejected' | 'sent';
+  generatedAt?: string;
+  approvedAt?: string | null;
+  approvedBy?: string | null;
+  sentAt?: string | null;
+  rejectionReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lead?: Lead;
+}
+
+export interface GenerateFollowUpData {
+  leadId: string;
+  contextMessage?: string;
+  scheduledForDays?: number;
+}

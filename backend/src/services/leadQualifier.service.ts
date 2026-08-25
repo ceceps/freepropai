@@ -130,6 +130,11 @@ Kembalikan respon DALAM FORMAT JSON VALID TANPA MARKDOWN:
       .returning();
     return updated || null;
   }
+
+  async deleteLead(id: string) {
+    const [deleted] = await db.delete(leads).where(eq(leads.id, id)).returning();
+    return deleted || null;
+  }
 }
 
 export const leadQualifierService = new LeadQualifierService();

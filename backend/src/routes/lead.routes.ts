@@ -13,5 +13,6 @@ router.post('/qualify', leadController.qualify);
 router.get('/', leadController.getAll);
 router.get('/:id', leadController.getById);
 router.patch('/:id', leadController.update);
+router.delete('/:id', leadController.delete);
 
 export default router;

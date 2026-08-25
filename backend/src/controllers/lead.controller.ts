@@ -50,6 +50,19 @@ export class LeadController {
       next(error);
     }
   }
+
+  async delete(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const deleted = await leadQualifierService.deleteLead(id);
+      if (!deleted) {
+        return res.status(404).json({ success: false, error: 'Lead not found' });
+      }
+      return res.json({ success: true, message: 'Lead deleted successfully' });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const leadController = new LeadController();

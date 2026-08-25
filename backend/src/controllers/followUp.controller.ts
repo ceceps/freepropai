@@ -75,6 +75,19 @@ export class FollowUpController {
       next(error);
     }
   }
+
+  async delete(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const deleted = await followUpSchedulerService.deleteFollowUp(id);
+      if (!deleted) {
+        return res.status(404).json({ success: false, error: 'Follow-up not found' });
+      }
+      return res.json({ success: true, message: 'Follow-up deleted successfully' });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const followUpController = new FollowUpController();

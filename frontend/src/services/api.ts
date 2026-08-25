@@ -15,7 +15,11 @@ import type {
   CreateScrapingJobData,
   ImportScrapedListingData,
   BatchImportResult,
-  ScrapingConfig
+  ScrapingConfig,
+  Lead,
+  FollowUp,
+  QualifyLeadData,
+  GenerateFollowUpData
 } from '../types';
 
 // Create axios instance
@@ -278,6 +282,67 @@ export const scrapingApi = {
   // Get scraping configurations
   async getConfigs(): Promise<ApiResponse<ScrapingConfig[]>> {
     const response = await api.get<ApiResponse<ScrapingConfig[]>>('/scraping/configs');
+    return response.data;
+  },
+};
+
+// Lead API
+export const leadApi = {
+  async getAll(): Promise<ApiResponse<Lead[]>> {
+    const response = await api.get<ApiResponse<Lead[]>>('/leads');
+    return response.data;
+  },
+
+  async getById(id: string): Promise<ApiResponse<Lead>> {
+    const response = await api.get<ApiResponse<Lead>>(`/leads/${id}`);
+    return response.data;
+  },
+
+  async qualify(data: QualifyLeadData): Promise<ApiResponse<Lead>> {
+    const response = await api.post<ApiResponse<Lead>>('/leads/qualify', data);
+    return response.data;
+  },
+
+  async update(id: string, data: Partial<Lead>): Promise<ApiResponse<Lead>> {
+    const response = await api.patch<ApiResponse<Lead>>(`/leads/${id}`, data);
+    return response.data;
+  },
+
+  async delete(id: string): Promise<ApiResponse> {
+    const response = await api.delete<ApiResponse>(`/leads/${id}`);
+    return response.data;
+  },
+};
+
+// Follow-up API
+export const followUpApi = {
+  async getQueue(): Promise<ApiResponse<FollowUp[]>> {
+    const response = await api.get<ApiResponse<FollowUp[]>>('/followups/queue');
+    return response.data;
+  },
+
+  async generate(data: GenerateFollowUpData): Promise<ApiResponse<FollowUp>> {
+    const response = await api.post<ApiResponse<FollowUp>>('/followups/generate', data);
+    return response.data;
+  },
+
+  async approve(id: string, approvedBy?: string): Promise<ApiResponse<FollowUp>> {
+    const response = await api.patch<ApiResponse<FollowUp>>(`/followups/${id}/approve`, { approvedBy });
+    return response.data;
+  },
+
+  async reject(id: string, reason?: string): Promise<ApiResponse<FollowUp>> {
+    const response = await api.patch<ApiResponse<FollowUp>>(`/followups/${id}/reject`, { reason });
+    return response.data;
+  },
+
+  async edit(id: string, messageDraft: string): Promise<ApiResponse<FollowUp>> {
+    const response = await api.patch<ApiResponse<FollowUp>>(`/followups/${id}/edit`, { messageDraft });
+    return response.data;
+  },
+
+  async delete(id: string): Promise<ApiResponse> {
+    const response = await api.delete<ApiResponse>(`/followups/${id}`);
     return response.data;
   },
 };

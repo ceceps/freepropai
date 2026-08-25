@@ -119,6 +119,11 @@ Instruksi:
       .returning();
     return updated || null;
   }
+
+  async deleteFollowUp(id: string) {
+    const [deleted] = await db.delete(followUps).where(eq(followUps.id, id)).returning();
+    return deleted || null;
+  }
 }
 
 export const followUpSchedulerService = new FollowUpSchedulerService();
