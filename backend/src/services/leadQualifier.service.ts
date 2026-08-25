@@ -123,9 +123,21 @@ Kembalikan respon DALAM FORMAT JSON VALID TANPA MARKDOWN:
     return lead || null;
   }
 
-  async updateLead(id: string, updateData: Partial<typeof leads.$inferInsert>) {
+  async updateLead(id: string, updateData: any) {
+    const safeData: any = {};
+    if (updateData.name !== undefined) safeData.name = updateData.name;
+    if (updateData.phone !== undefined) safeData.phone = updateData.phone;
+    if (updateData.budgetMin !== undefined) safeData.budgetMin = updateData.budgetMin !== null ? String(updateData.budgetMin) : null;
+    if (updateData.budgetMax !== undefined) safeData.budgetMax = updateData.budgetMax !== null ? String(updateData.budgetMax) : null;
+    if (updateData.location !== undefined) safeData.location = updateData.location;
+    if (updateData.unitType !== undefined) safeData.unitType = updateData.unitType;
+    if (updateData.urgency !== undefined) safeData.urgency = updateData.urgency;
+    if (updateData.score !== undefined) safeData.score = updateData.score;
+    if (updateData.notes !== undefined) safeData.notes = updateData.notes;
+    if (updateData.status !== undefined) safeData.status = updateData.status;
+
     const [updated] = await db.update(leads)
-      .set({ ...updateData, updatedAt: new Date() })
+      .set({ ...safeData, updatedAt: new Date() })
       .where(eq(leads.id, id))
       .returning();
     return updated || null;
