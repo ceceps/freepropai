@@ -15,8 +15,8 @@ dotenv.config();
 import listingRoutes from './routes/listing.routes';
 import authRoutes from './routes/auth.routes';
 import scrapingRoutes from './routes/scraping.routes';
-// import leadRoutes from './routes/lead.routes';
-// import followUpRoutes from './routes/followUp.routes';
+import leadRoutes from './routes/lead.routes';
+import followUpRoutes from './routes/followUp.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
@@ -61,8 +61,8 @@ app.get('/api', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
 app.use('/api/scraping', scrapingRoutes);
-// app.use('/api/leads', authMiddleware, leadRoutes);
-// app.use('/api/followups', authMiddleware, followUpRoutes);
+app.use('/api/leads', leadRoutes);
+app.use('/api/followups', followUpRoutes);
 
 // Error handling
 app.use(notFound);

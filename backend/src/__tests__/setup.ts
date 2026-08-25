@@ -1,18 +1,22 @@
 import { beforeAll, afterAll, afterEach } from 'vitest';
 import { db } from '../db';
-import { listings, listingPhotos, listingDescriptions } from '../db/schema';
+import { sql } from 'drizzle-orm';
 
 // Setup before all tests
 beforeAll(async () => {
   console.log('🧪 Test setup: Connecting to database...');
 });
 
-// Cleanup after each test
+// Cleanup after each test using TRUNCATE CASCADE to handle all foreign key constraints effortlessly
 afterEach(async () => {
-  // Clean up test data
-  await db.delete(listingDescriptions);
-  await db.delete(listingPhotos);
-  await db.delete(listings);
+  try {
+    await db.execute(sql`TRUNCATE TABLE follow_ups, leads, listing_descriptions, listing_photos, scraped_listings, scraping_jobs, listings CASCADE;`);
+  } catch (err) {
+    // Fallback if some tables don't exist
+    try {
+      await db.execute(sql`TRUNCATE TABLE listings CASCADE;`);
+    } catch (e) {}
+  }
 });
 
 // Cleanup after all tests

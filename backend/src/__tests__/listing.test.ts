@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import app from '../server';
 import { db } from '../db';
-import { listings, listingPhotos, listingDescriptions } from '../db/schema';
+import { listings, listingPhotos, listingDescriptions, scrapedListings } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import path from 'path';
 
@@ -10,9 +10,10 @@ describe('Listing API Endpoints', () => {
   let testListingId: string;
 
   beforeEach(async () => {
-    // Clean up before each test
+    // Clean up before each test - proper order to avoid FK constraints
     await db.delete(listingDescriptions);
     await db.delete(listingPhotos);
+    await db.delete(scrapedListings);
     await db.delete(listings);
   });
 
@@ -369,7 +370,7 @@ describe('Listing API Endpoints', () => {
       testListingId = listing.id;
     });
 
-    it('should generate 3 description variants', async () => {
+    it.skip('should generate 3 description variants', async () => {
       // Skipped: Requires real LLM API key and takes 30+ seconds
       // To test manually: Set AGENTROUTER_API_KEY in .env.test.local and remove .skip
       const response = await request(app)
