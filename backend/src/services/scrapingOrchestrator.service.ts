@@ -103,10 +103,18 @@ export class ScrapingOrchestratorService {
       let scrapedData: any[] = [];
       
       if (job.sourceName === 'acehome') {
-        scrapedData = await this.acehomeScraper.scrapeListings({
-          url: job.sourceUrl,
-          maxPages: 3, // Default to 3 pages for testing
-        });
+        // If the URL is a direct detail link, scrape just that detail item!
+        if (job.sourceUrl.includes('/project/detail/')) {
+          const detail = await this.acehomeScraper.scrapeListingDetail(job.sourceUrl);
+          if (detail) {
+            scrapedData = [detail];
+          }
+        } else {
+          scrapedData = await this.acehomeScraper.scrapeListings({
+            url: job.sourceUrl,
+            maxPages: 3, // Default to 3 pages for testing
+          });
+        }
       } else {
         throw new Error(`Unsupported source: ${job.sourceName}`);
       }

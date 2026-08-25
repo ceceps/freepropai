@@ -6,6 +6,7 @@ import { asyncHandler, AppError } from '../middleware/errorHandler';
 import { validatePhotoUploads } from '../middleware/upload';
 import ListingModel from '../models/Listing';
 import descriptionGenerator from '../services/descriptionGenerator.service';
+import llmClient from '../utils/llmClient';
 import type { CreateListingRequest, ApiResponse, PaginatedResponse } from '../types';
 
 class ListingController {
@@ -291,6 +292,58 @@ class ListingController {
     };
 
     res.status(201).json(response);
+  });
+
+  /**
+   * Generate AI video script for a listing using property images
+   * POST /api/listings/:id/generate-video-script
+   */
+  generateVideoScript = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    const listing = await ListingModel.findByIdWithDetails(id);
+    if (!listing) {
+      throw new AppError('Listing not found', 404);
+    }
+
+    if (!listing.photos || listing.photos.length === 0) {
+      throw new AppError('Property must have at least one photo to generate a video script prompt', 400);
+    }
+
+    const { customInstructions } = req.body || {};
+
+    const systemPrompt = `You are an expert AI video prompt engineer for real estate.
+Generate a detailed, cinematic video generation prompt optimized for tools like Runway, Pika, or Google Vids.
+Focus on:
+1. Cinematic style, high-end real estate videography, natural light, 4K, smooth gimbal camera movements.
+2. Descriptive sequence: "Slow motion pan through [Room Name], soft sunlight, architectural photography style."
+3. Atmosphere: Luxury, inviting, modern.
+
+Output only the prompt block.`;
+
+    const userPrompt = `Property Details:
+Title: ${listing.title}
+Price: Rp ${listing.price}
+Location: ${listing.location}
+Land/Building: ${listing.land_area || '-'} m² / ${listing.building_area || '-'} m²
+Bedrooms/Bathrooms: ${listing.bedrooms || '-'} / ${listing.bathrooms || '-'}
+Property Type: ${listing.property_type || 'Rumah'}
+Key Features: ${listing.additional_info || 'None'}
+Total Photos Available: ${listing.photos.length}
+
+${customInstructions ? `Additional User Instructions: ${customInstructions}` : ''}
+
+Generate the video generation prompt in English for optimal AI video model performance.`;
+
+    const scriptText = await llmClient.generateCompletion(systemPrompt, userPrompt);
+
+    res.json({
+      success: true,
+      data: {
+        listingId: id,
+        script: scriptText
+      }
+    });
   });
 
   /**

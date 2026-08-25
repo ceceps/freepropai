@@ -31,6 +31,7 @@ class LLMClient {
     systemPrompt?: string;
   }): Promise<LLMResponse> {
     try {
+      console.log(`[LLM] Requesting ${options?.model || llmConfig.model} at ${llmConfig.baseURL}`);
       const response = await this.client.messages.create({
         model: options?.model || llmConfig.model,
         max_tokens: options?.maxTokens || llmConfig.maxTokens,

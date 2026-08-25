@@ -25,17 +25,17 @@ export const authMiddleware = async (req: Request, _res: Response, next: NextFun
   try {
     const token = extractToken(req);
     if (!token) {
-      throw new AppError('Authentication required', 401);
+      return next(new AppError('Authentication required', 401));
     }
 
     const payload = verifyAccessToken(token);
     if (!payload) {
-      throw new AppError('Invalid or expired token', 401);
+      return next(new AppError('Invalid or expired token', 401));
     }
 
     const user = await findUserById(payload.sub);
     if (!user) {
-      throw new AppError('User not found', 401);
+      return next(new AppError('User not found', 401));
     }
 
     req.user = user;

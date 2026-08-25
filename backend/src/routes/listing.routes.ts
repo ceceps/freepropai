@@ -41,11 +41,11 @@ router.patch('/:id', upload.array('photos', 10), listingController.updateListing
 router.delete('/:id', listingController.deleteListing);
 
 /**
- * @route   POST /api/listings/:id/generate-descriptions
- * @desc    Generate AI descriptions for a listing
- * @access  Public (should be protected in production)
+ * @route   POST /api/listings/:id/generate-video-script
+ * @desc    Generate AI video script for a listing using property images
+ * @access  Public
  */
-router.post('/:id/generate-descriptions', listingController.generateDescriptions);
+router.post('/:id/generate-video-script', listingController.generateVideoScript);
 
 /**
  * @route   PATCH /api/listings/:listingId/descriptions/:descId/select
