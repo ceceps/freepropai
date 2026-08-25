@@ -176,7 +176,7 @@ export const scrapedListings = pgTable('scraped_listings', {
   contactInfo: jsonb('contact_info'),
   rawData: jsonb('raw_data'),
   importStatus: varchar('import_status', { length: 50 }).default('pending'),
-  importedListingId: uuid('imported_listing_id').references(() => listings.id),
+  importedListingId: uuid('imported_listing_id').references(() => listings.id, { onDelete: 'set null' }),
   importedAt: timestamp('imported_at'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),

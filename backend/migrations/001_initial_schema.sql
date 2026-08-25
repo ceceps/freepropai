@@ -59,6 +59,8 @@ CREATE TABLE listings (
   bedrooms INT,
   bathrooms INT,
   property_type VARCHAR(100),
+  region VARCHAR(100),
+  source_url VARCHAR(500),
   additional_info TEXT,
   status VARCHAR(50) DEFAULT 'draft',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
