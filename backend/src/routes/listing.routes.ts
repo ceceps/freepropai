@@ -48,6 +48,13 @@ router.delete('/:id', listingController.deleteListing);
 router.post('/:id/generate-video-script', listingController.generateVideoScript);
 
 /**
+ * @route   POST /api/listings/:id/generate-descriptions
+ * @desc    Generate formal & casual AI description variants
+ * @access  Public
+ */
+router.post('/:id/generate-descriptions', listingController.generateDescriptions);
+
+/**
  * @route   PATCH /api/listings/:listingId/descriptions/:descId/select
  * @desc    Select a description variant as the primary one
  * @access  Public (should be protected in production)
