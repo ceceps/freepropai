@@ -75,6 +75,30 @@ Return as JSON array with this exact structure:
       maxPages: 10,
       notes: 'Scraping config for acehome.co.id - Indonesia property listings',
     },
+    {
+      sourceName: 'prolov',
+      baseUrl: 'https://prolov.id',
+      isActive: true,
+      scrapingPrompt: 'Extract property listings from prolov.id',
+      fieldMappings: {
+        title: 'title',
+        price: 'price',
+        location: 'location',
+        landArea: 'landArea',
+        buildingArea: 'buildingArea',
+        bedrooms: 'bedrooms',
+        bathrooms: 'bathrooms',
+        propertyType: 'propertyType',
+        description: 'description',
+        imageUrls: 'imageUrls',
+        contactInfo: 'contactInfo',
+        listingUrl: 'listingUrl',
+        sourceId: 'sourceId',
+      },
+      rateLimitDelay: 1500,
+      maxPages: 1,
+      notes: 'Scraping config for prolov.id - Indonesia property listings',
+    },
   ]).onConflictDoNothing();
 
   console.log('✅ Scraping configs seeding complete!');
