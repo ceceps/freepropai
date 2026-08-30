@@ -38,6 +38,12 @@ uploads/
 *.db
 *.sqlite
 
+# Scratch / dev artifacts
+resume.txt
+test-prolov.js
+prolov-detail.html
+prolov-list.html
+
 # LLM  Dev Setup
 .bob
 .claude
