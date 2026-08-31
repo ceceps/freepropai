@@ -335,7 +335,35 @@ ${customInstructions ? `Additional User Instructions: ${customInstructions}` : '
 
 Generate the video generation prompt in English for optimal AI video model performance.`;
 
-    const scriptText = await llmClient.generateCompletion(systemPrompt, userPrompt);
+    let scriptText = '';
+    try {
+      scriptText = await llmClient.generateCompletion(systemPrompt, userPrompt);
+      if (!scriptText || scriptText.trim().length === 0) {
+        throw new Error('LLM returned an empty script');
+      }
+    } catch (error) {
+      console.warn('⚠️ LLM video script generation failed, using template-based fallback:', error);
+      const priceFormatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(listing.price);
+      scriptText = `Cinematic real estate video showcase of "${listing.title}" located in ${listing.location}. 
+
+[Scene 1: Establishing Shot]
+Drone footage slowly descending towards the front exterior of the ${listing.property_type || 'Rumah'}, showing the architectural layout under soft warm golden hour sunlight. Smooth tilt down.
+
+[Scene 2: Entrance & Living Area]
+Slow motion steadycam entry through the main door. Smooth pan showcasing the spacious living room, highlighting the clean design, high ceilings, and natural light pouring in from the windows.
+
+[Scene 3: Bedrooms & Details]
+Gimbal glide shot into the main bedroom (${listing.bedrooms || 2} bedrooms total). Focus on the interior spacing and modern finishes. 
+
+[Scene 4: Bathrooms & Amenities]
+Slow slider shot showcasing the bathroom (${listing.bathrooms || 1} bathrooms total), highlighting clean fixtures and premium tile work.
+
+[Scene 5: Outro & Call to Action]
+Elegant transition to the backyard/garden area or a high-angle view of the property. Text overlay: "For Sale - ${priceFormatted}". Smooth fade out.
+
+Style: 4K resolution, architectural photography style, 24fps cinematic look, warm color grade, DJI gimbal movements, soft natural lighting.
+${customInstructions ? `\nUser Notes: ${customInstructions}` : ''}`;
+    }
 
     res.json({
       success: true,

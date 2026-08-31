@@ -43,6 +43,11 @@ class LLMClient {
         })),
       });
 
+      if (!response.content || !Array.isArray(response.content) || response.content.length === 0) {
+        console.error('[LLM] Empty or malformed response content:', JSON.stringify(response).slice(0, 500));
+        throw new Error('No text response from Claude — empty content array');
+      }
+
       const textContent = response.content.find(block => block.type === 'text');
       if (!textContent || textContent.type !== 'text') {
         throw new Error('No text response from Claude');
@@ -51,15 +56,17 @@ class LLMClient {
       return {
         content: textContent.text,
         usage: {
-          input_tokens: response.usage.input_tokens,
-          output_tokens: response.usage.output_tokens,
+          input_tokens: response.usage?.input_tokens ?? 0,
+          output_tokens: response.usage?.output_tokens ?? 0,
         },
       };
-    } catch (error) {
-      console.error('Claude API Error:', error);
+    } catch (error: any) {
       if (error instanceof Anthropic.APIError) {
-        throw new Error(`Claude API Error: ${error.message}`);
+        console.error(`[LLM] Anthropic API Error: status=${error.status} message=${error.message}`);
+        console.error(`[LLM] API Error details:`, JSON.stringify(error.error || {}).slice(0, 500));
+        throw new Error(`Claude API Error (HTTP ${error.status}): ${error.message}`);
       }
+      console.error('[LLM] Unknown error:', error.message);
       throw error;
     }
   }

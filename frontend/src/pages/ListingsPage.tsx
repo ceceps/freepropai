@@ -14,6 +14,15 @@ export default function ListingsPage() {
   const [activeTab, setActiveTab] = useState<'info' | 'ai' | 'video'>('info');
   const [videoScript, setVideoScript] = useState<string | null>(null);
   const [isVideoGenerating, setIsVideoGenerating] = useState(false);
+  const [videoCustomInstructions, setVideoCustomInstructions] = useState('');
+  const [listings, setListings] = useState<ListingSummary[]>([]);
+  const [selectedListing, setSelectedListing] = useState<ListingWithDetails | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
 
   const handleGenerateVideoScript = async () => {
     if (!selectedListing) return;
@@ -25,7 +34,7 @@ export default function ListingsPage() {
     try {
       setIsVideoGenerating(true);
       setError(null);
-      const response = await listingApi.generateVideoScript(selectedListing.id);
+      const response = await listingApi.generateVideoScript(selectedListing.id, videoCustomInstructions);
       if (response.success && response.data) {
         setVideoScript(response.data.script);
       }
@@ -36,14 +45,18 @@ export default function ListingsPage() {
       setIsVideoGenerating(false);
     }
   };
-  const [listings, setListings] = useState<ListingSummary[]>([]);
-  const [selectedListing, setSelectedListing] = useState<ListingWithDetails | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
+
+  const handleClearVideoScript = () => {
+    setVideoScript(null);
+    setVideoCustomInstructions('');
+  };
+
+  // Reset video script state when selectedListing changes
+  useEffect(() => {
+    setVideoScript(null);
+    setVideoCustomInstructions('');
+    setActiveTab('info');
+  }, [selectedListing?.id]);
 
   // Load listings on mount
   useEffect(() => {
@@ -712,14 +725,36 @@ export default function ListingsPage() {
                 <div className="space-y-6">
                   <div className="flex justify-between items-center">
                     <h4 className="text-large font-semibold text-text-primary">AI Video Prompt (Google Flow / Runway Ready)</h4>
-                    <button
-                      onClick={handleGenerateVideoScript}
-                      disabled={isVideoGenerating || selectedListing.photos.length === 0}
-                      className="btn btn-primary flex items-center gap-2"
-                    >
-                      <Video className="w-5 h-5" />
-                      <span>{isVideoGenerating ? 'Generating Prompt...' : 'Generate Video Prompt'}</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {videoScript && (
+                        <>
+                          <button
+                            onClick={handleClearVideoScript}
+                            className="btn btn-secondary flex items-center gap-2"
+                          >
+                            Clear
+                          </button>
+                          <button
+                            onClick={handleGenerateVideoScript}
+                            disabled={isVideoGenerating || selectedListing.photos.length === 0}
+                            className="btn btn-secondary flex items-center gap-2"
+                          >
+                            <Video className="w-5 h-5" />
+                            <span>{isVideoGenerating ? 'Regenerating...' : 'Regenerate'}</span>
+                          </button>
+                        </>
+                      )}
+                      {!videoScript && (
+                        <button
+                          onClick={handleGenerateVideoScript}
+                          disabled={isVideoGenerating || selectedListing.photos.length === 0}
+                          className="btn btn-primary flex items-center gap-2"
+                        >
+                          <Video className="w-5 h-5" />
+                          <span>{isVideoGenerating ? 'Generating Prompt...' : 'Generate Video Prompt'}</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {selectedListing.photos.length === 0 && (
@@ -728,6 +763,18 @@ export default function ListingsPage() {
                       <p className="text-sm">Video prompt creation requires at least one property photo for visual reference.</p>
                     </div>
                   )}
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-text-secondary">Custom Instructions (optional)</label>
+                    <textarea
+                      value={videoCustomInstructions}
+                      onChange={(e) => setVideoCustomInstructions(e.target.value)}
+                      placeholder="e.g. Focus on the living room and garden, make it feel cozy and warm, target young families..."
+                      className="input min-h-[80px] resize-y"
+                      rows={3}
+                    />
+                    <p className="text-xs text-text-tertiary">Add extra context to guide the AI prompt. Leave empty for default generation.</p>
+                  </div>
 
                   {videoScript ? (
                     <div className="space-y-4">

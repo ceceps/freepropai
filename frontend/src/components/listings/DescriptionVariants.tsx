@@ -9,7 +9,7 @@ interface DescriptionVariantsProps {
 }
 
 export default function DescriptionVariants({
-  descriptions,
+  descriptions = [],
   onSelect,
   isGenerating = false,
 }: DescriptionVariantsProps) {

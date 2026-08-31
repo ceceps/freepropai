@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import app from '../server';
 import { db } from '../db';
 import { listings, listingPhotos, listingDescriptions, scrapedListings } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import path from 'path';
+import llmClient from '../utils/llmClient';
 
 describe('Listing API Endpoints', () => {
   let testListingId: string;
@@ -456,6 +457,128 @@ describe('Listing API Endpoints', () => {
         .expect(404);
 
       expect(response.body.success).toBe(false);
+    });
+  });
+
+  describe('POST /api/listings/:id/generate-video-script', () => {
+    let listingWithPhotosId: string;
+    let listingNoPhotosId: string;
+
+    beforeEach(async () => {
+      const [listingA] = await db.insert(listings).values({
+        title: 'Listing With Photos',
+        location: 'Jakarta',
+        price: '2000000000',
+        status: 'draft',
+      }).returning();
+      listingWithPhotosId = listingA.id;
+
+      await db.insert(listingPhotos).values({
+        listingId: listingWithPhotosId,
+        photoUrl: '/uploads/test-photo.jpg',
+        photoOrder: 0,
+      });
+
+      const [listingB] = await db.insert(listings).values({
+        title: 'Listing No Photos',
+        location: 'Bandung',
+        price: '1500000000',
+        status: 'draft',
+      }).returning();
+      listingNoPhotosId = listingB.id;
+    });
+
+    it('should return 404 for non-existent listing', async () => {
+      const fakeId = '00000000-0000-0000-0000-000000000000';
+
+      const response = await request(app)
+        .post(`/api/listings/${fakeId}/generate-video-script`)
+        .send({ customInstructions: '' })
+        .expect(404);
+
+      expect(response.body.success).toBe(false);
+    });
+
+    it('should return 400 when listing has no photos', async () => {
+      const response = await request(app)
+        .post(`/api/listings/${listingNoPhotosId}/generate-video-script`)
+        .send({ customInstructions: '' })
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('photo');
+    });
+
+    it('should generate a video script for listing with photos', async () => {
+      const mockScript = 'Cinematic slow motion pan through a modern kitchen with soft sunlight...';
+      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue(mockScript);
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ customInstructions: 'Focus on modern kitchen' })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.script).toBe(mockScript);
+      expect(response.body.data.listingId).toBe(listingWithPhotosId);
+      vi.restoreAllMocks();
+    });
+
+    it('should accept empty custom instructions', async () => {
+      const mockScript = 'Cinematic drone shot of a luxury property...';
+      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue(mockScript);
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({})
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.script).toBe(mockScript);
+      vi.restoreAllMocks();
+    });
+
+    it('should include custom instructions in the generated prompt', async () => {
+      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue('Customized prompt...');
+
+      await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ customInstructions: 'Emphasize the garden view' })
+        .expect(200);
+
+      expect(llmClient.generateCompletion).toHaveBeenCalledTimes(1);
+      const [systemPrompt, userPrompt] = (llmClient.generateCompletion as any).mock.calls[0];
+      expect(userPrompt).toContain('Emphasize the garden view');
+      expect(userPrompt).toContain('Total Photos Available: 1');
+      vi.restoreAllMocks();
+    });
+
+    it('should fall back to template when LLM returns empty response', async () => {
+      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue('');
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({})
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.script).toContain('Cinematic real estate video showcase');
+      vi.restoreAllMocks();
+    });
+
+    it('should handle LLM errors gracefully by falling back to template-based script', async () => {
+      vi.spyOn(llmClient, 'generateCompletion').mockRejectedValue(new Error('LLM API Error'));
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({})
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.script).toContain('Cinematic real estate video showcase');
+      expect(response.body.data.script).toContain('Listing With Photos');
+      expect(response.body.data.listingId).toBe(listingWithPhotosId);
+      vi.restoreAllMocks();
     });
   });
 
