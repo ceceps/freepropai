@@ -403,6 +403,33 @@ describe('Listing API Endpoints', () => {
       // This test would require mocking the LLM service
       // For now, we'll skip it or implement with proper mocking
     });
+
+    it('should return natural prose without section markers when LLM fails', async () => {
+      vi.spyOn(llmClient, 'generateJSON').mockRejectedValue(new Error('Forced fallback'));
+
+      const response = await request(app)
+        .post(`/api/listings/${testListingId}/generate-descriptions`)
+        .expect(201);
+
+      expect(response.body.success).toBe(true);
+
+      const variants = response.body.data.descriptions as Array<{
+        variant_type: string;
+        description_text: string;
+      }>;
+      expect(variants).toHaveLength(3);
+
+      for (const v of variants) {
+        expect(v.description_text).not.toMatch(/\[(HOOK|PROBLEM|AGITATE|SOLUTION|CTA)\]/i);
+        expect(v.description_text.trim().length).toBeGreaterThan(0);
+      }
+
+      const formal = variants.find(v => v.variant_type === 'formal');
+      expect(formal?.description_text).toContain('BSD City');
+      expect(formal?.description_text).toContain('Spesifikasi rumah:');
+      expect(formal?.description_text).toContain('hubungi agen kami');
+      vi.restoreAllMocks();
+    });
   });
 
   describe('PATCH /api/listings/:listingId/descriptions/:descId/select', () => {

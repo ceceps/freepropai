@@ -97,7 +97,7 @@ export default function DescriptionVariants({
               key={type}
               onClick={() => setActiveTab(type)}
               className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-start gap-2 ${isActive
-                  ? 'bg-white dark:bg-secondary-700 shadow-sm text-primary-600 dark:text-primary-400'
+                  ? 'bg-primary-100 text-text-primary shadow-sm dark:bg-primary-600 dark:text-white'
                   : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-primary dark:hover:text-text-primary'
                 }`}
             >

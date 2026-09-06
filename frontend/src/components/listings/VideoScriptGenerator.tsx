@@ -295,6 +295,33 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
   const hasResult = result !== null;
   const noPhotos = listing.photos.length === 0;
 
+  // Keyboard shortcuts: Cmd/Ctrl+Enter to generate, Esc to close modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+Enter or Ctrl+Enter to generate video script
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        if (!isGenerating && !noPhotos && !showSaveModal && !editingScriptId) {
+          e.preventDefault();
+          handleGenerate();
+        }
+      }
+
+      // Esc to close save modal or exit edit mode
+      if (e.key === 'Escape') {
+        if (showSaveModal) {
+          e.preventDefault();
+          setShowSaveModal(false);
+        } else if (editingScriptId) {
+          e.preventDefault();
+          setEditingScriptId(null);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isGenerating, noPhotos, showSaveModal, editingScriptId, handleGenerate]);
+
   return (
     <div className="space-y-8">
       {/* Top Header */}
@@ -569,8 +596,8 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
 
           {/* Save Modal */}
           {showSaveModal && (
-            <div className="p-4 border border-primary-200 dark:border-primary-800 bg-white dark:bg-secondary-800 rounded-xl shadow-lg space-y-3">
-              <h5 className="font-semibold text-sm text-text-primary dark:text-text-primary-dark">
+            <div className="p-4 border border-border bg-white dark:bg-grey-900 rounded-xl shadow-lg space-y-3 text-text-secondary">
+              <h5 className="font-semibold text-sm text-text-primary dark:text-text-secondary">
                 Simpan Versi Skrip Video
               </h5>
               <p className="text-xs text-text-tertiary">
@@ -582,7 +609,7 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
                   value={savingName}
                   onChange={(e) => setSavingName(e.target.value)}
                   placeholder="e.g. Versi 1 - TikTok 9:16 Cinematic"
-                  className="flex-1 text-sm"
+                  className="flex-1 text-sm px-3 py-2 rounded-lg bg-white dark:bg-grey-800 text-grey-900 dark:text-grey-100 border border-grey-300 dark:border-grey-600 placeholder-grey-400 dark:placeholder-grey-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                   autoFocus
                 />
                 <button
@@ -778,7 +805,7 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
 
                   {/* Editing inline form */}
                   {isEditingThis ? (
-                    <div className="mt-3 p-3 bg-secondary-50 dark:bg-secondary-800/60 rounded-lg space-y-3">
+                    <div className="mt-3 p-3 bg-grey-50 dark:bg-grey-800/60 rounded-lg space-y-3">
                       <div>
                         <label className="block text-xs font-semibold text-text-secondary mb-1">
                           Edit Video Prompt (English)
@@ -787,7 +814,7 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
                           value={editingScriptText}
                           onChange={(e) => setEditingScriptText(e.target.value)}
                           rows={4}
-                          className="w-full text-xs font-mono"
+                          className="w-full text-xs font-mono px-3 py-2 rounded-lg bg-white dark:bg-grey-800 text-grey-900 dark:text-grey-100 border border-grey-300 dark:border-grey-600 placeholder-grey-400 dark:placeholder-grey-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                         />
                       </div>
 
@@ -800,7 +827,7 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
                             value={editingVoText}
                             onChange={(e) => setEditingVoText(e.target.value)}
                             rows={4}
-                            className="w-full text-xs font-mono"
+                            className="w-full text-xs font-mono px-3 py-2 rounded-lg bg-white dark:bg-grey-800 text-grey-900 dark:text-grey-100 border border-grey-300 dark:border-grey-600 placeholder-grey-400 dark:placeholder-grey-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                           />
                         </div>
                       )}

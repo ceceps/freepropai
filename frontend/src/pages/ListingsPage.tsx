@@ -339,7 +339,7 @@ export default function ListingsPage() {
           {/* Listings Grid */}
           {isLoading ? (
             <div className="card p-8 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-4" />
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent mx-auto mb-4" />
               <p className="text-text-secondary dark:text-text-secondary-dark">Loading listings...</p>
             </div>
           ) : filteredListings.length === 0 ? (
@@ -567,7 +567,7 @@ export default function ListingsPage() {
                   onClick={() => setActiveTab('info')}
                   className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'info'
-                      ? 'bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 shadow-sm'
+                      ? 'bg-primary-100 text-text-primary dark:bg-primary-600 dark:text-white shadow-sm'
                       : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50'
                   }`}
                 >
@@ -577,7 +577,7 @@ export default function ListingsPage() {
                   onClick={() => setActiveTab('ai')}
                   className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'ai'
-                      ? 'bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 shadow-sm'
+                      ? 'bg-primary-100 text-text-primary dark:bg-primary-600 dark:text-white shadow-sm'
                       : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50'
                   }`}
                 >
@@ -587,7 +587,7 @@ export default function ListingsPage() {
                   onClick={() => setActiveTab('video')}
                   className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'video'
-                      ? 'bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 shadow-sm'
+                      ? 'bg-primary-100 text-text-primary dark:bg-primary-600 dark:text-white shadow-sm'
                       : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50'
                   }`}
                 >

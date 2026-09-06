@@ -73,25 +73,52 @@
   --color-input-text: #0f172a;
   --color-input-border: #e2e8f0;
 
-  /* Fonts - JetBrains Mono Variable */
+  /* Legacy neutral palette (secondary = grey/slate) used across pages */
+  --color-secondary-50: #f8fafc;
+  --color-secondary-100: #f1f5f9;
+  --color-secondary-200: #e2e8f0;
+  --color-secondary-300: #cbd5e1;
+  --color-secondary-400: #94a3b8;
+  --color-secondary-500: #64748b;
+  --color-secondary-600: #475569;
+  --color-secondary-700: #334155;
+  --color-secondary-800: #1e293b;
+  --color-secondary-900: #0f172a;
+  --color-secondary-950: #020617;
+
+  /* Legacy accent hover tokens */
+  --color-accent: #f1f5f9;
+  --color-accent-dark: #1e293b;
+
+  /* Legacy mode-suffixed tokens (used only inside `dark:` contexts) */
+  --color-text-primary-dark: #f8fafc;
+  --color-text-secondary-dark: #cbd5e1;
+  --color-text-tertiary-dark: #64748b;
+  --color-border-dark: #334155;
+  --color-surface-dark: #1e293b;
+  --color-bg-primary-dark: #0f172a;
+
+  /* Fonts - System UI / Inter for clean SaaS look */
   --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-sans: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-size-base: 13pt;
-  --font-size-sm: 12pt;
-  --font-size-lg: 14pt;
-  --font-size-xl: 16pt;
-  --font-size-2xl: 18pt;
-  --font-size-3xl: 22pt;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  
+  /* Base sizes */
+  --font-size-base: 0.875rem;
+  --font-size-sm: 0.8125rem;
+  --font-size-lg: 1rem;
+  --font-size-xl: 1.125rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 2rem;
 
   /* Tailwind font size utilities */
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
-  --text-base: 0.8125rem;
-  --text-lg: 0.875rem;
-  --text-xl: 1rem;
-  --text-2xl: 1.125rem;
-  --text-3xl: 1.375rem;
-  --text-4xl: 1.5rem;
+  --text-base: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.125rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2rem;
+  --text-4xl: 2.5rem;
 
   /* Shadows */
   --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
@@ -199,7 +226,7 @@
 @layer components {
   /* Buttons */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-mono;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .btn-primary {
@@ -207,15 +234,18 @@
   }
 
   .btn-secondary {
-    @apply bg-grey-100 text-grey-700 border border-grey-200 hover:bg-grey-200;
+    @apply bg-grey-100 text-grey-700 border border-grey-200 hover:bg-grey-200
+           dark:bg-grey-800 dark:text-grey-200 dark:border-grey-700 dark:hover:bg-grey-700;
   }
 
   .btn-outline {
-    @apply bg-transparent border-2 border-primary-600 text-primary-600 hover:bg-primary-50;
+    @apply bg-transparent border-2 border-primary-600 text-primary-600 hover:bg-primary-50
+           dark:hover:bg-primary-950/40;
   }
 
   .btn-ghost {
-    @apply bg-transparent text-text-secondary hover:bg-grey-100;
+    @apply bg-transparent text-text-secondary hover:bg-grey-100
+           dark:text-text-secondary dark:hover:bg-grey-800;
   }
 
   .btn-danger {
@@ -256,21 +286,21 @@
   }
 
   .card-body {
-    @apply p-6 font-mono;
+    @apply p-6;
   }
 
   .card-footer {
-    @apply px-6 py-4 border-t border-border bg-grey-50 font-mono;
+    @apply px-6 py-4 border-t border-border bg-grey-50
+           dark:bg-grey-800/60;
   }
 
   /* Inputs */
   .input {
-    background-color: var(--color-input-bg);
-    color: var(--color-input-text);
-    border-color: var(--color-input-border);
-    @apply w-full px-4 py-3 rounded-lg placeholder-text-tertiary transition-all duration-200 text-base font-mono;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
-    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply w-full px-4 py-3 rounded-lg transition-all duration-200 text-base
+           bg-white text-grey-900 border-grey-300 placeholder-text-tertiary
+           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
+           disabled:opacity-50 disabled:cursor-not-allowed
+           dark:bg-grey-800 dark:text-grey-100 dark:border-grey-600 dark:placeholder-grey-500;
   }
 
   .input-error {
@@ -278,55 +308,64 @@
   }
 
   .input-label {
-    color: var(--color-text-secondary);
-    @apply block text-sm font-medium mb-2 text-base font-mono;
+    @apply block text-sm font-medium mb-2 text-text-secondary
+           dark:text-text-secondary;
   }
 
   select {
-    background-color: var(--color-input-bg);
-    color: var(--color-input-text);
-    border-color: var(--color-input-border);
-    @apply w-full px-4 py-3 rounded-lg placeholder-text-tertiary transition-all duration-200 text-base font-mono;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
-    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply w-full px-4 py-3 rounded-lg transition-all duration-200 text-base appearance-none
+           bg-white text-grey-900 border-grey-300
+           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
+           disabled:opacity-50 disabled:cursor-not-allowed
+           dark:bg-grey-800 dark:text-grey-100 dark:border-grey-600;
+  }
+
+  select option {
+    @apply bg-white text-grey-900
+           dark:bg-grey-800 dark:text-grey-100;
   }
 
   textarea {
-    background-color: var(--color-input-bg);
-    color: var(--color-input-text);
-    border-color: var(--color-input-border);
-    @apply w-full px-4 py-3 rounded-lg placeholder-text-tertiary transition-all duration-200 text-base font-mono;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
-    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply w-full px-4 py-3 rounded-lg transition-all duration-200 text-base
+           bg-white text-grey-900 border-grey-300 placeholder-text-tertiary
+           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
+           disabled:opacity-50 disabled:cursor-not-allowed
+           dark:bg-grey-800 dark:text-grey-100 dark:border-grey-600 dark:placeholder-grey-500;
   }
 
   /* Badges */
   .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium font-mono;
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
 
   .badge-primary {
-    @apply bg-primary-100 text-primary-700;
+    @apply bg-primary-100 text-primary-700
+           dark:bg-primary-900/40 dark:text-primary-300;
   }
 
   .badge-secondary {
-    @apply bg-grey-100 text-grey-700;
+    @apply bg-grey-100 text-grey-700
+           dark:bg-grey-800 dark:text-grey-300;
   }
 
   .badge-success {
-    @apply bg-success-100 text-success-700;
+    @apply bg-success-100 text-success-700
+           dark:bg-success-900/40 dark:text-success-300;
   }
 
   .badge-warning {
-    @apply bg-warning-100 text-warning-700;
+    @apply bg-warning-100 text-warning-700
+           dark:bg-warning-900/40 dark:text-warning-300;
   }
 
   .badge-danger {
-    @apply bg-danger-100 text-danger-700;
+    @apply bg-danger-100 text-danger-700
+           dark:bg-danger-900/40 dark:text-danger-300;
   }
 
   .badge-info {
-    @apply bg-primary-100 text-primary-700;
+    @apply bg-primary-100 text-primary-700
+           dark:bg-primary-900/40 dark:text-primary-300;
   }
 
   /* Layout utilities */
@@ -343,20 +382,22 @@
   }
 
   .section-title {
-    @apply text-2xl font-bold text-text-primary font-mono;
+    @apply text-2xl font-bold text-text-primary;
   }
 
   .section-subtitle {
-    @apply text-sm text-text-secondary font-mono;
+    @apply text-sm text-text-secondary;
   }
 
   /* Glass morphism */
   .glass {
-    @apply bg-white/80 backdrop-blur-sm border border-border opacity-50;
+    @apply bg-white/80 backdrop-blur-sm border border-border opacity-50
+           dark:bg-grey-900/80;
   }
 
   .glass-strong {
-    @apply bg-white/90 backdrop-blur-md border border-border opacity-30;
+    @apply bg-white/90 backdrop-blur-md border border-border opacity-30
+           dark:bg-grey-900/90;
   }
 
   /* Table styles */
@@ -365,11 +406,12 @@
   }
 
   .table {
-    @apply w-full text-sm font-mono;
+    @apply w-full text-sm;
   }
 
   .table th {
-    @apply px-4 py-3 text-left font-semibold text-text-tertiary uppercase tracking-wider border-b border-border bg-grey-50;
+    @apply px-4 py-3 text-left font-semibold text-text-tertiary uppercase tracking-wider border-b border-border bg-grey-50
+           dark:bg-grey-800/60;
   }
 
   .table td {
@@ -430,10 +472,6 @@
 
   .bg-gradient-hero {
     @apply bg-gradient-to-br from-primary-600 via-primary-500 to-primary-400;
-  }
-
-  .text-gradient-primary {
-    @apply bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent;
   }
 
   .scrollbar-hide {

@@ -41,6 +41,14 @@ function postProcessDescription(text: string): string {
   if (!text) return '';
   
   return text
+    // Remove section marker labels ([HOOK], [PROBLEM], [SOLUTION], [CTA], [AGITATE])
+    // so the copy reads as natural prose instead of an annotated template.
+    .replace(/^\s*\[(?:HOOK|PROBLEM|AGITATE|SOLUTION|CTA)\]\s*:?\s*$/gim, '')
+    .replace(/\[(?:HOOK|PROBLEM|AGITATE|SOLUTION|CTA)\]/gi, '')
+    // Also strip {HOOK}, **HOOK**, Hook:, Problem:, Solution:, CTA:, Agitate: patterns
+    .replace(/^\s*\*{0,2}(?:Hook|Problem|Agitate|Solution|CTA)\*{0,2}\s*:?\s*$/gim, '')
+    .replace(/^\s*\{(?:HOOK|PROBLEM|AGITATE|SOLUTION|CTA)\}\s*:?\s*$/gim, '')
+    .replace(/\{(?:HOOK|PROBLEM|AGITATE|SOLUTION|CTA)\}/gi, '')
     // Fix concatenated words that might slip through
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .replace(/([a-zA-Z])(\d)/g, '$1 $2')
@@ -122,6 +130,7 @@ Data listing yang WAJIB dipakai (jangan karang-karang fakta di luar data ini):
 - Target audience: mereka yang punya penghasilan cukup untuk DP 10% (sekitar Rp ${dpFormatted})
 
 Aturan penulisan konten viral:
+- NATURAL: hasil akhir harus berupa paragraf yang mengalir. JANGAN pernah mencantumkan label bagian seperti "[HOOK]", "[PROBLEM]", "[SOLUTION]", "[CTA]" (atau heading "Hook:", "Problem:", dll.) sebagai teks output. Transisi antar bagian cukup lewat alur kalimat dan paragraf baru.
 - FORMATING & SPASI: WAJIB gunakan spasi yang benar antar kata, antar angka dan kata (contoh: "72 m²", "2 Kamar Tidur", bukan "72m²2Kamar"). Jika data input tempel/tanpa spasi, perbaiki menjadi kalimat ber-spasi rapi.
 - HOOK: kalimat pembuka yang stop-scroll — pakai scarcity, lifestyle aspiration, price anchor, atau surprise fact
 - EMOSI: sentuh rasa takut ketinggalan (FOMO), capek cari-cari, impian punya rumah sendiri, atau bangga sama lokasi strategis
@@ -202,8 +211,23 @@ Aturan penulisan konten viral:
 
     const addInfo = listing.additional_info ? normalizeText(listing.additional_info) : '';
 
-    // Variant 1: FORMAL (Hook -> Problem -> Solution -> CTA, for listing portals)
-    const formal = `[HOOK]\nHanya tersisa unit terbatas di kawasan ${listing.location} dengan harga mulai Rp ${priceFormatted} (${priceInMillionsOrBillions}). Properti di area ini jarang muncul di pasaran.\n\n[PROBLEM]\nMencari ${typeStr} yang siap huni, legalitas jelas, dan harga masih masuk akal di ${listing.location} memang tidak mudah. Harga properti terus naik setiap tahun, sementara pilihan yang benar-benar berkualitas semakin langka. Banyak calon pembeli akhirnya menunda dan justru kehilangan peluang terbaik.\n\n[SOLUTION]\n${titleStr} hadir sebagai jawaban.${specSummary ? `\n\nSpesifikasi Properti:\n${specs.map(s => `- ${s}`).join('\n')}` : ''}\nHarga Penawaran: Rp ${priceFormatted} (${priceInMillionsOrBillions}, Nego).${addInfo ? `\n\nKeunggulan:\n${addInfo}` : ''}\n\nUnit ini menjawab kebutuhan Anda akan hunian ${typeStr} dengan lokasi yang tepat, legalitas terjamin, dan kondisi siap huni.\n\n[CTA]\nSegera hubungi agen kami untuk jadwal survey lokasi dan negosiasi harga. Unit terbatas — siapa cepat, dia dapat.`;
+    const specSentence = [
+      listing.land_area ? `tanah seluas ${listing.land_area} m²` : '',
+      listing.building_area ? `bangunan seluas ${listing.building_area} m²` : '',
+      listing.bedrooms ? `${listing.bedrooms} kamar tidur` : '',
+      listing.bathrooms ? `${listing.bathrooms} kamar mandi` : '',
+    ].filter(Boolean).join(', ');
+
+    // Variant 1: FORMAL (natural Hook -> Problem -> Solution -> CTA prose for listing portals)
+    const formal = `Hanya tersisa unit terbatas di kawasan ${listing.location} dengan harga mulai Rp ${priceFormatted} (${priceInMillionsOrBillions}). Properti di area ini jarang muncul di pasaran, jadi kesempatan untuk memiliki hunian di lokasi ini tidak datang dua kali.
+
+Mencari ${typeStr} yang siap huni, legalitas jelas, dan harga masih masuk akal di ${listing.location} memang tidak mudah. Harga properti terus naik setiap tahun, sementara pilihan yang benar-benar berkualitas semakin langka. Banyak calon pembeli akhirnya menunda dan justru kehilangan peluang terbaik.
+
+${titleStr} hadir sebagai jawaban atas kebutuhan tersebut.${specSentence ? `\n\nSpesifikasi ${typeStr}: ${specSentence}.` : ''}
+
+Dengan harga penawaran Rp ${priceFormatted} (${priceInMillionsOrBillions}, nego), properti ini siap huni dan memiliki legalitas terjamin.${addInfo ? `\n\n${addInfo}` : ''}
+
+Jangan sampai kehabisan. Segera hubungi agen kami untuk jadwal survey lokasi dan negosiasi harga — unit terbatas, siapa cepat dia dapat.`;
 
     // Variant 2: CASUAL #1 (Problem -> Agitate -> Solution -> CTA, Instagram feed)
     const casual_1 = `Capek cari ${typeStr} yang pas tapi selalu kalah cepat sama pembeli lain? 😩\n\nMakin lama nunggu, harga makin naik. Unit strategis makin jarang muncul. Apalagi lokasi ${listing.location} tuh incaran banyak orang — kalo nggak gercep, unit ini bakal laku sama orang lain. ⏳\n\nTenang, ${titleStr} jawabannya! ✨\n\n📍 ${listing.location}\n💰 Rp ${priceInMillionsOrBillions}\n✨ ${specSummary}\n${addInfo ? `📌 ${addInfo}\n\n` : ''}\nCocok banget buat tempat tinggal keluarga atau investasi. ${listing.bedrooms ? `${listing.bedrooms} KT` : ''}${listing.bathrooms ? ` ${listing.bathrooms} KM` : ''} — siap buat dihuni.\n\nDM atau WA sekarang buat survey lokasi! 📲`;

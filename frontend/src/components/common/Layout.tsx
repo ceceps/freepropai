@@ -67,7 +67,7 @@ export default function Layout({ children }: LayoutProps) {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <div className="min-h-screen bg-bg-primary dark:bg-bg-primary transition-colors duration-200 font-mono">
+    <div className="min-h-screen bg-bg-primary dark:bg-bg-primary transition-colors duration-200">
       {/* Mobile overlay */}
       {isMobile && mobileMenuOpen && (
         <div
@@ -100,7 +100,7 @@ export default function Layout({ children }: LayoutProps) {
                   <Grid className="w-5 h-5 text-white" />
                 </div>
                 {sidebarOpen && (
-                  <span className="text-xl font-bold text-text-primary dark:text-text-primary truncate font-mono">
+                  <span className="text-xl font-bold text-text-primary dark:text-text-primary truncate">
                     FreePropAI
                   </span>
                 )}
@@ -127,13 +127,13 @@ export default function Layout({ children }: LayoutProps) {
                     to={item.href}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
                       isActive
-                        ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400'
+                        ? 'bg-primary-100 text-text-primary dark:bg-primary-900/30 dark:text-primary-400'
                         : 'text-text-secondary dark:text-text-secondary hover:bg-grey-100 dark:hover:bg-grey-800'
                     }`}
                     title={sidebarOpen ? undefined : item.name}
                   >
                     <Icon className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
-                    {sidebarOpen && <span className="font-medium truncate font-mono text-sm leading-5">{item.name}</span>}
+                    {sidebarOpen && <span className="font-medium truncate text-sm leading-5">{item.name}</span>}
                   </NavLink>
                 );
               })}
@@ -149,7 +149,7 @@ export default function Layout({ children }: LayoutProps) {
                   <Settings className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                 </div>
                 {sidebarOpen && (
-                  <span className="font-medium truncate font-mono text-sm leading-5 text-text-primary">Settings</span>
+                  <span className="font-medium truncate text-sm leading-5 text-text-primary dark:text-text-primary">Settings</span>
                 )}
               </Link>
             </div>
@@ -170,7 +170,7 @@ export default function Layout({ children }: LayoutProps) {
                   {mobileMenuOpen ? <ChevronRight className="w-6 h-6 text-text-primary" /> : <Menu className="w-6 h-6 text-text-primary" />}
                 </button>
                 {sidebarOpen && !isMobile && (
-                  <h1 className="text-lg font-semibold text-text-primary dark:text-text-primary hidden sm:block font-mono">
+                  <h1 className="text-lg font-semibold text-text-primary dark:text-text-primary hidden sm:block">
                     {currentNav.name}
                   </h1>
                 )}
@@ -183,7 +183,7 @@ export default function Layout({ children }: LayoutProps) {
                   <input
                     type="search"
                     placeholder="Search..."
-                    className="w-64 pl-10 pr-4 py-2 bg-grey-100 dark:bg-grey-800 border border-border dark:border-border rounded-lg text-text-primary dark:text-text-primary placeholder-text-tertiary dark:placeholder-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all font-mono text-sm"
+                    className="w-64 pl-10 pr-4 py-2 bg-grey-100 dark:bg-grey-800 border border-border dark:border-border rounded-lg text-text-primary dark:text-text-primary placeholder-text-tertiary dark:placeholder-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm"
                   />
                 </div>
 
@@ -211,7 +211,7 @@ export default function Layout({ children }: LayoutProps) {
                   {showNotifications && (
                     <div className="absolute right-0 mt-2 w-80 bg-surface dark:bg-surface border border-border dark:border-border rounded-lg shadow-dropdown py-2 z-50 animate-fade-in">
                       <div className="px-4 py-3 border-b border-border dark:border-border flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-text-primary dark:text-text-primary font-mono">Notifications</h3>
+                        <h3 className="text-sm font-semibold text-text-primary dark:text-text-primary">Notifications</h3>
                         <button
                           onClick={() => setShowNotifications(false)}
                           className="p-1 rounded hover:bg-grey-100 dark:hover:bg-grey-800"
