@@ -6,7 +6,7 @@ import { asyncHandler, AppError } from '../middleware/errorHandler';
 import { validatePhotoUploads } from '../middleware/upload';
 import ListingModel from '../models/Listing';
 import descriptionGenerator from '../services/descriptionGenerator.service';
-import llmClient from '../utils/llmClient';
+import videoScriptGenerator from '../services/videoScriptGenerator.service';
 import type { CreateListingRequest, ApiResponse, PaginatedResponse } from '../types';
 
 class ListingController {
@@ -276,6 +276,9 @@ class ListingController {
     // Generate descriptions using LLM
     const descriptions = await descriptionGenerator.generateDescriptions(listing);
 
+    // Clear existing descriptions before saving new ones
+    await ListingModel.clearDescriptions(id);
+
     // Save descriptions to database
     const savedDescriptions = await Promise.all([
       ListingModel.addDescription(id, 'formal', descriptions.formal),
@@ -310,67 +313,20 @@ class ListingController {
       throw new AppError('Property must have at least one photo to generate a video script prompt', 400);
     }
 
-    const { customInstructions } = req.body || {};
-
-    const systemPrompt = `You are an expert AI video prompt engineer for real estate.
-Generate a detailed, cinematic video generation prompt optimized for tools like Runway, Pika, or Google Vids.
-Focus on:
-1. Cinematic style, high-end real estate videography, natural light, 4K, smooth gimbal camera movements.
-2. Descriptive sequence: "Slow motion pan through [Room Name], soft sunlight, architectural photography style."
-3. Atmosphere: Luxury, inviting, modern.
-
-Output only the prompt block.`;
-
-    const userPrompt = `Property Details:
-Title: ${listing.title}
-Price: Rp ${listing.price}
-Location: ${listing.location}
-Land/Building: ${listing.land_area || '-'} m² / ${listing.building_area || '-'} m²
-Bedrooms/Bathrooms: ${listing.bedrooms || '-'} / ${listing.bathrooms || '-'}
-Property Type: ${listing.property_type || 'Rumah'}
-Key Features: ${listing.additional_info || 'None'}
-Total Photos Available: ${listing.photos.length}
-
-${customInstructions ? `Additional User Instructions: ${customInstructions}` : ''}
-
-Generate the video generation prompt in English for optimal AI video model performance.`;
-
-    let scriptText = '';
-    try {
-      scriptText = await llmClient.generateCompletion(systemPrompt, userPrompt);
-      if (!scriptText || scriptText.trim().length === 0) {
-        throw new Error('LLM returned an empty script');
-      }
-    } catch (error) {
-      console.warn('⚠️ LLM video script generation failed, using template-based fallback:', error);
-      const priceFormatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(listing.price);
-      scriptText = `Cinematic real estate video showcase of "${listing.title}" located in ${listing.location}. 
-
-[Scene 1: Establishing Shot]
-Drone footage slowly descending towards the front exterior of the ${listing.property_type || 'Rumah'}, showing the architectural layout under soft warm golden hour sunlight. Smooth tilt down.
-
-[Scene 2: Entrance & Living Area]
-Slow motion steadycam entry through the main door. Smooth pan showcasing the spacious living room, highlighting the clean design, high ceilings, and natural light pouring in from the windows.
-
-[Scene 3: Bedrooms & Details]
-Gimbal glide shot into the main bedroom (${listing.bedrooms || 2} bedrooms total). Focus on the interior spacing and modern finishes. 
-
-[Scene 4: Bathrooms & Amenities]
-Slow slider shot showcasing the bathroom (${listing.bathrooms || 1} bathrooms total), highlighting clean fixtures and premium tile work.
-
-[Scene 5: Outro & Call to Action]
-Elegant transition to the backyard/garden area or a high-angle view of the property. Text overlay: "For Sale - ${priceFormatted}". Smooth fade out.
-
-Style: 4K resolution, architectural photography style, 24fps cinematic look, warm color grade, DJI gimbal movements, soft natural lighting.
-${customInstructions ? `\nUser Notes: ${customInstructions}` : ''}`;
-    }
+    const body = (req.body || {}) as { style?: string; model?: string; includeVoiceOver?: boolean; customInstructions?: string };
+    const result = await videoScriptGenerator.generate(listing, {
+      style: body.style,
+      model: body.model,
+      includeVoiceOver: body.includeVoiceOver,
+      customInstructions: body.customInstructions,
+    });
 
     res.json({
       success: true,
       data: {
         listingId: id,
-        script: scriptText
-      }
+        ...result,
+      },
     });
   });
 

@@ -43,6 +43,13 @@
       "when": 1786468811167,
       "tag": "0005_quick_proteus",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788650785612,
+      "tag": "0006_dapper_red_shift",
+      "breakpoints": true
     }
   ]
 }

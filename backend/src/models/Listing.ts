@@ -191,6 +191,13 @@ export class ListingModel {
     return this.mapToDescription(description);
   }
 
+  // Clear all descriptions for a listing (before re-generating)
+  async clearDescriptions(listingId: string): Promise<void> {
+    await db
+      .delete(listingDescriptions)
+      .where(eq(listingDescriptions.listingId, listingId));
+  }
+
   // Get descriptions for listing
   async getDescriptions(listingId: string): Promise<ListingDescription[]> {
     const descriptions = await db

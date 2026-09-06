@@ -19,7 +19,9 @@ import type {
   Lead,
   FollowUp,
   QualifyLeadData,
-  GenerateFollowUpData
+  GenerateFollowUpData,
+  VideoScriptOptions,
+  VideoScriptResult
 } from '../types';
 
 // Create axios instance
@@ -206,10 +208,10 @@ export const listingApi = {
   },
 
   // Generate video script
-  async generateVideoScript(id: string, customInstructions?: string): Promise<ApiResponse<{ listingId: string; script: string }>> {
-    const response = await api.post<ApiResponse<{ listingId: string; script: string }>>(
+  async generateVideoScript(id: string, options?: VideoScriptOptions): Promise<ApiResponse<VideoScriptResult>> {
+    const response = await api.post<ApiResponse<VideoScriptResult>>(
       `/listings/${id}/generate-video-script`,
-      { customInstructions }
+      options || {}
     );
     return response.data;
   },

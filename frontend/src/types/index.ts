@@ -82,6 +82,58 @@ export interface ListingWithDetails extends Listing {
   descriptions: ListingDescription[];
 }
 
+// Video Script Generator Types
+export type VideoStyle = 'cinematic' | 'aerial' | 'lifestyle' | 'walkthrough';
+export type VideoModel = 'runway' | 'veo' | 'pika' | 'kling' | 'sora';
+
+export interface VideoScriptOptions {
+  style?: VideoStyle;
+  model?: VideoModel;
+  includeVoiceOver?: boolean;
+  customInstructions?: string;
+}
+
+export interface VideoSceneVisuals {
+  description: string;
+  camera: string;
+}
+
+export interface VideoSceneAudio {
+  ambient?: string;
+  effects?: string;
+  voice_over?: {
+    text: string;
+    style: string;
+  };
+}
+
+export interface VideoScriptScene {
+  scene_number: number;
+  duration_seconds: number;
+  visuals: VideoSceneVisuals;
+  audio: VideoSceneAudio;
+}
+
+export interface VideoScriptJson {
+  project: string;
+  settings: {
+    total_duration_seconds: number;
+    resolution: string;
+    aspect_ratio: string;
+  };
+  scenes: VideoScriptScene[];
+}
+
+export interface VideoScriptResult {
+  listingId: string;
+  style: VideoStyle;
+  model: VideoModel;
+  includeVoiceOver: boolean;
+  script: string;
+  voiceOverScript: string | null;
+  scriptJson: VideoScriptJson;
+}
+
 export interface CreateListingData {
   title: string;
   landArea?: number;

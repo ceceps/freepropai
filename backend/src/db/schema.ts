@@ -136,6 +136,26 @@ export const listingDescriptions = pgTable('listing_descriptions', {
   variantCheck: check('variant_check', sql`${table.variantType} IN ('formal', 'casual_1', 'casual_2')`),
 }));
 
+// Listing video prompts table (history of generated video prompts)
+export const listingVideoPrompts = pgTable('listing_video_prompts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  listingId: uuid('listing_id').notNull().references(() => listings.id, { onDelete: 'cascade' }),
+  style: varchar('style', { length: 50 }).notNull(),
+  model: varchar('model', { length: 50 }).notNull(),
+  customInstructions: text('custom_instructions'),
+  includeVoiceOver: boolean('include_voice_over').notNull().default(false),
+  voiceGender: varchar('voice_gender', { length: 20 }),
+  voiceAge: varchar('voice_age', { length: 20 }),
+  voiceLanguage: varchar('voice_language', { length: 10 }),
+  script: text('script').notNull(),
+  voiceOverScript: text('voice_over_script'),
+  scriptJson: jsonb('script_json').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  listingIdx: index('idx_video_prompts_listing').on(table.listingId),
+  createdAtIdx: index('idx_video_prompts_created').on(table.createdAt),
+}));
+
 // Scraping jobs table
 export const scrapingJobs = pgTable('scraping_jobs', {
   id: uuid('id').primaryKey().defaultRandom(),

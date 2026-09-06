@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { Copy, Check, Sparkles } from 'lucide-react';
+import { Copy, Check, Sparkles, RefreshCw } from 'lucide-react';
 import type { ListingDescription } from '../../types';
 
 interface DescriptionVariantsProps {
   descriptions: ListingDescription[];
   onSelect: (descriptionId: string) => Promise<void>;
+  onRegenerate?: () => Promise<void>;
   isGenerating?: boolean;
 }
 
 export default function DescriptionVariants({
   descriptions = [],
   onSelect,
+  onRegenerate,
   isGenerating = false,
 }: DescriptionVariantsProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -75,7 +77,8 @@ export default function DescriptionVariants({
     );
   }
 
-  const tabs = descriptions.map(d => d.variant_type);
+  // Deduplicate tabs to avoid multiple Formal/PAS/Short tabs
+  const tabs = Array.from(new Set(descriptions.map(d => d.variant_type)));
   const activeDesc = descriptions.find(d => d.variant_type === activeTab) || descriptions[0];
   const activeInfo = getVariantLabel(activeDesc.variant_type);
   const isCopied = copiedId === activeDesc.id;
@@ -119,6 +122,16 @@ export default function DescriptionVariants({
             <p className="text-sm text-text-tertiary dark:text-text-tertiary-dark mt-0.5">{activeInfo.subtitle}</p>
           </div>
           <div className="flex gap-2">
+            {onRegenerate && (
+              <button
+                onClick={onRegenerate}
+                disabled={isGenerating}
+                className="p-2 text-text-tertiary dark:text-text-tertiary-dark hover:text-primary-600 dark:hover:text-primary-400 hover:bg-accent dark:hover:bg-accent-dark rounded-lg transition-colors"
+                title="Regenerate Descriptions"
+              >
+                <RefreshCw className={`w-5 h-5 ${isGenerating ? 'animate-spin' : ''}`} />
+              </button>
+            )}
             <button
               onClick={() => handleCopy(activeDesc.description_text, activeDesc.id)}
               className="p-2 text-text-tertiary dark:text-text-tertiary-dark hover:text-primary-600 dark:hover:text-primary-400 hover:bg-accent dark:hover:bg-accent-dark rounded-lg transition-colors"
