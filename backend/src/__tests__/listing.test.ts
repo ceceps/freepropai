@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import app from '../server';
 import { db } from '../db';
-import { listings, listingPhotos, listingDescriptions, scrapedListings } from '../db/schema';
+import { listings, listingPhotos, listingDescriptions, listingVideoPrompts, scrapedListings } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import path from 'path';
 import llmClient from '../utils/llmClient';
@@ -12,6 +12,7 @@ describe('Listing API Endpoints', () => {
 
   beforeEach(async () => {
     // Clean up before each test - proper order to avoid FK constraints
+    await db.delete(listingVideoPrompts);
     await db.delete(listingDescriptions);
     await db.delete(listingPhotos);
     await db.delete(scrapedListings);
@@ -587,14 +588,14 @@ describe('Listing API Endpoints', () => {
 
       const response = await request(app)
         .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
-        .send({ style: 'aerial', model: 'veo', includeVoiceOver: true, customInstructions: 'Show the pool' })
+        .send({ style: 'aerial', model: 'veo', voiceOver: { enabled: true }, customInstructions: 'Show the pool' })
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.script).toBe(mockScript);
       expect(response.body.data.style).toBe('aerial');
       expect(response.body.data.model).toBe('veo');
-      expect(response.body.data.includeVoiceOver).toBe(true);
+      expect(response.body.data.voiceOver).toEqual({ enabled: true });
       expect(response.body.data.voiceOverScript).toBe(mockScript);
       vi.restoreAllMocks();
     });
@@ -660,7 +661,7 @@ describe('Listing API Endpoints', () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.voiceOverScript).toBeNull();
-      expect(response.body.data.includeVoiceOver).toBe(false);
+      expect(response.body.data.voiceOver).toBeUndefined();
       expect(llmClient.generateCompletion).toHaveBeenCalledTimes(1);
       vi.restoreAllMocks();
     });
@@ -675,7 +676,7 @@ describe('Listing API Endpoints', () => {
         .expect(200);
 
       const json = response.body.data.scriptJson;
-      expect(json.project).toBe('cinematic_sequence');
+      expect(json.project).toContain('video_campaign');
       expect(json.settings).toEqual({
         total_duration_seconds: 22,
         resolution: '1920x1080',
@@ -687,6 +688,9 @@ describe('Listing API Endpoints', () => {
       json.scenes.forEach((scene, index) => {
         expect(scene.scene_number).toBe(index + 1);
         expect(scene.duration_seconds).toEqual(expect.any(Number));
+        expect(scene.transition).toBeDefined();
+        expect(scene.transition.in).toEqual(expect.any(String));
+        expect(scene.transition.out).toEqual(expect.any(String));
         expect(scene.visuals.description).toEqual(expect.any(String));
         expect(scene.visuals.camera).toEqual(expect.any(String));
         expect(scene.audio.ambient).toEqual(expect.any(String));
@@ -718,6 +722,51 @@ describe('Listing API Endpoints', () => {
         expect(scene.audio.voice_over.text).toEqual(expect.any(String));
       }
       vi.restoreAllMocks();
+    });
+
+    it('should save, list, update, and delete video scripts', async () => {
+      // 1. Save video script
+      const saveRes = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/video-scripts`)
+        .send({
+          name: 'Versi Cinematic 9:16',
+          style: 'cinematic',
+          model: 'runway',
+          aspectRatio: '9:16',
+          script: 'Visual video prompt content...',
+          scriptJson: { project: 'test', settings: {}, scenes: [] },
+        })
+        .expect(201);
+
+      expect(saveRes.body.success).toBe(true);
+      const savedId = saveRes.body.data.id;
+      expect(saveRes.body.data.name).toBe('Versi Cinematic 9:16');
+
+      // 2. List video scripts
+      const listRes = await request(app)
+        .get(`/api/listings/${listingWithPhotosId}/video-scripts`)
+        .expect(200);
+
+      expect(listRes.body.success).toBe(true);
+      expect(listRes.body.data.length).toBeGreaterThanOrEqual(1);
+      expect(listRes.body.data[0].id).toBe(savedId);
+
+      // 3. Update video script
+      const updateRes = await request(app)
+        .put(`/api/listings/video-scripts/${savedId}`)
+        .send({ name: 'Versi Cinematic 9:16 (Updated)', script: 'Updated prompt content' })
+        .expect(200);
+
+      expect(updateRes.body.success).toBe(true);
+      expect(updateRes.body.data.name).toBe('Versi Cinematic 9:16 (Updated)');
+      expect(updateRes.body.data.script).toBe('Updated prompt content');
+
+      // 4. Delete video script
+      const deleteRes = await request(app)
+        .delete(`/api/listings/video-scripts/${savedId}`)
+        .expect(200);
+
+      expect(deleteRes.body.success).toBe(true);
     });
 
     it('should fill voice over fallback into JSON scenes when LLM narration is unusable', async () => {

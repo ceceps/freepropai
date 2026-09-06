@@ -313,11 +313,13 @@ class ListingController {
       throw new AppError('Property must have at least one photo to generate a video script prompt', 400);
     }
 
-    const body = (req.body || {}) as { style?: string; model?: string; includeVoiceOver?: boolean; customInstructions?: string };
+    const body = (req.body || {}) as { style?: string; model?: string; aspectRatio?: string; voiceOver?: any; includeVoiceOver?: boolean; customInstructions?: string };
+    const voiceOver = body.voiceOver || (body.includeVoiceOver ? { enabled: true } : { enabled: false });
     const result = await videoScriptGenerator.generate(listing, {
       style: body.style,
       model: body.model,
-      includeVoiceOver: body.includeVoiceOver,
+      aspectRatio: body.aspectRatio,
+      voiceOver,
       customInstructions: body.customInstructions,
     });
 
@@ -327,6 +329,98 @@ class ListingController {
         listingId: id,
         ...result,
       },
+    });
+  });
+
+  /**
+   * Save a video script
+   * POST /api/listings/:id/video-scripts
+   */
+  saveVideoScript = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const listing = await ListingModel.findById(id);
+    if (!listing) {
+      throw new AppError('Listing not found', 404);
+    }
+
+    const { name, style, model, aspectRatio, customInstructions, voiceOver, script, voiceOverScript, scriptJson } = req.body;
+    if (!name || !style || !model || !script || !scriptJson) {
+      throw new AppError('Missing required fields: name, style, model, script, scriptJson', 400);
+    }
+
+    const voConfig = voiceOver || {};
+    const saved = await ListingModel.saveVideoScript({
+      listingId: id,
+      name: name.trim(),
+      style,
+      model,
+      aspectRatio: aspectRatio || '16:9',
+      customInstructions,
+      includeVoiceOver: !!voConfig.enabled,
+      voiceGender: voConfig.gender,
+      voiceAge: voConfig.ageRange,
+      voiceLanguage: voConfig.language,
+      script,
+      voiceOverScript,
+      scriptJson,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: saved,
+    });
+  });
+
+  /**
+   * Get all saved video scripts for a listing
+   * GET /api/listings/:id/video-scripts
+   */
+  getVideoScripts = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const listing = await ListingModel.findById(id);
+    if (!listing) {
+      throw new AppError('Listing not found', 404);
+    }
+
+    const scripts = await ListingModel.listVideoScripts(id);
+    res.json({
+      success: true,
+      data: scripts,
+    });
+  });
+
+  /**
+   * Update a video script
+   * PUT /api/listings/video-scripts/:scriptId
+   */
+  updateVideoScript = asyncHandler(async (req: Request, res: Response) => {
+    const { scriptId } = req.params;
+    const existing = await ListingModel.getVideoScript(scriptId);
+    if (!existing) {
+      throw new AppError('Video script not found', 404);
+    }
+
+    const updated = await ListingModel.updateVideoScript(scriptId, req.body);
+    res.json({
+      success: true,
+      data: updated,
+    });
+  });
+
+  /**
+   * Delete a saved video script
+   * DELETE /api/listings/video-scripts/:scriptId
+   */
+  deleteVideoScript = asyncHandler(async (req: Request, res: Response) => {
+    const { scriptId } = req.params;
+    const success = await ListingModel.deleteVideoScript(scriptId);
+    if (!success) {
+      throw new AppError('Video script not found', 404);
+    }
+
+    res.json({
+      success: true,
+      message: 'Video script deleted successfully',
     });
   });
 

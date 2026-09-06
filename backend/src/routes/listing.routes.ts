@@ -48,6 +48,34 @@ router.delete('/:id', listingController.deleteListing);
 router.post('/:id/generate-video-script', listingController.generateVideoScript);
 
 /**
+ * @route   POST /api/listings/:id/video-scripts
+ * @desc    Save a generated video script
+ * @access  Public
+ */
+router.post('/:id/video-scripts', listingController.saveVideoScript);
+
+/**
+ * @route   GET /api/listings/:id/video-scripts
+ * @desc    List all saved video scripts for a listing
+ * @access  Public
+ */
+router.get('/:id/video-scripts', listingController.getVideoScripts);
+
+/**
+ * @route   PUT /api/listings/video-scripts/:scriptId
+ * @desc    Update a video script
+ * @access  Public
+ */
+router.put('/video-scripts/:scriptId', listingController.updateVideoScript);
+
+/**
+ * @route   DELETE /api/listings/video-scripts/:scriptId
+ * @desc    Delete a saved video script
+ * @access  Public
+ */
+router.delete('/video-scripts/:scriptId', listingController.deleteVideoScript);
+
+/**
  * @route   POST /api/listings/:id/generate-descriptions
  * @desc    Generate formal & casual AI description variants
  * @access  Public

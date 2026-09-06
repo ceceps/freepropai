@@ -97,7 +97,7 @@ class DescriptionGeneratorService {
 
   /**
    * Build system prompt for LLM - viral content strategist persona:
-   * - formal   -> viral listing-portal copy with emotional hooks
+   * - formal   -> viral listing-portal copy strictly Hook -> Problem -> Solution -> CTA
    * - casual_1 -> shareable Instagram feed post (PAS + Indo humor/kedekatan)
    * - casual_2 -> punchy Instagram story / WhatsApp status (max virality)
    */
@@ -112,7 +112,7 @@ Buat 3 variasi konten dalam Bahasa Indonesia yang natural dan viral:
 
 Return ONLY valid JSON format (no markdown, no explanation):
 {
-  "formal": "Deskripsi listing portal profesional (OLX, Rumah123, dll) dengan hook kuat yang menghentikan scroll. Pakai framework Hook -> Emosi -> Solusi -> CTA. Tonjolkan urgensi & value, sentuh masalah nyata pembeli, tunjukkan properti ini sebagai solusi dengan data konkret, tutup dengan CTA yang clear. Tone: profesional tapi tetap relatable. No emoji.",
+  "formal": "Deskripsi listing portal profesional (OLX, Rumah123, dll). WAJIB mengikuti urutan 4 bagian yang jelas: (1) Hook: kalimat pembuka yang memancing perhatian seperti fakta unik atau scarcity. (2) Problem: nyatakan masalah yang dirasakan pencari rumah seperti harga terus naik atau susah cari unit siap huni. (3) Solution: presentasikan properti ini sebagai solusi dari masalah tersebut, sertakan detail spesifikasi, legalitas, dan harga. (4) CTA: ajakan bertindak yang jelas seperti \"Segera hubungi agen kami untuk jadwal survey\". Tone: profesional, berwibawa, dan meyakinkan. Tidak menggunakan emoji.",
   "casual_1": "Konten Instagram feed yang super shareable. Pakai framework PAS (Problem -> Agitate -> Solution -> CTA) dengan bumbu humor khas Indo, kedekatan emosional, dan relatable situation. Buka dengan pain point yang bikin orang ngangguk, agitate sampai berasa frustrasinya, reveal properti ini sebagai jalan keluar, push ke DM/WA. Tambahkan elemen yang bikin orang mau tag teman. 2-3 emoji yang relevan.",
   "casual_2": "Instagram Story / WhatsApp Status super singkat dan punchy, optimized untuk virality. Hook di kalimat pertama yang bikin orang stop scroll, satu-dua kalimat problem + solusi yang nyangkut di kepala, CTA yang urgent. Gaya bahasa Gen Z/Milenial Indo yang natural. 3-5 emoji yang pas."
 }
@@ -203,7 +203,7 @@ Aturan penulisan konten viral:
     const addInfo = listing.additional_info ? normalizeText(listing.additional_info) : '';
 
     // Variant 1: FORMAL (Hook -> Problem -> Solution -> CTA, for listing portals)
-    const formal = `Temukan hunian yang selama ini Anda cari: ${titleStr} di ${listing.location}.${specSummary ? `\n\nSpesifikasi Properti:\n${specs.map(s => `- ${s}`).join('\n')}` : ''}\nHarga Penawaran: Rp ${priceFormatted} (${priceInMillionsOrBillions}, Nego).${addInfo ? `\n\n${addInfo}` : ''}\n\nUnit ini menjawab kebutuhan Anda akan hunian ${typeStr} yang strategis, legalitas terjamin, dan siap huni. Terbatasnya unit di area ini membuat properti seperti ini cepat berpindah tangan.\n\nSegera hubungi agen kami untuk jadwal survey lokasi dan negosiasi harga.`;
+    const formal = `[HOOK]\nHanya tersisa unit terbatas di kawasan ${listing.location} dengan harga mulai Rp ${priceFormatted} (${priceInMillionsOrBillions}). Properti di area ini jarang muncul di pasaran.\n\n[PROBLEM]\nMencari ${typeStr} yang siap huni, legalitas jelas, dan harga masih masuk akal di ${listing.location} memang tidak mudah. Harga properti terus naik setiap tahun, sementara pilihan yang benar-benar berkualitas semakin langka. Banyak calon pembeli akhirnya menunda dan justru kehilangan peluang terbaik.\n\n[SOLUTION]\n${titleStr} hadir sebagai jawaban.${specSummary ? `\n\nSpesifikasi Properti:\n${specs.map(s => `- ${s}`).join('\n')}` : ''}\nHarga Penawaran: Rp ${priceFormatted} (${priceInMillionsOrBillions}, Nego).${addInfo ? `\n\nKeunggulan:\n${addInfo}` : ''}\n\nUnit ini menjawab kebutuhan Anda akan hunian ${typeStr} dengan lokasi yang tepat, legalitas terjamin, dan kondisi siap huni.\n\n[CTA]\nSegera hubungi agen kami untuk jadwal survey lokasi dan negosiasi harga. Unit terbatas — siapa cepat, dia dapat.`;
 
     // Variant 2: CASUAL #1 (Problem -> Agitate -> Solution -> CTA, Instagram feed)
     const casual_1 = `Capek cari ${typeStr} yang pas tapi selalu kalah cepat sama pembeli lain? 😩\n\nMakin lama nunggu, harga makin naik. Unit strategis makin jarang muncul. Apalagi lokasi ${listing.location} tuh incaran banyak orang — kalo nggak gercep, unit ini bakal laku sama orang lain. ⏳\n\nTenang, ${titleStr} jawabannya! ✨\n\n📍 ${listing.location}\n💰 Rp ${priceInMillionsOrBillions}\n✨ ${specSummary}\n${addInfo ? `📌 ${addInfo}\n\n` : ''}\nCocok banget buat tempat tinggal keluarga atau investasi. ${listing.bedrooms ? `${listing.bedrooms} KT` : ''}${listing.bathrooms ? ` ${listing.bathrooms} KM` : ''} — siap buat dihuni.\n\nDM atau WA sekarang buat survey lokasi! 📲`;

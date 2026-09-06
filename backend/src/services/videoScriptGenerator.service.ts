@@ -28,19 +28,45 @@ export const VIDEO_MODELS = {
   sora: { label: 'Sora (OpenAI)', note: 'Rich cinematic language, coherent multi-shot continuity.' },
 } as const;
 
+export const ASPECT_RATIO_MAP: Record<string, { resolution: string; label: string }> = {
+  '16:9': { resolution: '1920x1080', label: '16:9 Landscape' },
+  '9:16': { resolution: '1080x1920', label: '9:16 Portrait' },
+  '4:5': { resolution: '1080x1350', label: '4:5 Social' },
+};
+
 export type VideoStyle = keyof typeof VIDEO_STYLES;
 export type VideoModel = keyof typeof VIDEO_MODELS;
+
+export interface VoiceOverConfig {
+  enabled: boolean;
+  gender?: 'pria' | 'wanita';
+  language?: 'indonesia' | 'inggris';
+  ageRange?: 'anak' | 'remaja' | 'dewasa_muda' | 'dewasa' | 'senior';
+}
 
 export interface VideoScriptOptions {
   style?: string;
   model?: string;
-  includeVoiceOver?: boolean;
+  aspectRatio?: string;
+  voiceOver?: VoiceOverConfig;
   customInstructions?: string;
+}
+
+export interface VideoOnScreenText {
+  content: string;
+  style: string;
+  animation: string;
+}
+
+export interface VideoTransition {
+  in: string;
+  out: string;
 }
 
 export interface VideoSceneVisuals {
   description: string;
   camera: string;
+  on_screen_text: VideoOnScreenText | null;
 }
 
 export interface VideoSceneAudio {
@@ -55,6 +81,7 @@ export interface VideoSceneAudio {
 export interface VideoScriptScene {
   scene_number: number;
   duration_seconds: number;
+  transition: VideoTransition;
   visuals: VideoSceneVisuals;
   audio: VideoSceneAudio;
 }
@@ -72,7 +99,8 @@ export interface VideoScriptJson {
 export interface VideoScriptResult {
   style: string;
   model: string;
-  includeVoiceOver: boolean;
+  aspectRatio: string;
+  voiceOver?: VoiceOverConfig;
   script: string;
   voiceOverScript: string | null;
   scriptJson: VideoScriptJson;
@@ -94,14 +122,11 @@ interface ScenePlan {
 }
 
 class VideoScriptGeneratorService {
-  /**
-   * Generate a video generation prompt (EN) and, optionally, a per-scene
-   * voice-over narration script (Bahasa Indonesia) for a property listing.
-   */
   async generate(listing: Listing, options: VideoScriptOptions = {}): Promise<VideoScriptResult> {
     const style = this.resolveStyle(options.style);
     const model = this.resolveModel(options.model);
-    const includeVoiceOver = options.includeVoiceOver === true;
+    const aspectRatio = options.aspectRatio && options.aspectRatio in ASPECT_RATIO_MAP ? options.aspectRatio : '16:9';
+    const voiceOver = options.voiceOver && options.voiceOver.enabled ? options.voiceOver : { enabled: false };
     const customInstructions = (options.customInstructions || '').trim();
 
     const plan = this.buildScenePlan(listing);
@@ -111,8 +136,8 @@ class VideoScriptGeneratorService {
     try {
       script = await llmClient.generateCompletion(
         this.buildSystemPrompt(style, model, plan),
-        this.buildUserPrompt(listing, style, model, customInstructions, plan),
-        { temperature: 0.7, maxTokens: 2000 }
+        this.buildUserPrompt(listing, style, model, aspectRatio, voiceOver, customInstructions, plan),
+        { temperature: 0.7, maxTokens: 2500 }
       );
       if (!script || script.trim().length === 0) {
         throw new Error('LLM returned an empty video prompt');
@@ -120,15 +145,15 @@ class VideoScriptGeneratorService {
       scriptFromLlm = true;
     } catch (error) {
       console.warn('⚠️ LLM video prompt generation failed, using template-based fallback:', error);
-      script = this.buildFallbackScript(listing, style, model, customInstructions, plan);
+      script = this.buildFallbackScript(listing, style, model, aspectRatio, voiceOver, customInstructions, plan);
     }
 
     let voiceOverScript: string | null = null;
     const narrationsByScene = new Map<number, string>();
-    if (includeVoiceOver) {
+    if (voiceOver.enabled) {
       try {
         voiceOverScript = await llmClient.generateCompletion(
-          this.buildVoiceOverSystemPrompt(style, plan),
+          this.buildVoiceOverSystemPrompt(style, voiceOver, plan),
           this.buildVoiceOverUserPrompt(listing, scriptFromLlm ? script : '', plan),
           { temperature: 0.7, maxTokens: 2000 }
         );
@@ -138,16 +163,17 @@ class VideoScriptGeneratorService {
         this.applyNarrationsFromScript(voiceOverScript, narrationsByScene);
       } catch (error) {
         console.warn('⚠️ LLM voice over generation failed, using template-based fallback:', error);
-        voiceOverScript = this.buildFallbackVoiceOver(listing, plan);
+        voiceOverScript = this.buildFallbackVoiceOver(listing, voiceOver, plan);
       }
     }
 
-    const scriptJson = this.buildSceneJson(listing, style, model, plan, includeVoiceOver, narrationsByScene);
+    const scriptJson = this.buildSceneJson(listing, style, model, aspectRatio, voiceOver, plan, narrationsByScene);
 
     return {
       style,
       model,
-      includeVoiceOver,
+      aspectRatio,
+      voiceOver: voiceOver.enabled ? voiceOver : undefined,
       script,
       voiceOverScript,
       scriptJson,
@@ -209,6 +235,8 @@ Rules:
     listing: Listing,
     style: VideoStyle,
     model: VideoModel,
+    aspectRatio: string,
+    voiceOver: VoiceOverConfig,
     customInstructions: string,
     plan: ScenePlan[]
   ): string {
@@ -225,9 +253,19 @@ Rules:
       '',
       `Style: ${style} (${VIDEO_STYLES[style].label})`,
       `Target Model: ${model} (${VIDEO_MODELS[model].label})`,
-      `Scene structure to follow (${plan.length} scenes with durations):`,
-      ...plan.map((s) => `  - Scene ${s.scene} "${s.title}" (~${s.durationSeconds}s)`),
+      `Aspect Ratio: ${aspectRatio} (${ASPECT_RATIO_MAP[aspectRatio]?.resolution || '1920x1080'})`,
     ];
+
+    if (voiceOver.enabled) {
+      lines.push(`Voice Over: ${voiceOver.gender || 'wanita'}, ${voiceOver.language || 'indonesia'}, usia: ${voiceOver.ageRange || 'dewasa'}`);
+    } else {
+      lines.push('Voice Over: Tanpa VO');
+    }
+
+    lines.push(
+      `Scene structure to follow (${plan.length} scenes with durations):`,
+      ...plan.map((s) => `  - Scene ${s.scene} "${s.title}" (~${s.durationSeconds}s)`)
+    );
 
     if (customInstructions) {
       lines.push('', `Additional User Instructions: ${customInstructions}`);
@@ -237,16 +275,27 @@ Rules:
     return lines.join('\n');
   }
 
-  private buildVoiceOverSystemPrompt(style: VideoStyle, plan: ScenePlan[]): string {
+  private buildVoiceOverSystemPrompt(style: VideoStyle, voiceOver: VoiceOverConfig, plan: ScenePlan[]): string {
     const scenes = plan.map((s) => `Scene ${s.scene}: "${s.title}"`).join('\n');
-    return `You are a professional Indonesian real estate voice-over narrator.
+    const langStr = voiceOver.language === 'inggris' ? 'English' : 'Bahasa Indonesia';
+    const genderStr = voiceOver.gender === 'pria' ? 'male' : 'female';
+    const ageMap: Record<string, string> = {
+      anak: 'child',
+      remaja: 'teen',
+      dewasa_muda: 'young adult (20-30 yo)',
+      dewasa: 'adult (30-45 yo)',
+      senior: 'senior (> 50 yo)',
+    };
+    const ageStr = ageMap[voiceOver.ageRange || 'dewasa'] || 'adult';
 
-Write a voice-over narration script in Bahasa Indonesia for a ${VIDEO_STYLES[style].label.toLowerCase()} property video. The narration must match the exact scene structure below, one narration per scene:
+    return `You are a professional real estate voice-over narrator (${genderStr}, ${ageStr}) speaking in ${langStr}.
+
+Write a voice-over narration script in ${langStr} for a ${VIDEO_STYLES[style].label.toLowerCase()} property video. The narration must match the exact scene structure below, one narration per scene:
 
 ${scenes}
 
 Rules:
-- Use natural, warm, professional Bahasa Indonesia a local agent would actually speak (e.g. "Rumah ini punya…", "Bayangkan…", "Lokasinya sangat strategis karena…").
+- Speak in natural, warm, professional tone suitable for a ${genderStr} ${ageStr} narrator.
 - Each scene block starts with [Scene N — Scene Title] then 1-2 short spoken sentences that fit the scene duration.
 - Do not read out camera directions or timing; those are visual notes, not narration.
 - Never invent specs or numbers not present in the property details.
@@ -277,7 +326,7 @@ Rules:
       `Harga: sekitar Rp ${priceText}`,
       listing.additional_info ? `Fitur utama: ${listing.additional_info}` : '',
       '',
-      `Tulis narasi voice over Bahasa Indonesia per scene dengan struktur ini (${plan.length} scene):`,
+      `Tulis narasi voice over per scene dengan struktur ini (${plan.length} scene):`,
       ...plan.map((s) => `  - Scene ${s.scene} "${s.title}" (~${s.durationSeconds}s)`),
     ];
 
@@ -294,6 +343,8 @@ Rules:
     listing: Listing,
     style: VideoStyle,
     model: VideoModel,
+    aspectRatio: string,
+    voiceOver: VoiceOverConfig,
     customInstructions: string,
     plan: ScenePlan[]
   ): string {
@@ -310,7 +361,6 @@ Rules:
     };
 
     const blocks = plan.map((s) => {
-      const sec = Math.floor(s.durationSeconds);
       const totalStart = plan
         .slice(0, s.scene - 1)
         .reduce((acc, x) => acc + x.durationSeconds, 0);
@@ -326,10 +376,10 @@ Rules:
       ? `Cinematic real estate video showcase of "${listing.title}" located in ${listing.location}.`
       : `${styleInfo.label} real estate video of "${listing.title}" located in ${listing.location}.`;
 
-    return `${opening}\n\n${blocks.join('\n\n')}\n\nStyle: 4K resolution, architectural photography style, ${styleInfo.description} Model note: ${modelInfo.note} 24fps, warm color grade, DJI gimbal movements, soft natural lighting.${customInstructions ? `\n\nUser Notes: ${customInstructions}` : ''}`;
+    return `${opening}\n\n${blocks.join('\n\n')}\n\nStyle: ${ASPECT_RATIO_MAP[aspectRatio]?.resolution || '1920x1080'} resolution (${aspectRatio}), architectural photography style, ${styleInfo.description} Model note: ${modelInfo.note} 24fps, warm color grade, DJI gimbal movements, soft natural lighting.${customInstructions ? `\n\nUser Notes: ${customInstructions}` : ''}`;
   }
 
-  private buildFallbackVoiceOver(listing: Listing, plan: ScenePlan[]): string {
+  private buildFallbackVoiceOver(listing: Listing, voiceOver: VoiceOverConfig, plan: ScenePlan[]): string {
     const formatHeader = (s: ScenePlan, start: number) => {
       const pad = (n: number) => String(n).padStart(2, '0');
       const startMin = Math.floor(start / 60);
@@ -342,26 +392,43 @@ Rules:
     return plan
       .map((s) => {
         const start = plan.slice(0, s.scene - 1).reduce((acc, x) => acc + x.durationSeconds, 0);
-        return `${formatHeader(s, start)}\n${this.fallbackNarration(listing, s.scene)}`;
+        return `${formatHeader(s, start)}\n${this.fallbackNarration(listing, s.scene, voiceOver)}`;
       })
       .join('\n\n');
   }
 
-  private fallbackNarration(listing: Listing, sceneNumber: number): string {
-    const specLine = [
-      listing.bedrooms ? `${listing.bedrooms} kamar tidur` : '',
-      listing.bathrooms ? `${listing.bathrooms} kamar mandi` : '',
-      listing.land_area ? `luas tanah ${listing.land_area} m²` : '',
-      listing.building_area ? `luas bangunan ${listing.building_area} m²` : '',
-    ]
-      .filter(Boolean)
-      .join(', ');
+  private fallbackNarration(listing: Listing, sceneNumber: number, voiceOver?: VoiceOverConfig): string {
+    const isEn = voiceOver?.language === 'inggris';
+    const specLine = isEn
+      ? [
+          listing.bedrooms ? `${listing.bedrooms} bedrooms` : '',
+          listing.bathrooms ? `${listing.bathrooms} bathrooms` : '',
+          listing.land_area ? `land area ${listing.land_area} sqm` : '',
+          listing.building_area ? `building area ${listing.building_area} sqm` : '',
+        ].filter(Boolean).join(', ')
+      : [
+          listing.bedrooms ? `${listing.bedrooms} kamar tidur` : '',
+          listing.bathrooms ? `${listing.bathrooms} kamar mandi` : '',
+          listing.land_area ? `luas tanah ${listing.land_area} m²` : '',
+          listing.building_area ? `luas bangunan ${listing.building_area} m²` : '',
+        ].filter(Boolean).join(', ');
 
     const priceText = listing.price >= 1000000000
-      ? `${(listing.price / 1000000000).toLocaleString('id-ID', { maximumFractionDigits: 2 })} miliar`
-      : `${(listing.price / 1000000).toLocaleString('id-ID', { maximumFractionDigits: 0 })} juta`;
+      ? `${(listing.price / 1000000000).toLocaleString('id-ID', { maximumFractionDigits: 2 })} ${isEn ? 'billion' : 'miliar'}`
+      : `${(listing.price / 1000000).toLocaleString('id-ID', { maximumFractionDigits: 0 })} ${isEn ? 'million' : 'juta'}`;
 
-    const narrations: Record<number, string> = {
+    if (isEn) {
+      const narrationsEn: Record<number, string> = {
+        1: `Welcome to ${listing.title} located in ${listing.location}. ${specLine ? `This property features ${specLine}. ` : ''}Right from the entrance, it radiates elegance and care.`,
+        2: `As you step inside, you'll feel the spacious living area bathed in soft natural light. Clean, modern, and perfectly suited for family life.`,
+        3: `${listing.bedrooms || ''} comfortable bedrooms await inside, designed with space efficiency and a warm welcoming feel.`,
+        4: `The bathrooms and amenities are equally pristine, using premium materials built to last.`,
+        5: `Offered at approximately Rp ${priceText}. Don't miss out — contact our agent today for a private tour.`,
+      };
+      return narrationsEn[sceneNumber] || narrationsEn[5];
+    }
+
+    const narrationsId: Record<number, string> = {
       1: `Selamat datang di ${listing.title} yang berlokasi di ${listing.location}. ${specLine ? `Properti ini hadir dengan ${specLine}. ` : ''}Dari luar saja, kesannya sudah mewah dan terawat.`,
       2: `Begitu masuk, Anda akan merasakan ruang keluarga yang luas dengan pencahayaan alami yang melimpah. Desainnya bersih, modern, dan sangat nyaman untuk keluarga.`,
       3: `${listing.bedrooms || ''} kamar tidur tersedia di dalamnya${listing.bedrooms ? ' ' : ', '}dengan penataan ruang yang efisien dan kesan hangat di setiap sudutnya.`,
@@ -369,13 +436,9 @@ Rules:
       5: `Harga penawaran sekitar Rp ${priceText}. Jangan sampai kehabisan — hubungi agen kami sekarang untuk jadwal survey lokasi.`,
     };
 
-    return narrations[sceneNumber] || narrations[5];
+    return narrationsId[sceneNumber] || narrationsId[5];
   }
 
-  /**
-   * Fill a Map<sceneNumber, narrationText> from a raw voice over script that
-   * uses [Scene N …] block markers (LLM output or template fallback).
-   */
   private applyNarrationsFromScript(voiceOverScript: string, target: Map<number, string>): void {
     const blockRe = /\[Scene\s*(\d+)[^\]]*\]\s*([\s\S]*?)(?=\n\s*\[Scene|\s*$)/gi;
     for (const match of voiceOverScript.matchAll(blockRe)) {
@@ -392,39 +455,78 @@ Rules:
   }
 
   /**
-   * Deterministic multi-scene structured JSON document.
-   * Always valid so the JSON tab works even when the LLM is unavailable.
+   * Multi-scene structured JSON document matching user specification:
+   * {
+   *   "project": "...",
+   *   "settings": { "total_duration_seconds": 30, "resolution": "1080x1920", "aspect_ratio": "9:16" },
+   *   "scenes": [
+   *     {
+   *       "scene_number": 1,
+   *       "duration_seconds": 3,
+   *       "transition": { "in": "...", "out": "..." },
+   *       "visuals": { "description": "...", "camera": "...", "on_screen_text": { ... } | null },
+   *       "audio": { "ambient": "...", "effects": "...", "voice_over": { "text": "...", "style": "..." } }
+   *     }
+   *   ]
+   * }
    */
   private buildSceneJson(
     listing: Listing,
     style: VideoStyle,
     model: VideoModel,
+    aspectRatio: string,
+    voiceOver: VoiceOverConfig,
     plan: ScenePlan[],
-    includeVoiceOver: boolean,
     narrationsByScene: Map<number, string>
   ): VideoScriptJson {
     const type = listing.property_type || 'Rumah';
-    const voiceOverStyle =
-      model === 'veo'
-        ? 'Warm Indonesian female voice, calm professional narration, natural pace'
-        : 'Warm Indonesian female voice, clear and friendly, natural conversational pace';
-
     const totalDuration = plan.reduce((acc, s) => acc + s.durationSeconds, 0);
+    const aspectInfo = ASPECT_RATIO_MAP[aspectRatio] || ASPECT_RATIO_MAP['16:9'];
 
-    const scenes: VideoScriptScene[] = plan.map((s) => {
+    const genderLabel = voiceOver.gender === 'pria' ? 'Male' : 'Female';
+    const langLabel = voiceOver.language === 'inggris' ? 'English' : 'Indonesian';
+    const ageMapLabel: Record<string, string> = {
+      anak: 'Child',
+      remaja: 'Teenager',
+      dewasa_muda: 'Young Adult (20-30)',
+      dewasa: 'Adult (30-45)',
+      senior: 'Senior (>50)',
+    };
+    const ageLabel = ageMapLabel[voiceOver.ageRange || 'dewasa'] || 'Adult';
+    const voiceOverStyle = `${langLabel} ${genderLabel} voice (${ageLabel}), clear cinematic tone, warm narration`;
+
+    const transitions: VideoTransition[] = [
+      { in: 'Fade from pitch black with smooth lighting entry', out: 'Fast whip pan right' },
+      { in: 'Fast whip pan right, matching scene 1 speed', out: 'Cross dissolve through soft daylight blur' },
+      { in: 'Cut on action through doorway arch', out: 'Speed ramp acceleration blur' },
+      { in: 'Speed ramp deceleration into smooth gimbal glide', out: 'Match cut on architectural line' },
+      { in: 'Soft crossfade into wide establishing view', out: 'Fade to quiet elegant dark frame' },
+    ];
+
+    const onScreenTexts: Array<VideoOnScreenText | null> = [
+      { content: `${listing.title.toUpperCase()}`, style: 'Bold elegant sans-serif font, stark white glow', animation: 'Flicker on, smooth tracking' },
+      { content: `LOKASI: ${listing.location.toUpperCase()}`, style: 'Minimalist clean typography, subtle cyan accent', animation: 'Pop up sharply on beat, stays centered' },
+      { content: listing.bedrooms ? `${listing.bedrooms} KAMAR TIDUR | ${listing.bathrooms || 1} KAMAR MANDI` : 'DESAIN MODERN & SIAP HUNI', style: 'Italic bold modern font, neon white glow', animation: 'Fades in smoothly from bottom third' },
+      null,
+      { content: `HUBUNGI AGEN SEKARANG`, style: 'Cinematic elegant serif font, glowing gold, large scale', animation: 'Expands slowly from center (zoom in)' },
+    ];
+
+    const scenes: VideoScriptScene[] = plan.map((s, idx) => {
       const narration = narrationsByScene.get(s.scene);
       const visual = this.buildSceneVisual(s.scene, listing, style, type);
+      const trans = transitions[idx] || { in: 'Soft crossfade', out: 'Fade to black' };
+      const ost = onScreenTexts[idx] || null;
 
       const audio: VideoSceneAudio = {
         ambient: visual.ambient,
         effects: visual.effects,
       };
 
-      if (includeVoiceOver) {
+      if (voiceOver.enabled) {
         audio.voice_over = {
           text: narration && narration.length > 0
             ? narration
-            : this.fallbackNarration(listing, s.scene),
+            : this.fallbackNarration(listing, s.scene, voiceOver),
           style: voiceOverStyle,
         };
       }
@@ -432,20 +534,27 @@ Rules:
       return {
         scene_number: s.scene,
         duration_seconds: s.durationSeconds,
+        transition: trans,
         visuals: {
           description: `${visual.subject}. ${visual.action}.`,
           camera: `${visual.camera}, ${visual.lens}`,
+          on_screen_text: ost,
         },
         audio,
       };
     });
 
+    const slugTitle = listing.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
     return {
-      project: `${style}_sequence`,
+      project: `${slugTitle || 'property'}_video_campaign_${aspectRatio.replace(':', 'x')}`,
       settings: {
         total_duration_seconds: totalDuration,
-        resolution: '1920x1080',
-        aspect_ratio: '16:9',
+        resolution: aspectInfo.resolution,
+        aspect_ratio: aspectRatio,
       },
       scenes,
     };

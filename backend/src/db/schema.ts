@@ -136,12 +136,14 @@ export const listingDescriptions = pgTable('listing_descriptions', {
   variantCheck: check('variant_check', sql`${table.variantType} IN ('formal', 'casual_1', 'casual_2')`),
 }));
 
-// Listing video prompts table (history of generated video prompts)
+// Listing video prompts table (saved versions of generated video scripts)
 export const listingVideoPrompts = pgTable('listing_video_prompts', {
   id: uuid('id').primaryKey().defaultRandom(),
   listingId: uuid('listing_id').notNull().references(() => listings.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(), // User-defined name for this version
   style: varchar('style', { length: 50 }).notNull(),
   model: varchar('model', { length: 50 }).notNull(),
+  aspectRatio: varchar('aspect_ratio', { length: 10 }).notNull().default('16:9'),
   customInstructions: text('custom_instructions'),
   includeVoiceOver: boolean('include_voice_over').notNull().default(false),
   voiceGender: varchar('voice_gender', { length: 20 }),
@@ -151,6 +153,7 @@ export const listingVideoPrompts = pgTable('listing_video_prompts', {
   voiceOverScript: text('voice_over_script'),
   scriptJson: jsonb('script_json').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
   listingIdx: index('idx_video_prompts_listing').on(table.listingId),
   createdAtIdx: index('idx_video_prompts_created').on(table.createdAt),

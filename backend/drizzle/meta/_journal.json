@@ -50,6 +50,13 @@
       "when": 1788650785612,
       "tag": "0006_dapper_red_shift",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788676391735,
+      "tag": "0007_uneven_madame_hydra",
+      "breakpoints": true
     }
   ]
 }

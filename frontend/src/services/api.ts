@@ -21,7 +21,8 @@ import type {
   QualifyLeadData,
   GenerateFollowUpData,
   VideoScriptOptions,
-  VideoScriptResult
+  VideoScriptResult,
+  VideoScriptRecord
 } from '../types';
 
 // Create axios instance
@@ -212,6 +213,40 @@ export const listingApi = {
     const response = await api.post<ApiResponse<VideoScriptResult>>(
       `/listings/${id}/generate-video-script`,
       options || {}
+    );
+    return response.data;
+  },
+
+  // Save video script
+  async saveVideoScript(id: string, data: { name: string; style: string; model: string; aspectRatio: string; customInstructions?: string; voiceOver?: any; script: string; voiceOverScript?: string | null; scriptJson: any }): Promise<ApiResponse<VideoScriptRecord>> {
+    const response = await api.post<ApiResponse<VideoScriptRecord>>(
+      `/listings/${id}/video-scripts`,
+      data
+    );
+    return response.data;
+  },
+
+  // Get saved video scripts for listing
+  async getVideoScripts(id: string): Promise<ApiResponse<VideoScriptRecord[]>> {
+    const response = await api.get<ApiResponse<VideoScriptRecord[]>>(
+      `/listings/${id}/video-scripts`
+    );
+    return response.data;
+  },
+
+  // Update a saved video script
+  async updateVideoScript(scriptId: string, data: Partial<{ name: string; script: string; voiceOverScript?: string | null; scriptJson: any }>): Promise<ApiResponse<VideoScriptRecord>> {
+    const response = await api.put<ApiResponse<VideoScriptRecord>>(
+      `/listings/video-scripts/${scriptId}`,
+      data
+    );
+    return response.data;
+  },
+
+  // Delete a saved video script
+  async deleteVideoScript(scriptId: string): Promise<ApiResponse> {
+    const response = await api.delete<ApiResponse>(
+      `/listings/video-scripts/${scriptId}`
     );
     return response.data;
   },
