@@ -142,9 +142,11 @@ function postProcessDescription(text: string): string {
   cleaned = removeDuplicateParagraphs(cleaned);
   cleaned = removeDuplicatePrices(cleaned);
 
-  // Clean up orphaned "Keunggulan:" and repetitive "Lokasi:" labels
+  // Clean up orphaned labels and repetitive sections from raw scraped additional_info
   cleaned = cleaned
-    .replace(/Keunggulan:\s*(?:Detail:|Luas)/gi, 'Detail:')
+    .replace(/Keunggulan:\s*(?:Detail:|Luas)/gi, '\n\nDetail:')
+    .replace(/Detail:\s*\n\s*Detail:/gi, 'Detail:')
+    .replace(/Lokasi([a-z])/gi, 'Lokasi: $1')
     .replace(/(Lokasi:\s*[^\n]+)\s*\n\s*Lokasi:\s*[^\n]+/gi, '$1')
     .trim();
   
