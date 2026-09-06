@@ -63,12 +63,14 @@ function removeDuplicateParagraphs(text: string): string {
 /**
  * Remove duplicate price mentions (e.g. "Rp 782.000.000" appearing more than once)
  * Keeps only the first occurrence of any price pattern.
+ * Also cleans up orphaned labels like "Harga:" that precede removed prices.
  */
 function removeDuplicatePrices(text: string): string {
   if (!text) return '';
   
-  // Find all price patterns and track their positions
-  const pricePattern = /Rp\s*[\d.,]+\s*(?:Juta|Milyar)?/gi;
+  // Find all price patterns (Rp + digits/spaces/dots/commas + optional Juta/Milyar)
+  // Handles normalized text like "Rp 782. 700. 000" or "Rp 782.700.000"
+  const pricePattern = /Rp\s*\d[\d\s.,]*(?:\s*(?:Juta|Milyar))?/gi;
   const matches: Array<{match: string, start: number, end: number}> = [];
   let match;
   while ((match = pricePattern.exec(text)) !== null) {
@@ -82,13 +84,30 @@ function removeDuplicatePrices(text: string): string {
   // If more than one price found, keep only the first
   if (matches.length <= 1) return text;
   
-  // Remove subsequent price mentions
+  // Remove subsequent price mentions and their orphaned labels
   let result = text;
   for (let i = 1; i < matches.length; i++) {
     const m = matches[i];
-    // Replace with empty string
-    result = result.slice(0, m.start) + result.slice(m.end);
+    let removeStart = m.start;
+    
+    // Check if there's a label like "Harga:" or "Harga :" before the price
+    const textBefore = result.slice(Math.max(0, m.start - 20), m.start);
+    const labelMatch = textBefore.match(/(?:Harga|Price)\s*:?\s*$/i);
+    if (labelMatch) {
+      removeStart = m.start - labelMatch[0].length;
+    }
+    
+    // Remove the price and any trailing whitespace/punctuation
+    let removeEnd = m.end;
+    while (removeEnd < result.length && /[\s,.;:]/.test(result[removeEnd])) {
+      removeEnd++;
+    }
+    
+    result = result.slice(0, removeStart) + result.slice(removeEnd);
   }
+  
+  // Clean up any resulting double spaces or orphaned newlines
+  result = result.replace(/ {2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   
   return result;
 }
@@ -122,6 +141,12 @@ function postProcessDescription(text: string): string {
 
   cleaned = removeDuplicateParagraphs(cleaned);
   cleaned = removeDuplicatePrices(cleaned);
+
+  // Clean up orphaned "Keunggulan:" and repetitive "Lokasi:" labels
+  cleaned = cleaned
+    .replace(/Keunggulan:\s*(?:Detail:|Luas)/gi, 'Detail:')
+    .replace(/(Lokasi:\s*[^\n]+)\s*\n\s*Lokasi:\s*[^\n]+/gi, '$1')
+    .trim();
   
   return cleaned;
 }
