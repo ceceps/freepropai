@@ -426,7 +426,7 @@ describe('Listing API Endpoints', () => {
 
       const formal = variants.find(v => v.variant_type === 'formal');
       expect(formal?.description_text).toContain('BSD City');
-      expect(formal?.description_text).toContain('Spesifikasi rumah:');
+      expect(formal?.description_text).toContain('dilengkapi dengan');
       expect(formal?.description_text).toContain('hubungi agen kami');
       vi.restoreAllMocks();
     });

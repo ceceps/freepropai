@@ -35,21 +35,79 @@ function normalizeText(text: string): string {
 }
 
 /**
+ * Deduplicate repeating paragraph blocks (e.g. LLM looping or appending raw scraped content multiple times)
+ */
+function removeDuplicateParagraphs(text: string): string {
+  if (!text) return '';
+  const paragraphs = text.split(/\n+/).map(p => p.trim()).filter(Boolean);
+  const uniqueParagraphs: string[] = [];
+  
+  for (const p of paragraphs) {
+    // Avoid exact duplicate paragraphs or paragraphs that are 90%+ identical
+    const isDuplicate = uniqueParagraphs.some(existing => {
+      if (existing === p) return true;
+      if (p.length > 50 && existing.length > 50) {
+        const similarity = existing.includes(p.slice(0, 40)) || p.includes(existing.slice(0, 40));
+        return similarity;
+      }
+      return false;
+    });
+    if (!isDuplicate) {
+      uniqueParagraphs.push(p);
+    }
+  }
+  
+  return uniqueParagraphs.join('\n\n');
+}
+
+/**
+ * Remove duplicate price mentions (e.g. "Rp 782.000.000" appearing more than once)
+ * Keeps only the first occurrence of any price pattern.
+ */
+function removeDuplicatePrices(text: string): string {
+  if (!text) return '';
+  
+  // Find all price patterns and track their positions
+  const pricePattern = /Rp\s*[\d.,]+\s*(?:Juta|Milyar)?/gi;
+  const matches: Array<{match: string, start: number, end: number}> = [];
+  let match;
+  while ((match = pricePattern.exec(text)) !== null) {
+    matches.push({
+      match: match[0],
+      start: match.index,
+      end: match.index + match[0].length
+    });
+  }
+  
+  // If more than one price found, keep only the first
+  if (matches.length <= 1) return text;
+  
+  // Remove subsequent price mentions
+  let result = text;
+  for (let i = 1; i < matches.length; i++) {
+    const m = matches[i];
+    // Replace with empty string
+    result = result.slice(0, m.start) + result.slice(m.end);
+  }
+  
+  return result;
+}
+
+/**
  * Post-process description output to ensure proper formatting
  */
 function postProcessDescription(text: string): string {
   if (!text) return '';
   
-  return text
+  let cleaned = text
     // Remove section marker labels ([HOOK], [PROBLEM], [SOLUTION], [CTA], [AGITATE])
-    // so the copy reads as natural prose instead of an annotated template.
     .replace(/^\s*\[(?:HOOK|PROBLEM|AGITATE|SOLUTION|CTA)\]\s*:?\s*$/gim, '')
     .replace(/\[(?:HOOK|PROBLEM|AGITATE|SOLUTION|CTA)\]/gi, '')
-    // Also strip {HOOK}, **HOOK**, Hook:, Problem:, Solution:, CTA:, Agitate: patterns
+    // Strip {HOOK}, **HOOK**, Hook:, Problem:, Solution:, CTA:, Agitate:
     .replace(/^\s*\*{0,2}(?:Hook|Problem|Agitate|Solution|CTA)\*{0,2}\s*:?\s*$/gim, '')
     .replace(/^\s*\{(?:HOOK|PROBLEM|AGITATE|SOLUTION|CTA)\}\s*:?\s*$/gim, '')
     .replace(/\{(?:HOOK|PROBLEM|AGITATE|SOLUTION|CTA)\}/gi, '')
-    // Fix concatenated words that might slip through
+    // Fix concatenated words
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .replace(/([a-zA-Z])(\d)/g, '$1 $2')
     .replace(/(\d)([a-zA-Z])/g, '$1 $2')
@@ -61,6 +119,11 @@ function postProcessDescription(text: string): string {
     .replace(/ {2,}/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+
+  cleaned = removeDuplicateParagraphs(cleaned);
+  cleaned = removeDuplicatePrices(cleaned);
+  
+  return cleaned;
 }
 
 class DescriptionGeneratorService {
@@ -120,25 +183,23 @@ Buat 3 variasi konten dalam Bahasa Indonesia yang natural dan viral:
 
 Return ONLY valid JSON format (no markdown, no explanation):
 {
-  "formal": "Deskripsi listing portal profesional (OLX, Rumah123, dll). WAJIB mengikuti urutan 4 bagian yang jelas: (1) Hook: kalimat pembuka yang memancing perhatian seperti fakta unik atau scarcity. (2) Problem: nyatakan masalah yang dirasakan pencari rumah seperti harga terus naik atau susah cari unit siap huni. (3) Solution: presentasikan properti ini sebagai solusi dari masalah tersebut, sertakan detail spesifikasi, legalitas, dan harga. (4) CTA: ajakan bertindak yang jelas seperti \"Segera hubungi agen kami untuk jadwal survey\". Tone: profesional, berwibawa, dan meyakinkan. Tidak menggunakan emoji.",
-  "casual_1": "Konten Instagram feed yang super shareable. Pakai framework PAS (Problem -> Agitate -> Solution -> CTA) dengan bumbu humor khas Indo, kedekatan emosional, dan relatable situation. Buka dengan pain point yang bikin orang ngangguk, agitate sampai berasa frustrasinya, reveal properti ini sebagai jalan keluar, push ke DM/WA. Tambahkan elemen yang bikin orang mau tag teman. 2-3 emoji yang relevan.",
-  "casual_2": "Instagram Story / WhatsApp Status super singkat dan punchy, optimized untuk virality. Hook di kalimat pertama yang bikin orang stop scroll, satu-dua kalimat problem + solusi yang nyangkut di kepala, CTA yang urgent. Gaya bahasa Gen Z/Milenial Indo yang natural. 3-5 emoji yang pas."
+  "formal": "Deskripsi listing portal profesional (OLX, Rumah123, dll). WAJIB mengikuti urutan 4 bagian yang jelas: (1) Hook: kalimat pembuka yang memancing perhatian seperti fakta unik atau scarcity. JANGAN sebut harga di Hook. (2) Problem: nyatakan masalah yang dirasakan pencari rumah. (3) Solution: presentasikan properti ini sebagai solusi, sertakan spesifikasi dan legalitas. (4) CTA: ajakan bertindak yang jelas. Sebutkan harga HANYA SEKALI di bagian Solution. Tone: profesional dan meyakinkan. Tidak menggunakan emoji.",
+  "casual_1": "Konten Instagram feed yang super shareable. Pakai framework PAS (Problem -> Agitate -> Solution -> CTA) dengan bumbu humor khas Indo. Sebutkan harga HANYA SEKALI. 2-3 emoji yang relevan.",
+  "casual_2": "Instagram Story / WhatsApp Status super singkat dan punchy. Sebutkan harga HANYA SEKALI. 3-5 emoji yang pas."
 }
 
 Data listing yang WAJIB dipakai (jangan karang-karang fakta di luar data ini):
 - Listing ID: ${listing.id}
 - Target audience: mereka yang punya penghasilan cukup untuk DP 10% (sekitar Rp ${dpFormatted})
 
-Aturan penulisan konten viral:
-- NATURAL: hasil akhir harus berupa paragraf yang mengalir. JANGAN pernah mencantumkan label bagian seperti "[HOOK]", "[PROBLEM]", "[SOLUTION]", "[CTA]" (atau heading "Hook:", "Problem:", dll.) sebagai teks output. Transisi antar bagian cukup lewat alur kalimat dan paragraf baru.
-- FORMATING & SPASI: WAJIB gunakan spasi yang benar antar kata, antar angka dan kata (contoh: "72 m²", "2 Kamar Tidur", bukan "72m²2Kamar"). Jika data input tempel/tanpa spasi, perbaiki menjadi kalimat ber-spasi rapi.
-- HOOK: kalimat pembuka yang stop-scroll — pakai scarcity, lifestyle aspiration, price anchor, atau surprise fact
-- EMOSI: sentuh rasa takut ketinggalan (FOMO), capek cari-cari, impian punya rumah sendiri, atau bangga sama lokasi strategis
-- KEDEKATAN: pakai bahasa sehari-hari orang Indonesia, slang yang wajar (gercep, cuan, sultan, dll.), situasi relatable
-- HUMOR: boleh pakai humor ringan yang bikin senyum — tapi jangan maksa
-- SHAREABLE: konten casual harus punya elemen yang bikin orang mau share ke grup WA keluarga atau tag pasangan
-- CTA: satu langkah jelas dan urgent ("WA sekarang", "DM untuk survey", "Tanya harga nego")
-- HINDARI klise: jangan pakai "jangan lewatkan kesempatan emas", "investasi terbaik", "strategis" tanpa penjelasan konkret`;
+ATURAN KETAT - pelanggaran akan menghasilkan deskripsi yang buruk:
+- HARGA SEKALI SAJA: Harga properti WAJIB disebutkan HANYA SEKALI di seluruh deskripsi, yaitu di bagian Solution/Solusi. JANGAN menyebut harga di Hook, di Problem, atau di CTA.
+- NO DUPLICATE: JANGAN mengulang kalimat, paragraf, atau informasi yang sudah disebutkan. Setiap kalimat harus memberikan informasi BARU.
+- NATURAL: hasil akhir harus berupa paragraf yang mengalir. JANGAN mencantumkan label "[HOOK]", "[PROBLEM]" dll sebagai teks output.
+- FORMATING & SPASI: WAJIB gunakan spasi yang benar antar kata (contoh: "72 m²", "2 Kamar Tidur").
+- HOOK: kalimat pembuka yang stop-scroll tanpa menyebut harga.
+- CTA: satu langkah jelas dan urgent ("Hubungi agen kami", "DM untuk survey")
+- HINDARI klise: jangan pakai "jangan lewatkan kesempatan emas" atau "investasi terbaik"`;
   }
 
   /**
@@ -219,13 +280,13 @@ Aturan penulisan konten viral:
     ].filter(Boolean).join(', ');
 
     // Variant 1: FORMAL (natural Hook -> Problem -> Solution -> CTA prose for listing portals)
-    const formal = `Hanya tersisa unit terbatas di kawasan ${listing.location} dengan harga mulai Rp ${priceFormatted} (${priceInMillionsOrBillions}). Properti di area ini jarang muncul di pasaran, jadi kesempatan untuk memiliki hunian di lokasi ini tidak datang dua kali.
+    const formal = `Hanya tersisa unit terbatas di kawasan ${listing.location}. Properti di area ini jarang muncul di pasaran, jadi kesempatan untuk memiliki hunian di lokasi ini tidak datang dua kali.
 
-Mencari ${typeStr} yang siap huni, legalitas jelas, dan harga masih masuk akal di ${listing.location} memang tidak mudah. Harga properti terus naik setiap tahun, sementara pilihan yang benar-benar berkualitas semakin langka. Banyak calon pembeli akhirnya menunda dan justru kehilangan peluang terbaik.
+Mencari ${typeStr} yang siap huni, legalitas jelas, dan lokasi strategis di ${listing.location} memang tidak mudah. Harga properti terus naik setiap tahun, sementara pilihan yang benar-benar berkualitas semakin langka. Banyak calon pembeli akhirnya menunda dan justru kehilangan peluang terbaik.
 
-${titleStr} hadir sebagai jawaban atas kebutuhan tersebut.${specSentence ? `\n\nSpesifikasi ${typeStr}: ${specSentence}.` : ''}
+${titleStr} hadir sebagai jawaban atas kebutuhan tersebut.${specSentence ? ` Properti ini dilengkapi dengan ${specSentence}.` : ''}
 
-Dengan harga penawaran Rp ${priceFormatted} (${priceInMillionsOrBillions}, nego), properti ini siap huni dan memiliki legalitas terjamin.${addInfo ? `\n\n${addInfo}` : ''}
+Dipasarkan dengan harga penawaran Rp ${priceFormatted} (${priceInMillionsOrBillions}, nego), hunian ini siap huni dan memiliki legalitas terjamin.${addInfo ? `\n\nKeunggulan:\n${addInfo}` : ''}
 
 Jangan sampai kehabisan. Segera hubungi agen kami untuk jadwal survey lokasi dan negosiasi harga — unit terbatas, siapa cepat dia dapat.`;
 
