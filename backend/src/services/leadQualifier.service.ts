@@ -21,6 +21,18 @@ export interface QualifiedLeadData {
   notes: string;
 }
 
+export interface CreateLeadInput {
+  name: string;
+  phone: string;
+  budgetMin?: number | null;
+  budgetMax?: number | null;
+  location?: string;
+  unitType?: string;
+  urgency?: 'immediate' | 'soon' | 'flexible';
+  score?: 'Hot' | 'Warm' | 'Cold';
+  notes?: string;
+}
+
 export class LeadQualifierService {
   /**
    * Qualify lead from raw chat using LLM and save to DB
@@ -39,6 +51,26 @@ export class LeadQualifierService {
       score: extracted.score,
       rawChatText: input.rawChatText,
       notes: extracted.notes,
+      status: 'new',
+    }).returning();
+
+    return newLead;
+  }
+
+  /**
+   * Create a lead directly from manual form input (no AI parsing)
+   */
+  async createLead(input: CreateLeadInput) {
+    const [newLead] = await db.insert(leads).values({
+      name: input.name,
+      phone: input.phone,
+      budgetMin: input.budgetMin != null ? String(input.budgetMin) : null,
+      budgetMax: input.budgetMax != null ? String(input.budgetMax) : null,
+      location: input.location || null,
+      unitType: input.unitType || null,
+      urgency: input.urgency || 'flexible',
+      score: input.score || 'Warm',
+      notes: input.notes || null,
       status: 'new',
     }).returning();
 

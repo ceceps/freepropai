@@ -5,7 +5,7 @@ import {
   Sparkles, AlertCircle, X
 } from 'lucide-react';
 import { leadApi, followUpApi } from '../services/api';
-import type { Lead } from '../types';
+import type { Lead, CreateLeadData } from '../types';
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -16,14 +16,14 @@ export default function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState('All');
   
   // Modals
-  const [isQualifyModalOpen, setIsQualifyModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   
   // Selected / Form States
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [qualifyData, setQualifyData] = useState({ name: '', phone: '', rawChatText: '' });
+  const [addData, setAddData] = useState<CreateLeadData>({ name: '', phone: '', score: 'Warm', urgency: 'flexible' });
   const [editData, setEditData] = useState<Partial<Lead>>({});
   const [scheduleData, setScheduleData] = useState({ contextMessage: '', scheduledForDays: 1 });
   const [submitting, setSubmitting] = useState(false);
@@ -48,18 +48,18 @@ export default function LeadsPage() {
     }
   };
 
-  const handleQualifyLead = async (e: React.FormEvent) => {
+  const handleAddLead = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!qualifyData.rawChatText) return;
+    if (!addData.name || !addData.phone) return;
     setSubmitting(true);
     try {
-      const response = await leadApi.qualify(qualifyData);
+      const response = await leadApi.create(addData);
       if (response.success && response.data) {
         setLeads((prev) => [response.data!, ...prev]);
-        setIsQualifyModalOpen(false);
-        setQualifyData({ name: '', phone: '', rawChatText: '' });
+        setIsAddModalOpen(false);
+        setAddData({ name: '', phone: '', score: 'Warm', urgency: 'flexible' });
       } else {
-        alert(response.error || 'Failed to qualify lead');
+        alert(response.error || 'Failed to add lead');
       }
     } catch (err: any) {
       alert(err.message || 'An error occurred');
@@ -166,12 +166,12 @@ export default function LeadsPage() {
         <div>
           <h1 className="text-3xl font-bold text-text-primary dark:text-text-primary-dark">Leads Management</h1>
           <p className="text-text-secondary dark:text-text-secondary-dark mt-1">
-            Qualify leads with AI from WhatsApp chat text and track follow-ups.
+            Add and manage leads with WhatsApp contact details and track follow-ups.
           </p>
         </div>
-        <button onClick={() => setIsQualifyModalOpen(true)} className="btn btn-primary">
+        <button onClick={() => setIsAddModalOpen(true)} className="btn btn-primary">
           <Plus className="w-4 h-4" />
-          AI Qualify Lead
+          Add Leads
         </button>
       </div>
 
@@ -217,7 +217,7 @@ export default function LeadsPage() {
           <Clock className="w-12 h-12 text-text-tertiary dark:text-text-tertiary-dark mx-auto mb-4" />
           <h3 className="text-lg font-medium text-text-primary dark:text-text-primary-dark">No leads found</h3>
           <p className="text-text-secondary dark:text-text-secondary-dark mt-1">
-            Try adjusting your search filters or qualify a new lead with AI.
+            Try adjusting your search filters or add a new lead.
           </p>
         </div>
       ) : (
@@ -315,59 +315,127 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* 1. AI Qualify Lead Modal */}
-      {isQualifyModalOpen && (
+      {/* 1. Add Leads Modal */}
+      {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="card w-full max-w-lg overflow-hidden animate-slide-up">
             <div className="flex items-center justify-between p-6 border-b border-border dark:border-border-dark">
               <h2 className="text-xl font-bold flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-primary-500" /> AI Lead Qualifier
+                <Plus className="w-5 h-5 text-primary-500" /> Add Leads
               </h2>
-              <button onClick={() => setIsQualifyModalOpen(false)} className="p-1 hover:bg-accent dark:hover:bg-accent-dark rounded-lg">
+              <button onClick={() => setIsAddModalOpen(false)} className="p-1 hover:bg-accent dark:hover:bg-accent-dark rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleQualifyLead} className="p-6 space-y-4">
+            <form onSubmit={handleAddLead} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
               <div>
-                <label className="label">Contact Name (Optional)</label>
+                <label className="label">Name</label>
                 <input
                   type="text"
-                  placeholder="e.g. John Doe"
-                  value={qualifyData.name}
-                  onChange={(e) => setQualifyData({ ...qualifyData, name: e.target.value })}
-                  className="input"
-                />
-              </div>
-              <div>
-                <label className="label">Phone / WhatsApp Number (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 0812345678"
-                  value={qualifyData.phone}
-                  onChange={(e) => setQualifyData({ ...qualifyData, phone: e.target.value })}
-                  className="input"
-                />
-              </div>
-              <div>
-                <label className="label">WhatsApp Chat Text (Required)</label>
-                <textarea
                   required
-                  rows={5}
-                  placeholder="Paste WhatsApp conversation here..."
-                  value={qualifyData.rawChatText}
-                  onChange={(e) => setQualifyData({ ...qualifyData, rawChatText: e.target.value })}
-                  className="input font-mono text-sm"
+                  placeholder="e.g. John Doe"
+                  value={addData.name}
+                  onChange={(e) => setAddData({ ...addData, name: e.target.value })}
+                  className="input"
                 />
-                <p className="text-xs text-text-tertiary mt-1">
-                  AI will analyze the message to extract budget, location, property preference, urgency, and score.
-                </p>
+              </div>
+              <div>
+                <label className="label">WhatsApp Number</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 0812345678"
+                  value={addData.phone}
+                  onChange={(e) => setAddData({ ...addData, phone: e.target.value })}
+                  className="input"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Min Budget</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 500000000"
+                    value={addData.budgetMin ?? ''}
+                    onChange={(e) => setAddData({ ...addData, budgetMin: e.target.value ? Number(e.target.value) : null })}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="label">Max Budget</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 1000000000"
+                    value={addData.budgetMax ?? ''}
+                    onChange={(e) => setAddData({ ...addData, budgetMax: e.target.value ? Number(e.target.value) : null })}
+                    className="input"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Unit Type</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Rumah"
+                    value={addData.unitType || ''}
+                    onChange={(e) => setAddData({ ...addData, unitType: e.target.value })}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="label">Location</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Batam Centre"
+                    value={addData.location || ''}
+                    onChange={(e) => setAddData({ ...addData, location: e.target.value })}
+                    className="input"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Lead Score</label>
+                  <select
+                    value={addData.score || 'Warm'}
+                    onChange={(e) => setAddData({ ...addData, score: e.target.value as any })}
+                    className="input"
+                  >
+                    <option value="Hot">Hot</option>
+                    <option value="Warm">Warm</option>
+                    <option value="Cold">Cold</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Urgency</label>
+                  <select
+                    value={addData.urgency || 'flexible'}
+                    onChange={(e) => setAddData({ ...addData, urgency: e.target.value as any })}
+                    className="input"
+                  >
+                    <option value="immediate">Immediate</option>
+                    <option value="soon">Soon</option>
+                    <option value="flexible">Flexible</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="label">Notes</label>
+                <textarea
+                  rows={3}
+                  placeholder="Requirement summary, preferences, etc."
+                  value={addData.notes || ''}
+                  onChange={(e) => setAddData({ ...addData, notes: e.target.value })}
+                  className="input text-sm"
+                />
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-border dark:border-border-dark">
-                <button type="button" onClick={() => setIsQualifyModalOpen(false)} className="btn btn-secondary">
+                <button type="button" onClick={() => setIsAddModalOpen(false)} className="btn btn-secondary">
                   Cancel
                 </button>
                 <button type="submit" disabled={submitting} className="btn btn-primary">
-                  {submitting ? 'Analyzing...' : 'Qualify Lead'}
+                  {submitting ? 'Adding...' : 'Add Leads'}
                 </button>
               </div>
             </form>

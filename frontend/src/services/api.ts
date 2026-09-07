@@ -19,6 +19,7 @@ import type {
   Lead,
   FollowUp,
   QualifyLeadData,
+  CreateLeadData,
   GenerateFollowUpData,
   VideoScriptOptions,
   VideoScriptResult,
@@ -332,6 +333,11 @@ export const leadApi = {
 
   async getById(id: string): Promise<ApiResponse<Lead>> {
     const response = await api.get<ApiResponse<Lead>>(`/leads/${id}`);
+    return response.data;
+  },
+
+  async create(data: CreateLeadData): Promise<ApiResponse<Lead>> {
+    const response = await api.post<ApiResponse<Lead>>('/leads', data);
     return response.data;
   },
 

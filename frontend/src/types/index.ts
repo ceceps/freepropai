@@ -337,6 +337,18 @@ export interface QualifyLeadData {
   phone?: string;
 }
 
+export interface CreateLeadData {
+  name: string;
+  phone: string;
+  budgetMin?: number | null;
+  budgetMax?: number | null;
+  location?: string;
+  unitType?: string;
+  urgency?: Lead['urgency'];
+  score?: Lead['score'];
+  notes?: string;
+}
+
 // Follow-up Types
 export interface FollowUp {
   id: string;
