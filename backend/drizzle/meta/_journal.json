@@ -57,6 +57,13 @@
       "when": 1788676391735,
       "tag": "0007_uneven_madame_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788820015482,
+      "tag": "0008_outstanding_shadowcat",
+      "breakpoints": true
     }
   ]
 }

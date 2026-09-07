@@ -326,6 +326,7 @@ export interface Lead {
   extractedAt?: string;
   lastContactAt?: string | null;
   status: string;
+  listingId?: string | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -347,6 +348,7 @@ export interface CreateLeadData {
   urgency?: Lead['urgency'];
   score?: Lead['score'];
   notes?: string;
+  listingId?: string | null;
 }
 
 // Follow-up Types

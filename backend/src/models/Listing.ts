@@ -1,5 +1,5 @@
 import { db, listings, listingPhotos, listingDescriptions, listingVideoPrompts } from '../db';
-import { eq, desc, isNull, and } from 'drizzle-orm';
+import { eq, desc, isNull, and, or, ilike } from 'drizzle-orm';
 import type {
   Listing,
   ListingPhoto,
@@ -67,6 +67,26 @@ export class ListingModel {
     }
 
     const results = await query;
+    return results.map(this.mapToListing);
+  }
+
+  // Search listings by title/location (for autocomplete)
+  async search(q?: string): Promise<Listing[]> {
+    const conditions = [isNull(listings.deletedAt)];
+
+    if (q) {
+      conditions.push(or(
+        ilike(listings.title, `%${q}%`),
+        ilike(listings.location, `%${q}%`)
+      )!);
+    }
+
+    const results = await db
+      .select()
+      .from(listings)
+      .where(and(...conditions))
+      .orderBy(desc(listings.createdAt));
+
     return results.map(this.mapToListing);
   }
 

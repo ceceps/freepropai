@@ -95,7 +95,25 @@ class ListingController {
    * GET /api/listings?status=draft
    */
   getListings = asyncHandler(async (req: Request, res: Response) => {
-    const { status } = req.query;
+    const { status, q } = req.query;
+
+    // If query param q is present, use search mode
+    if (q !== undefined) {
+      const results = await ListingModel.search(q ? String(q) : undefined);
+      const response: ApiResponse = {
+        success: true,
+        data: results.map(listing => ({
+          id: listing.id,
+          title: listing.title,
+          location: listing.location,
+          price: listing.price,
+          bedrooms: listing.bedrooms,
+          bathrooms: listing.bathrooms,
+          property_type: listing.property_type,
+        })),
+      };
+      return res.json(response);
+    }
 
     const filters = status ? { status: status as string } : undefined;
     const listings = await ListingModel.findAll(filters);

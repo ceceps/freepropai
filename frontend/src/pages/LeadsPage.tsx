@@ -15,6 +15,11 @@ export default function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   
+  // Listing autocomplete search states
+  const [listingSearchTerm, setListingSearchTerm] = useState<string>('');
+  const [listingSearchResults, setListingSearchResults] = useState<Array<{ id: string; title: string; location: string; price: number | string; bedrooms?: number; bathrooms?: number; propertyType?: string }>>([]);
+  const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
+  
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -23,10 +28,25 @@ export default function LeadsPage() {
   
   // Selected / Form States
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [addData, setAddData] = useState<CreateLeadData>({ name: '', phone: '', score: 'Warm', urgency: 'flexible' });
+  const [addData, setAddData] = useState<CreateLeadData>({ name: '', phone: '', score: 'Warm', urgency: 'flexible', listingId: null });
   const [editData, setEditData] = useState<Partial<Lead>>({});
   const [scheduleData, setScheduleData] = useState({ contextMessage: '', scheduledForDays: 1 });
   const [submitting, setSubmitting] = useState(false);
+
+  // Debounce handling via effect
+  useEffect(() => {
+    const timeout = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/listings?q=${encodeURIComponent(listingSearchTerm || '')}`);
+        if (res.ok) {
+          const json = await res.json();
+          const list = Array.isArray(json.data) ? json.data : [];
+          setListingSearchResults(list.slice(0, 10));
+        }
+      } catch (e) { /* ignore */ }
+    }, 320);
+    return () => clearTimeout(timeout);
+  }, [listingSearchTerm]);
 
   useEffect(() => {
     fetchLeads();
@@ -57,7 +77,8 @@ export default function LeadsPage() {
       if (response.success && response.data) {
         setLeads((prev) => [response.data!, ...prev]);
         setIsAddModalOpen(false);
-        setAddData({ name: '', phone: '', score: 'Warm', urgency: 'flexible' });
+        setAddData({ name: '', phone: '', score: 'Warm', urgency: 'flexible', listingId: null });
+        setListingSearchTerm('');
       } else {
         alert(response.error || 'Failed to add lead');
       }
@@ -421,6 +442,45 @@ export default function LeadsPage() {
                 </div>
               </div>
               <div>
+                <label className="label">Listing (optional)</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search listing title or location…"
+                    value={selectedListingId ? (listingSearchResults.find(l => l.id === selectedListingId)?.title || selectedListingId) : listingSearchTerm}
+                    onChange={e => { setSelectedListingId(null); setAddData({ ...addData, listingId: null }); setListingSearchTerm(e.target.value); }}
+                    onFocus={() => setListingSearchTerm(listingSearchTerm || '')}
+                    className="input"
+                  />
+                  {(listingSearchTerm !== '' || listingSearchResults.length > 0) && (
+                    <div className="absolute z-20 mt-1 w-full bg-white dark:bg-neutral-900 border border-border dark:border-border-dark rounded-lg shadow-lg max-h-56 overflow-auto divide-y divide-border/50">
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedListingId(null); setAddData({ ...addData, listingId: null }); setListingSearchTerm(''); setListingSearchResults([]); }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-accent dark:hover:bg-accent-dark ${!addData.listingId ? 'bg-accent/40 dark:bg-accent-dark/40 font-medium' : ''}`}
+                      >
+                        No listing (default)
+                      </button>
+                      {listingSearchResults.map(l => (
+                        <button
+                          key={l.id}
+                          type="button"
+                          onClick={() => { setSelectedListingId(l.id); setAddData({ ...addData, listingId: l.id }); setListingSearchTerm(l.title); }}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-accent dark:hover:bg-accent-dark flex justify-between gap-2 ${selectedListingId === l.id || addData.listingId === l.id ? 'bg-accent/40 dark:bg-accent-dark/40 font-medium' : ''}`}
+                        >
+                          <span className="truncate">{l.title} — {l.location}</span>
+                          <span className="shrink-0 text-xs text-text-tertiary">#{l.id.slice(0,8)}</span>
+                        </button>
+                      ))}
+                      {listingSearchTerm && listingSearchResults.length === 0 && (
+                        <div className="px-3 py-2 text-sm text-text-tertiary">No listings found</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-text-tertiary dark:text-text-tertiary-dark mt-1">Default: not linked to a listing. Clear to unlink.</p>
+              </div>
+              <div>
                 <label className="label">Notes</label>
                 <textarea
                   rows={3}
@@ -430,15 +490,15 @@ export default function LeadsPage() {
                   className="input text-sm"
                 />
               </div>
-              <div className="flex justify-end gap-3 pt-4 border-t border-border dark:border-border-dark">
-                <button type="button" onClick={() => setIsAddModalOpen(false)} className="btn btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" disabled={submitting} className="btn btn-primary">
-                  {submitting ? 'Adding...' : 'Add Leads'}
-                </button>
-              </div>
             </form>
+            <div className="flex justify-end gap-3 p-6 border-t border-border dark:border-border-dark bg-white dark:bg-neutral-900">
+              <button type="button" onClick={() => setIsAddModalOpen(false)} className="btn btn-secondary">
+                Cancel
+              </button>
+              <button onClick={(e) => handleAddLead(e as any)} disabled={submitting} className="btn btn-primary">
+                {submitting ? 'Adding...' : 'Add Leads'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -618,6 +678,31 @@ export default function LeadsPage() {
                 </div>
               </div>
               <div>
+                <label className="label">Listing (optional)</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search listing title or location…"
+                    value={editData.listingId ? (listingSearchResults.find(l => l.id === editData.listingId)?.title || editData.listingId) : (editData.listingId === null ? '' : listingSearchTerm)}
+                    onChange={e => { const v = e.target.value; setListingSearchTerm(v); if (!v) setEditData({ ...editData, listingId: null }); else setEditData({ ...editData, listingId: undefined as any }); }}
+                    className="input"
+                  />
+                  {(listingSearchTerm !== '' || listingSearchResults.length > 0) && (
+                    <div className="absolute z-20 mt-1 w-full bg-white dark:bg-neutral-900 border border-border dark:border-border-dark rounded-lg shadow-lg max-h-56 overflow-auto divide-y divide-border/50">
+                      <button type="button" onClick={() => { setEditData({ ...editData, listingId: null }); setListingSearchTerm(''); setListingSearchResults([]); }} className={`w-full text-left px-3 py-2 text-sm hover:bg-accent dark:hover:bg-accent-dark ${(!editData.listingId || editData.listingId === null) ? 'bg-accent/40 dark:bg-accent-dark/40 font-medium' : ''}`}>No listing (default)</button>
+                      {listingSearchResults.map(l => (
+                        <button key={l.id} type="button" onClick={() => { setEditData({ ...editData, listingId: l.id }); setListingSearchTerm(l.title); }} className={`w-full text-left px-3 py-2 text-sm hover:bg-accent dark:hover:bg-accent-dark flex justify-between gap-2 ${editData.listingId === l.id ? 'bg-accent/40 dark:bg-accent-dark/40 font-medium' : ''}`}>
+                          <span className="truncate">{l.title} — {l.location}</span>
+                          <span className="shrink-0 text-xs text-text-tertiary">#{l.id.slice(0,8)}</span>
+                        </button>
+                      ))}
+                      {listingSearchTerm && listingSearchResults.length === 0 && <div className="px-3 py-2 text-sm text-text-tertiary">No listings found</div>}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-text-tertiary dark:text-text-tertiary-dark mt-1">Clear to unlink.</p>
+              </div>
+              <div>
                 <label className="label">Notes / Requirements Summary</label>
                 <textarea
                   rows={3}
@@ -626,15 +711,15 @@ export default function LeadsPage() {
                   className="input text-sm"
                 />
               </div>
-              <div className="flex justify-end gap-3 pt-4 border-t border-border dark:border-border-dark">
-                <button type="button" onClick={() => setIsEditModalOpen(false)} className="btn btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" disabled={submitting} className="btn btn-primary">
-                  {submitting ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
             </form>
+            <div className="flex justify-end gap-3 p-6 border-t border-border dark:border-border-dark bg-white dark:bg-neutral-900">
+              <button type="button" onClick={() => setIsEditModalOpen(false)} className="btn btn-secondary">
+                Cancel
+              </button>
+              <button onClick={(e) => handleUpdateLead(e as any)} disabled={submitting} className="btn btn-primary">
+                {submitting ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
           </div>
         </div>
       )}

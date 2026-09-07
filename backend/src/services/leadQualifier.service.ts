@@ -31,6 +31,7 @@ export interface CreateLeadInput {
   urgency?: 'immediate' | 'soon' | 'flexible';
   score?: 'Hot' | 'Warm' | 'Cold';
   notes?: string;
+  listingId?: string | null;
 }
 
 export class LeadQualifierService {
@@ -71,6 +72,7 @@ export class LeadQualifierService {
       urgency: input.urgency || 'flexible',
       score: input.score || 'Warm',
       notes: input.notes || null,
+      listingId: input.listingId || null,
       status: 'new',
     }).returning();
 
@@ -167,6 +169,7 @@ Kembalikan respon DALAM FORMAT JSON VALID TANPA MARKDOWN:
     if (updateData.score !== undefined) safeData.score = updateData.score;
     if (updateData.notes !== undefined) safeData.notes = updateData.notes;
     if (updateData.status !== undefined) safeData.status = updateData.status;
+    if (updateData.listingId !== undefined) safeData.listingId = updateData.listingId || null;
 
     const [updated] = await db.update(leads)
       .set({ ...safeData, updatedAt: new Date() })

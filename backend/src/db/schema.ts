@@ -65,6 +65,7 @@ export const leads = pgTable('leads', {
   extractedAt: timestamp('extracted_at').defaultNow(),
   lastContactAt: timestamp('last_contact_at'),
   status: varchar('status', { length: 50 }).default('new'),
+  listingId: uuid('listing_id').references(() => listings.id, { onDelete: 'set null' }),
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),

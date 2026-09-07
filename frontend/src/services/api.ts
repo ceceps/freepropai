@@ -271,6 +271,12 @@ export const listingApi = {
     const response = await api.patch<ApiResponse>(`/listings/${listingId}/photos/${photoId}/featured`);
     return response.data;
   },
+
+  // Search listings for autocomplete (lead form)
+  async searchListings(q?: string): Promise<ApiResponse<{ id: string; title: string; location: string; price: number | string; bedrooms?: number; bathrooms?: number; propertyType?: string }[]>> {
+    const response = await api.get<ApiResponse<{ id: string; title: string; location: string; price: number | string; bedrooms?: number; bathrooms?: number; propertyType?: string }[]>>('/listings', { params: { q } });
+    return response.data;
+  },
 };
 
 // Scraping API
