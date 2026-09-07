@@ -157,7 +157,7 @@ export default function Dashboard() {
                     onClick={() => setActiveTab(tab.id as typeof activeTab)}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                       activeTab === tab.id
-                        ? 'bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 shadow-sm'
+                        ? 'bg-primary-100 text-text-primary dark:bg-primary-600 dark:text-white shadow-sm'
                         : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50 hover:text-text-primary'
                     }`}
                   >

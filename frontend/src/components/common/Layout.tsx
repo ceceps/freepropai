@@ -127,8 +127,8 @@ export default function Layout({ children }: LayoutProps) {
                     to={item.href}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
                       isActive
-                        ? 'bg-primary-100 text-text-primary dark:bg-primary-900/30 dark:text-primary-400'
-                        : 'text-text-secondary dark:text-text-secondary hover:bg-grey-100 dark:hover:bg-grey-800'
+                        ? 'bg-primary-50 text-primary-600 dark:bg-primary-950/50 dark:text-primary-400 font-semibold'
+                        : 'text-grey-600 dark:text-grey-400 hover:bg-grey-100 hover:text-grey-900 dark:hover:bg-primary-900/40 dark:hover:text-grey-200'
                     }`}
                     title={sidebarOpen ? undefined : item.name}
                   >
@@ -143,7 +143,7 @@ export default function Layout({ children }: LayoutProps) {
             <div className="p-3 border-t border-border dark:border-border">
               <Link
                 to="/settings"
-                className="flex items-center gap-3 p-2 rounded-lg hover:bg-grey-100 dark:hover:bg-grey-800 transition-colors"
+                className="flex items-center gap-3 p-2 rounded-lg hover:bg-grey-100 hover:text-grey-900 dark:text-grey-400 dark:hover:bg-primary-900/40 dark:hover:text-grey-200 transition-colors"
               >
                 <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center flex-shrink-0">
                   <Settings className="w-4 h-4 text-primary-600 dark:text-primary-400" />
