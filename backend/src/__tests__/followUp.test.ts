@@ -86,7 +86,9 @@ describe('Follow-up Scheduler System (Phase 4)', () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.length).toBe(1);
-      expect(response.body.data[0].leadName).toBe('Budi Santoso');
+      expect(response.body.data[0].leadId).toBe(testLeadId);
+      expect(response.body.data[0].lead.name).toBe('Budi Santoso');
+      expect(response.body.data[0].lead.phone).toBe('08123456789');
     });
 
     it('PATCH /api/followups/:id/approve - should approve follow-up draft', async () => {

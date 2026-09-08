@@ -69,19 +69,44 @@ Instruksi:
   }
 
   async getQueue() {
-    return await db.select({
+    const rows = await db.select({
       id: followUps.id,
       leadId: followUps.leadId,
-      leadName: leads.name,
-      leadPhone: leads.phone,
       messageDraft: followUps.messageDraft,
       scheduledFor: followUps.scheduledFor,
       status: followUps.status,
+      generatedAt: followUps.generatedAt,
+      approvedAt: followUps.approvedAt,
+      approvedBy: followUps.approvedBy,
+      sentAt: followUps.sentAt,
+      rejectionReason: followUps.rejectionReason,
       createdAt: followUps.createdAt,
+      updatedAt: followUps.updatedAt,
+      leadName: leads.name,
+      leadPhone: leads.phone,
+      leadLocation: leads.location,
+      leadUnitType: leads.unitType,
+      leadUrgency: leads.urgency,
+      leadScore: leads.score,
+      leadNotes: leads.notes,
     })
     .from(followUps)
     .innerJoin(leads, eq(followUps.leadId, leads.id))
     .orderBy(followUps.scheduledFor);
+
+    return rows.map(({ leadName, leadPhone, leadLocation, leadUnitType, leadUrgency, leadScore, leadNotes, ...followUp }) => ({
+      ...followUp,
+      lead: {
+        id: followUp.leadId,
+        name: leadName,
+        phone: leadPhone,
+        location: leadLocation,
+        unitType: leadUnitType,
+        urgency: leadUrgency,
+        score: leadScore,
+        notes: leadNotes,
+      },
+    }));
   }
 
   async approve(id: string, approvedBy?: string) {
