@@ -523,6 +523,31 @@ class ListingController {
 
     const analysis = await listingAnalysisService.analyze(listing);
 
+    // Save the analysis to the database
+    await ListingModel.saveAnalysis(id, analysis);
+
+    const response: ApiResponse = {
+      success: true,
+      data: analysis,
+    };
+
+    res.json(response);
+  });
+
+  /**
+   * Get saved analysis for a listing
+   * GET /api/listings/:id/analysis
+   */
+  getAnalysis = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    const listing = await ListingModel.findById(id);
+    if (!listing) {
+      throw new AppError('Listing not found', 404);
+    }
+
+    const analysis = await ListingModel.getAnalysis(id);
+
     const response: ApiResponse = {
       success: true,
       data: analysis,

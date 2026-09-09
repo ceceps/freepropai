@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Sparkles, Users, Target, Share2, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Sparkles, Users, Target, Share2, RefreshCw, CheckCircle2, AlertCircle, Database } from 'lucide-react';
 import { listingApi } from '../../services/api';
 import type { ListingWithDetails, ListingAnalysis as ListingAnalysisType } from '../../types';
 
@@ -10,7 +10,26 @@ interface ListingAnalysisProps {
 export default function ListingAnalysis({ listing }: ListingAnalysisProps) {
   const [analysis, setAnalysis] = useState<ListingAnalysisType | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isLoadingSaved, setIsLoadingSaved] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch saved analysis on mount
+  useEffect(() => {
+    async function fetchSavedAnalysis() {
+      try {
+        setIsLoadingSaved(true);
+        const response = await listingApi.getAnalysis(listing.id);
+        if (response.success && response.data) {
+          setAnalysis(response.data);
+        }
+      } catch (err) {
+        // Silently fail - no saved analysis yet
+      } finally {
+        setIsLoadingSaved(false);
+      }
+    }
+    fetchSavedAnalysis();
+  }, [listing.id]);
 
   const handleGenerateAnalysis = async () => {
     try {
@@ -55,6 +74,13 @@ export default function ListingAnalysis({ listing }: ListingAnalysisProps) {
         </button>
       </div>
 
+      {analysis && (
+        <div className="flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950/30 px-4 py-2 rounded-lg border border-primary-100 dark:border-primary-900/30">
+          <Database className="w-4 h-4" />
+          <span>Analisis tersimpan di database</span>
+        </div>
+      )}
+
       {error && (
         <div className="card p-4 border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
@@ -63,7 +89,7 @@ export default function ListingAnalysis({ listing }: ListingAnalysisProps) {
       )}
 
       {/* Empty State */}
-      {!analysis && !isGenerating && !error && (
+      {!analysis && !isGenerating && !isLoadingSaved && !error && (
         <div className="card p-12 text-center border-dashed border-2">
           <Target className="w-16 h-16 text-primary-400 mx-auto mb-4 animate-bounce" />
           <h4 className="text-lg font-semibold text-text-primary mb-2">Belum Ada Analisis Properti</h4>
@@ -81,7 +107,7 @@ export default function ListingAnalysis({ listing }: ListingAnalysisProps) {
       )}
 
       {/* Loading Skeleton */}
-      {isGenerating && (
+      {(isGenerating || isLoadingSaved) && (
         <div className="space-y-6 animate-pulse">
           <div className="h-48 bg-grey-100 dark:bg-grey-800 rounded-2xl" />
           <div className="h-48 bg-grey-100 dark:bg-grey-800 rounded-2xl" />
@@ -90,7 +116,7 @@ export default function ListingAnalysis({ listing }: ListingAnalysisProps) {
       )}
 
       {/* Analysis Results */}
-      {analysis && !isGenerating && (
+      {analysis && !isGenerating && !isLoadingSaved && (
         <div className="space-y-8 animate-fade-in">
           {/* Section 1: Buyer Persona */}
           <div className="space-y-4">

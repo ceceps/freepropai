@@ -285,6 +285,12 @@ export const listingApi = {
     const response = await api.post<ApiResponse<ListingAnalysis>>(`/listings/${id}/generate-analysis`);
     return response.data;
   },
+
+  // Get saved analysis for a listing
+  async getAnalysis(id: string): Promise<ApiResponse<ListingAnalysis | null>> {
+    const response = await api.get<ApiResponse<ListingAnalysis | null>>(`/listings/${id}/analysis`);
+    return response.data;
+  },
 };
 
 // Scraping API

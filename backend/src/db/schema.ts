@@ -160,6 +160,17 @@ export const listingVideoPrompts = pgTable('listing_video_prompts', {
   createdAtIdx: index('idx_video_prompts_created').on(table.createdAt),
 }));
 
+// Listing analyses table
+export const listingAnalyses = pgTable('listing_analyses', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  listingId: uuid('listing_id').notNull().references(() => listings.id, { onDelete: 'cascade' }),
+  analysisJson: jsonb('analysis_json').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  listingIdx: index('idx_listing_analyses_listing').on(table.listingId),
+}));
+
 // Scraping jobs table
 export const scrapingJobs = pgTable('scraping_jobs', {
   id: uuid('id').primaryKey().defaultRandom(),

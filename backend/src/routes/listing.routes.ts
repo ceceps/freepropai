@@ -110,4 +110,11 @@ router.patch('/:listingId/photos/:photoId/featured', listingController.setFeatur
  */
 router.post('/:id/generate-analysis', listingController.analyzeListing);
 
+/**
+ * @route   GET /api/listings/:id/analysis
+ * @desc    Get saved analysis for a listing
+ * @access  Public
+ */
+router.get('/:id/analysis', listingController.getAnalysis);
+
 export default router;

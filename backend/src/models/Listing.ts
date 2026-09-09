@@ -1,4 +1,4 @@
-import { db, listings, listingPhotos, listingDescriptions, listingVideoPrompts } from '../db';
+import { db, listings, listingPhotos, listingDescriptions, listingVideoPrompts, listingAnalyses } from '../db';
 import { eq, desc, isNull, and, or, ilike } from 'drizzle-orm';
 import type {
   Listing,
@@ -6,7 +6,8 @@ import type {
   ListingDescription,
   ListingWithDetails,
   CreateListingRequest,
-  VideoScriptRecord
+  VideoScriptRecord,
+  ListingAnalysis
 } from '../types';
 
 export class ListingModel {
@@ -434,6 +435,39 @@ export class ListingModel {
       is_selected: data.isSelected,
       created_at: data.createdAt,
     };
+  }
+
+  // Save or update listing analysis
+  async saveAnalysis(listingId: string, analysis: ListingAnalysis): Promise<void> {
+    const existing = await db
+      .select()
+      .from(listingAnalyses)
+      .where(eq(listingAnalyses.listingId, listingId));
+
+    if (existing.length > 0) {
+      await db
+        .update(listingAnalyses)
+        .set({
+          analysisJson: analysis,
+          updatedAt: new Date(),
+        })
+        .where(eq(listingAnalyses.listingId, listingId));
+    } else {
+      await db.insert(listingAnalyses).values({
+        listingId,
+        analysisJson: analysis,
+      });
+    }
+  }
+
+  // Get saved listing analysis
+  async getAnalysis(listingId: string): Promise<ListingAnalysis | null> {
+    const [row] = await db
+      .select()
+      .from(listingAnalyses)
+      .where(eq(listingAnalyses.listingId, listingId));
+
+    return row ? (row.analysisJson as ListingAnalysis) : null;
   }
 }
 
