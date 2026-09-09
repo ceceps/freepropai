@@ -28,7 +28,7 @@ export const createScrapingJob = async (req: Request, res: Response) => {
     }
 
     // Validate source name
-    const validSources = ['acehome', 'rumah123', 'olx'];
+    const validSources = ['acehome', 'rumah123', 'olx', 'prolov'];
     if (!validSources.includes(sourceName)) {
       return res.status(400).json({
         success: false,
