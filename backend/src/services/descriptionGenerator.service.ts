@@ -211,7 +211,7 @@ Buat 3 variasi konten dalam Bahasa Indonesia yang natural dan viral:
 Return ONLY valid JSON format (no markdown, no explanation):
 {
   "formal": "Deskripsi listing portal profesional (OLX, Rumah123, dll). WAJIB mengikuti urutan 4 bagian yang jelas: (1) Hook: kalimat pembuka yang memancing perhatian seperti fakta unik atau scarcity. JANGAN sebut harga di Hook. (2) Problem: nyatakan masalah yang dirasakan pencari rumah. (3) Solution: presentasikan properti ini sebagai solusi, sertakan spesifikasi dan legalitas. (4) CTA: ajakan bertindak yang jelas. Sebutkan harga HANYA SEKALI di bagian Solution. Tone: profesional dan meyakinkan. Tidak menggunakan emoji.",
-  "casual_1": "Konten Instagram feed yang super shareable. Pakai framework PAS (Problem -> Agitate -> Solution -> CTA) dengan bumbu humor khas Indo. Sebutkan harga HANYA SEKALI. 2-3 emoji yang relevan.",
+  "casual_1": "Konten Instagram feed yang super shareable. Pakai framework PAS (Problem -> Agitate -> Solution -> CTA) dengan bumbu humor khas Indo. JANGAN PERNAH gunakan kalimat pembuka klise seperti 'Capek cari rumah...'. Bikin kalimat pembuka Hook yang bervariasi, unik, dan kontekstual sesuai dengan properti ini. Sebutkan harga HANYA SEKALI. 2-3 emoji yang relevan.",
   "casual_2": "Instagram Story / WhatsApp Status super singkat dan punchy. Sebutkan harga HANYA SEKALI. 3-5 emoji yang pas."
 }
 
@@ -279,49 +279,74 @@ ATURAN KETAT - pelanggaran akan menghasilkan deskripsi yang buruk:
   }
 
   /**
-   * Fallback generator when LLM API call fails or is unauthenticated
+   * Fallback generator when LLM API call fails - dynamic, no hardcoded templates
    */
   private generateFallbackDescriptions(listing: Listing): GeneratedDescriptions {
-    const typeStr = listing.property_type ? listing.property_type : 'Properti';
-    const capitalizedType = typeStr.charAt(0).toUpperCase() + typeStr.slice(1);
-    const titleStr = listing.title || `${capitalizedType} di ${listing.location}`;
+    const typeStr = listing.property_type || 'Properti';
+    const titleStr = listing.title || `${typeStr} di ${listing.location}`;
     const priceFormatted = this.formatPrice(listing.price);
     const priceInMillionsOrBillions = listing.price >= 1000000000
       ? `${(listing.price / 1000000000).toLocaleString('id-ID', { maximumFractionDigits: 2 })} Milyar`
       : `${(listing.price / 1000000).toLocaleString('id-ID', { maximumFractionDigits: 0 })} Juta`;
 
-    const specs: string[] = [];
-    if (listing.land_area) specs.push(`Luas Tanah: ${listing.land_area}m²`);
-    if (listing.building_area) specs.push(`Luas Bangunan: ${listing.building_area}m²`);
-    if (listing.bedrooms) specs.push(`Kamar Tidur: ${listing.bedrooms}`);
-    if (listing.bathrooms) specs.push(`Kamar Mandi: ${listing.bathrooms}`);
-    const specSummary = specs.length > 0 ? specs.join(' | ') : '';
+    const specParts: string[] = [];
+    if (listing.land_area) specParts.push(`tanah ${listing.land_area} m²`);
+    if (listing.building_area) specParts.push(`bangunan ${listing.building_area} m²`);
+    if (listing.bedrooms) specParts.push(`${listing.bedrooms} kamar tidur`);
+    if (listing.bathrooms) specParts.push(`${listing.bathrooms} kamar mandi`);
+    const specSentence = specParts.join(', ');
+
+    const specSummary = [
+      listing.land_area ? `LT ${listing.land_area}m²` : '',
+      listing.building_area ? `LB ${listing.building_area}m²` : '',
+      listing.bedrooms ? `${listing.bedrooms} KT` : '',
+      listing.bathrooms ? `${listing.bathrooms} KM` : '',
+    ].filter(Boolean).join(' | ');
 
     const addInfo = listing.additional_info ? normalizeText(listing.additional_info) : '';
 
-    const specSentence = [
-      listing.land_area ? `tanah seluas ${listing.land_area} m²` : '',
-      listing.building_area ? `bangunan seluas ${listing.building_area} m²` : '',
-      listing.bedrooms ? `${listing.bedrooms} kamar tidur` : '',
-      listing.bathrooms ? `${listing.bathrooms} kamar mandi` : '',
-    ].filter(Boolean).join(', ');
+    // Variant 1: FORMAL - dynamic Hook/Problem/Solution/CTA
+    const formal = `Unit terbatas di kawasan ${listing.location} — properti premium jarang muncul di pasaran ini, peluang seperti ini tidak datang dua kali.
 
-    // Variant 1: FORMAL (natural Hook -> Problem -> Solution -> CTA prose for listing portals)
-    const formal = `Hanya tersisa unit terbatas di kawasan ${listing.location}. Properti di area ini jarang muncul di pasaran, jadi kesempatan untuk memiliki hunian di lokasi ini tidak datang dua kali.
+Mencari ${typeStr} berkualitas di ${listing.location} dengan legalitas jelas dan lokasi strategis memang tantangan tersendiri. Harga properti terus melonjak setiap tahun, sementara pilihan yang benar-benar layak huni semakin terbatas. Banyak calon pembeli yang menunda keputusan akhirnya kehilangan unit terbaik.
 
-Mencari ${typeStr} yang siap huni, legalitas jelas, dan lokasi strategis di ${listing.location} memang tidak mudah. Harga properti terus naik setiap tahun, sementara pilihan yang benar-benar berkualitas semakin langka. Banyak calon pembeli akhirnya menunda dan justru kehilangan peluang terbaik.
+${titleStr} hadir menjawab kebutuhan tersebut dengan ${specSentence}. Properti ini dipasarkan dengan harga penawaran Rp ${priceFormatted} (${priceInMillionsOrBillions}, nego), siap huni dan memiliki legalitas terjamin.${addInfo ? `\n\nKeunggulan:\n${addInfo}` : ''}
 
-${titleStr} hadir sebagai jawaban atas kebutuhan tersebut.${specSentence ? ` Properti ini dilengkapi dengan ${specSentence}.` : ''}
+Segera hubungi agen kami untuk jadwal survey lokasi dan negosiasi harga — unit terbatas, siapa cepat dia dapat.`;
 
-Dipasarkan dengan harga penawaran Rp ${priceFormatted} (${priceInMillionsOrBillions}, nego), hunian ini siap huni dan memiliki legalitas terjamin.${addInfo ? `\n\nKeunggulan:\n${addInfo}` : ''}
+    // Variant 2: CASUAL #1 - dynamic PAS, no template hooks
+    const hooks = [
+      `Mencari ${typeStr.toLowerCase()} di ${listing.location} tapi selalu kelewat?`,
+      `Lagi cari hunian di ${listing.location}? Yang bagus cepat laku.`,
+      `Butuh ${typeStr.toLowerCase()} strategis? Ini dia.`,
+    ];
+    const hook = hooks[Math.floor(Math.random() * hooks.length)];
 
-Jangan sampai kehabisan. Segera hubungi agen kami untuk jadwal survey lokasi dan negosiasi harga — unit terbatas, siapa cepat dia dapat.`;
+    const agitates = [
+      `Harga makin naik, unit bagus makin jarang. Kalo nggak gercep, nanti laku sama orang lain.`,
+      `Pasar properti ${listing.location} memang nggak nungguin siapa pun. Unit premium kayak gini laku cepet banget.`,
+      `Lokasi incaran banyak orang — kalo terlalu lama mikir, peluangnya ilang.`,
+    ];
+    const agitate = agitates[Math.floor(Math.random() * agitates.length)];
 
-    // Variant 2: CASUAL #1 (Problem -> Agitate -> Solution -> CTA, Instagram feed)
-    const casual_1 = `Capek cari ${typeStr} yang pas tapi selalu kalah cepat sama pembeli lain? 😩\n\nMakin lama nunggu, harga makin naik. Unit strategis makin jarang muncul. Apalagi lokasi ${listing.location} tuh incaran banyak orang — kalo nggak gercep, unit ini bakal laku sama orang lain. ⏳\n\nTenang, ${titleStr} jawabannya! ✨\n\n📍 ${listing.location}\n💰 Rp ${priceInMillionsOrBillions}\n✨ ${specSummary}\n${addInfo ? `📌 ${addInfo}\n\n` : ''}\nCocok banget buat tempat tinggal keluarga atau investasi. ${listing.bedrooms ? `${listing.bedrooms} KT` : ''}${listing.bathrooms ? ` ${listing.bathrooms} KM` : ''} — siap buat dihuni.\n\nDM atau WA sekarang buat survey lokasi! 📲`;
+    const solutions = [
+      `${titleStr} jawabannya! Lokasi premium, spesifikasi lengkap, harga wajar.`,
+      `Tenang, ${titleStr} cocok banget buat kamu. ${specSummary} — siap huni.`,
+      `Solusinya ${titleStr}. Strategis, legal, dan ${specSummary}.`,
+    ];
+    const solution = solutions[Math.floor(Math.random() * solutions.length)];
 
-    // Variant 3: CASUAL #2 (Hook -> Problem -> Solution -> CTA, short story/status)
-    const casual_2 = `🔥 ${titleStr} — unit strategis di ${listing.location}!\n\n${listing.bedrooms ? `🛌 ${listing.bedrooms} KT ` : ''}${listing.bathrooms ? `| 🛁 ${listing.bathrooms} KM ` : ''}${listing.land_area ? `| 📐 LT ${listing.land_area}m² ` : ''}${listing.building_area ? `| 🏗️ LB ${listing.building_area}m²` : ''}\n💰 Rp ${priceInMillionsOrBillions}\n\n${addInfo ? `${addInfo.slice(0, 150)}...\n\n` : ''}Lokasi begini cepat laku — jangan sampai kehabisan. Langsung WA/DM sekarang! 📲⚡`;
+    const ctas = [
+      'DM atau WA sekarang buat survey lokasi!',
+      'Langsung hubungi agen kami untuk jadwal viewing!',
+      'Klik tombol kontak di bawah untuk informasi detail!',
+    ];
+    const cta = ctas[Math.floor(Math.random() * ctas.length)];
+
+    const casual_1 = `${hook} 😩\n\n${agitate} ⏳\n\n${solution} ✨\n\n📍 ${listing.location}\n💰 Rp ${priceInMillionsOrBillions}\n✨ ${specSummary}\n${addInfo ? `📌 ${addInfo}\n\n` : ''}${cta} 📲`;
+
+    // Variant 3: CASUAL #2 - short punchy story/status
+    const casual_2 = `🔥 ${titleStr} — unit strategis di ${listing.location}!\n\n${specSummary}\n💰 Rp ${priceInMillionsOrBillions}\n\n${addInfo ? `${addInfo.slice(0, 150)}...\n\n` : ''}Lokasi begini cepat laku — jangan sampai kehabisan. ${cta} 📲⚡`;
 
     return {
       formal: postProcessDescription(formal),
