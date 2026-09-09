@@ -4,10 +4,12 @@ import {
   Clock, Eye, Edit, Trash2, ArrowUpRight,
   Sparkles, AlertCircle, X
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { leadApi, followUpApi } from '../services/api';
 import type { Lead, CreateLeadData } from '../types';
 
 export default function LeadsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +52,11 @@ export default function LeadsPage() {
 
   useEffect(() => {
     fetchLeads();
-  }, []);
+    if (searchParams.get('action') === 'new') {
+      setIsAddModalOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams]);
 
   const fetchLeads = async () => {
     setLoading(true);

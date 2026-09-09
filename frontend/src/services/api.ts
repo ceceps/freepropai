@@ -23,7 +23,8 @@ import type {
   GenerateFollowUpData,
   VideoScriptOptions,
   VideoScriptResult,
-  VideoScriptRecord
+  VideoScriptRecord,
+  DashboardStats
 } from '../types';
 
 // Create axios instance
@@ -392,6 +393,14 @@ export const followUpApi = {
 
   async delete(id: string): Promise<ApiResponse> {
     const response = await api.delete<ApiResponse>(`/followups/${id}`);
+    return response.data;
+  },
+};
+
+// Dashboard API
+export const dashboardApi = {
+  async getStats(): Promise<ApiResponse<DashboardStats>> {
+    const response = await api.get<ApiResponse<DashboardStats>>('/dashboard/stats');
     return response.data;
   },
 };

@@ -373,3 +373,45 @@ export interface GenerateFollowUpData {
   contextMessage?: string;
   scheduledForDays?: number;
 }
+
+// Dashboard Types
+export interface DashboardCounts {
+  totalLeads: number;
+  hotLeads: number;
+  warmLeads: number;
+  coldLeads: number;
+  newLeads7d: number;
+  totalListings: number;
+  activeListings: number;
+  draftListings: number;
+  totalFollowUps: number;
+  pendingFollowUps: number;
+}
+
+export interface DashboardRecentListing {
+  id: string;
+  title: string;
+  location: string;
+  price: number | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface DashboardRecentFollowUp {
+  id: string;
+  leadId: string;
+  status: string;
+  scheduledFor: string | null;
+  createdAt: string;
+  leadName: string;
+  leadPhone: string;
+}
+
+export interface DashboardStats {
+  counts: DashboardCounts;
+  recentLeads: Lead[];
+  recentListings: DashboardRecentListing[];
+  recentFollowUps: DashboardRecentFollowUp[];
+}

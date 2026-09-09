@@ -2,9 +2,11 @@ import { Link } from 'react-router-dom';
 import {
   Users, MessageSquare, Home, TrendingUp, ArrowUpRight,
   Plus, Download, LayoutDashboard, MapPin, Eye, Edit, Trash2,
-  Phone, Tag, Clock, Zap, Activity, Filter
+  Tag, Clock, Zap, Filter, Loader2, AlertCircle
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { dashboardApi } from '../services/api';
+import type { DashboardStats } from '../types';
 
 interface StatCardProps {
   title: string;
@@ -50,152 +52,232 @@ function StatCard({ title, value, change, changeType = 'neutral', icon, iconColo
   );
 }
 
-interface ActivityItem {
-  id: number;
-  type: 'lead' | 'followup' | 'listing' | 'system';
-  title: string;
-  description: string;
-  time: string;
-  status: 'new' | 'pending' | 'completed' | 'urgent';
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins} min ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  return date.toLocaleDateString();
 }
 
-const recentActivity: ActivityItem[] = [
-  { id: 1, type: 'lead', title: 'New lead captured', description: 'John Doe from Jakarta Selatan', time: '2 min ago', status: 'new' },
-  { id: 2, type: 'followup', title: 'Follow-up scheduled', description: 'Call with Sarah Wilson at 2:00 PM', time: '15 min ago', status: 'pending' },
-  { id: 3, type: 'listing', title: 'Listing published', description: 'Luxury Villa in Kemang - ID: LP-2024-001', time: '1 hour ago', status: 'completed' },
-  { id: 4, type: 'lead', title: 'Lead qualified', description: 'Michael Chen moved to Hot status', time: '3 hours ago', status: 'urgent' },
-  { id: 5, type: 'system', title: 'AI description generated', description: '3 new property descriptions created', time: '5 hours ago', status: 'completed' },
-];
+function formatPrice(price: number | null): string {
+  if (!price) return '—';
+  if (price >= 1e9) return `IDR ${(price / 1e9).toFixed(1)}B`;
+  if (price >= 1e6) return `IDR ${(price / 1e6).toFixed(0)}M`;
+  return `IDR ${price.toLocaleString()}`;
+}
 
-const topListings = [
-  { id: 'LP-2024-001', title: 'Luxury Villa Kemang', location: 'Kemang, South Jakarta', price: 'IDR 15.5B', status: 'Active', views: 1240, inquiries: 23 },
-  { id: 'LP-2024-002', title: 'Modern Apartment SCBD', location: 'SCBD, South Jakarta', price: 'IDR 8.2B', status: 'Active', views: 980, inquiries: 18 },
-  { id: 'LP-2024-003', title: 'Family House Pondok Indah', location: 'Pondok Indah, South Jakarta', price: 'IDR 12.0B', status: 'Pending', views: 756, inquiries: 12 },
-];
+function getStatusBadge(status: string) {
+  const statusLower = status.toLowerCase();
+  if (statusLower === 'active' || statusLower === 'published') return 'badge-success';
+  if (statusLower === 'pending') return 'badge-warning';
+  if (statusLower === 'draft') return 'badge-secondary';
+  if (statusLower === 'sold') return 'badge-secondary';
+  return 'badge-secondary';
+}
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'listings' | 'leads'>('overview');
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        setLoading(true);
+        const response = await dashboardApi.getStats();
+        if (response.success && response.data) {
+          setStats(response.data);
+        } else {
+          setError(response.error || 'Failed to load dashboard data');
+        }
+      } catch (err) {
+        setError('Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-8 animate-fade-in p-4 sm:p-6 lg:p-8">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-8 animate-fade-in p-4 sm:p-6 lg:p-8">
+        <div className="card p-8 text-center">
+          <AlertCircle className="w-12 h-12 text-danger-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-text-primary mb-2">Unable to load dashboard</h3>
+          <p className="text-text-secondary mb-4">{error}</p>
+          <button onClick={() => window.location.reload()} className="btn btn-primary">
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const counts = stats?.counts;
+  const recentLeads = stats?.recentLeads || [];
+  const recentListings = stats?.recentListings || [];
+
+  const recentActivity = [
+    ...recentLeads.slice(0, 3).map((lead) => ({
+      id: `lead-${lead.id}`,
+      type: 'lead' as const,
+      title: 'New lead captured',
+      description: `${lead.name} from ${lead.location || 'Unknown location'}`,
+      time: formatRelativeTime(lead.createdAt),
+      status: lead.status === 'new' ? ('new' as const) : ('pending' as const),
+    })),
+    ...recentListings.slice(0, 2).map((listing) => ({
+      id: `listing-${listing.id}`,
+      type: 'listing' as const,
+      title: 'Listing published',
+      description: `${listing.title} - ID: ${listing.id.slice(0, 8)}`,
+      time: formatRelativeTime(listing.createdAt),
+      status: 'completed' as const,
+    })),
+  ].slice(0, 5);
+
+  const topListings = recentListings.map((listing) => ({
+    ...listing,
+    status: listing.status || 'draft',
+  }));
 
   return (
     <div className="space-y-8 animate-fade-in p-4 sm:p-6 lg:p-8">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-text-primary">Dashboard</h1>
-            <p className="text-text-secondary mt-1">
-              Welcome back! Here&apos;s what&apos;s happening with your properties today.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button className="btn btn-secondary btn-sm">
-              <Download className="w-4 h-4" />
-              Export Report
-            </button>
-            <button className="btn btn-primary btn-sm">
-              <Plus className="w-4 h-4" />
-              Quick Action
-            </button>
-          </div>
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-text-primary">Dashboard</h1>
+          <p className="text-text-secondary mt-1">
+            Welcome back! Here&apos;s what&apos;s happening with your properties today.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button className="btn btn-secondary btn-sm">
+            <Download className="w-4 h-4" />
+            Export Report
+          </button>
+          <button className="btn btn-primary btn-sm">
+            <Plus className="w-4 h-4" />
+            Quick Action
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <StatCard
+          title="Total Leads"
+          value={counts?.totalLeads?.toLocaleString() || '0'}
+          change={counts && counts.newLeads7d > 0 ? `+${counts.newLeads7d} this week` : undefined}
+          changeType="positive"
+          icon={<Users className="w-6 h-6" />}
+          iconColor="text-primary-600 dark:text-primary-400"
+          bgColor="bg-primary-50 dark:bg-primary-950/30"
+          href="/leads"
+        />
+        <StatCard
+          title="Active Listings"
+          value={counts?.activeListings?.toString() || '0'}
+          change={counts && counts.activeListings > 0 ? `+${counts.activeListings} active` : undefined}
+          changeType="positive"
+          icon={<Home className="w-6 h-6" />}
+          iconColor="text-emerald-600 dark:text-emerald-400"
+          bgColor="bg-emerald-50 dark:bg-emerald-950/30"
+          href="/listings"
+        />
+        <StatCard
+          title="Pending Follow-ups"
+          value={counts?.pendingFollowUps?.toString() || '0'}
+          change={counts && counts.pendingFollowUps > 0 ? `${counts.pendingFollowUps} pending` : undefined}
+          changeType={counts && counts.pendingFollowUps > 0 ? 'negative' : 'neutral'}
+          icon={<MessageSquare className="w-6 h-6" />}
+          iconColor="text-amber-600 dark:text-amber-400"
+          bgColor="bg-amber-50 dark:bg-amber-950/30"
+          href="/followups"
+        />
+        <StatCard
+          title="Hot Leads"
+          value={counts?.hotLeads?.toString() || '0'}
+          change={counts && counts.hotLeads > 0 ? `${counts.hotLeads} hot` : undefined}
+          changeType="positive"
+          icon={<TrendingUp className="w-6 h-6" />}
+          iconColor="text-indigo-600 dark:text-indigo-400"
+          bgColor="bg-indigo-50 dark:bg-indigo-950/30"
+          href="/leads?status=Hot"
+        />
+      </div>
+
+      {/* Tabs */}
+      <div className="card">
+        <div className="border-b border-border">
+          <nav className="flex gap-1 p-1" aria-label="Dashboard tabs">
+            {[
+              { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+              { id: 'listings', label: 'Recent Listings', icon: Home },
+              { id: 'leads', label: 'Recent Leads', icon: Users },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    activeTab === tab.id
+                      ? 'bg-primary-100 text-text-primary dark:bg-primary-600 dark:text-white shadow-sm'
+                      : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50 hover:text-text-primary'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          <StatCard
-            title="Total Leads"
-            value="1,247"
-            change="+12.5%"
-            changeType="positive"
-            icon={<Users className="w-6 h-6" />}
-            iconColor="text-primary-600 dark:text-primary-400"
-            bgColor="bg-primary-50 dark:bg-primary-950/30"
-            href="/leads"
-          />
-          <StatCard
-            title="Active Listings"
-            value="89"
-            change="+3"
-            changeType="positive"
-            icon={<Home className="w-6 h-6" />}
-            iconColor="text-emerald-600 dark:text-emerald-400"
-            bgColor="bg-emerald-50 dark:bg-emerald-950/30"
-            href="/listings"
-          />
-          <StatCard
-            title="Pending Follow-ups"
-            value="23"
-            change="-5"
-            changeType="positive"
-            icon={<MessageSquare className="w-6 h-6" />}
-            iconColor="text-amber-600 dark:text-amber-400"
-            bgColor="bg-amber-50 dark:bg-amber-950/30"
-            href="/followups"
-          />
-          <StatCard
-            title="Conversion Rate"
-            value="24.8%"
-            change="+2.1%"
-            changeType="positive"
-            icon={<TrendingUp className="w-6 h-6" />}
-            iconColor="text-indigo-600 dark:text-indigo-400"
-            bgColor="bg-indigo-50 dark:bg-indigo-950/30"
-          />
-        </div>
-
-        {/* Tabs */}
-        <div className="card">
-          <div className="border-b border-border">
-            <nav className="flex gap-1 p-1" aria-label="Dashboard tabs">
-              {[
-                { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-                { id: 'listings', label: 'Top Listings', icon: Home },
-                { id: 'leads', label: 'Recent Leads', icon: Users },
-              ].map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      activeTab === tab.id
-                        ? 'bg-primary-100 text-text-primary dark:bg-primary-600 dark:text-white shadow-sm'
-                        : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50 hover:text-text-primary'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-
-          <div className="p-6">
-            {activeTab === 'overview' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Recent Activity */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-text-primary">Recent Activity</h3>
-                    <Link to="/activity" className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">
-                      View all
-                    </Link>
-                  </div>
-                  <div className="space-y-3">
-                    {recentActivity.map((activity) => (
+        <div className="p-6">
+          {activeTab === 'overview' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Recent Activity */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-text-primary">Recent Activity</h3>
+                  <Link to="/activity" className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">
+                    View all
+                  </Link>
+                </div>
+                <div className="space-y-3">
+                  {recentActivity.length > 0 ? (
+                    recentActivity.map((activity) => (
                       <div
                         key={activity.id}
                         className="flex items-start gap-4 p-4 border border-border bg-surface hover:bg-grey-50 dark:hover:bg-grey-800/30 rounded-xl transition-colors"
                       >
                         <div className={`p-2 rounded-lg flex-shrink-0 ${
                           activity.type === 'lead' ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400' :
-                          activity.type === 'followup' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400' :
-                          activity.type === 'listing' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400' :
-                          'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400'
+                          'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400'
                         }`}>
-                          {activity.type === 'lead' && <Users className="w-4 h-4" />}
-                          {activity.type === 'followup' && <MessageSquare className="w-4 h-4" />}
-                          {activity.type === 'listing' && <Home className="w-4 h-4" />}
-                          {activity.type === 'system' && <Activity className="w-4 h-4" />}
+                          {activity.type === 'lead' ? <Users className="w-4 h-4" /> : <Home className="w-4 h-4" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-text-primary">{activity.title}</p>
@@ -213,107 +295,123 @@ export default function Dashboard() {
                           <span className="text-xs text-text-tertiary whitespace-nowrap">{activity.time}</span>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-text-secondary">
+                      No recent activity
+                    </div>
+                  )}
                 </div>
+              </div>
 
-                {/* Quick Stats & Charts Placeholder */}
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-lg font-semibold text-text-primary mb-4">Performance Overview</h3>
-                    <div className="card p-6 h-full bg-grey-50/50 dark:bg-grey-900/20">
-                      <div className="grid grid-cols-2 gap-4 mb-6">
-                        <div className="text-center p-4 bg-surface border border-border rounded-xl shadow-sm">
-                          <p className="text-3xl font-bold text-primary-600 dark:text-primary-400">2,847</p>
-                          <p className="text-sm text-text-secondary">Total Views</p>
+              {/* Lead Breakdown */}
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-text-primary mb-4">Lead Pipeline</h3>
+                  <div className="card p-6 bg-grey-50/50 dark:bg-grey-900/20">
+                    <div className="grid grid-cols-3 gap-4 mb-6">
+                      <div className="text-center p-4 bg-surface border border-border rounded-xl shadow-sm">
+                        <p className="text-3xl font-bold text-danger-600 dark:text-danger-400">{counts?.hotLeads || 0}</p>
+                        <p className="text-sm text-text-secondary">Hot Leads</p>
+                      </div>
+                      <div className="text-center p-4 bg-surface border border-border rounded-xl shadow-sm">
+                        <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{counts?.warmLeads || 0}</p>
+                        <p className="text-sm text-text-secondary">Warm Leads</p>
+                      </div>
+                      <div className="text-center p-4 bg-surface border border-border rounded-xl shadow-sm">
+                        <p className="text-3xl font-bold text-text-tertiary">{counts?.coldLeads || 0}</p>
+                        <p className="text-sm text-text-secondary">Cold Leads</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 border border-border bg-surface rounded-lg">
+                        <div>
+                          <p className="text-sm font-medium text-text-primary">Total Leads</p>
+                          <p className="text-xs text-text-tertiary">{counts?.totalLeads || 0} total</p>
                         </div>
-                        <div className="text-center p-4 bg-surface border border-border rounded-xl shadow-sm">
-                          <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">156</p>
-                          <p className="text-sm text-text-secondary">Inquiries</p>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-text-primary">{counts?.totalLeads || 0}</p>
                         </div>
                       </div>
-                      <div className="space-y-3">
-                        {[
-                          { label: 'Lead Response Time', value: '< 2 hours', trend: 'Excellent', color: 'text-emerald-600 dark:text-emerald-400' },
-                          { label: 'Listing Quality Score', value: '94/100', trend: 'Above Average', color: 'text-blue-600 dark:text-blue-400' },
-                          { label: 'AI Description Usage', value: '78%', trend: 'Increasing', color: 'text-indigo-600 dark:text-indigo-400' },
-                          { label: 'Mobile Traffic', value: '67%', trend: 'Stable', color: 'text-amber-600 dark:text-amber-400' },
-                        ].map((item, i) => (
-                          <div key={i} className="flex items-center justify-between p-3 border border-border bg-surface rounded-lg">
-                            <div>
-                              <p className="text-sm font-medium text-text-primary">{item.label}</p>
-                              <p className="text-xs text-text-tertiary">{item.trend}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-lg font-bold text-text-primary">{item.value}</p>
-                              <p className={`text-xs font-medium ${item.color}`}>{item.trend}</p>
-                            </div>
-                          </div>
-                        ))}
+                      <div className="flex items-center justify-between p-3 border border-border bg-surface rounded-lg">
+                        <div>
+                          <p className="text-sm font-medium text-text-primary">New This Week</p>
+                          <p className="text-xs text-text-tertiary">Last 7 days</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">+{counts?.newLeads7d || 0}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  {/* AI Insights */}
-                  <div className="card p-6 bg-gradient-to-br from-primary-50 to-amber-50 dark:from-primary-900/10 dark:to-amber-900/10 border-primary-100 dark:border-primary-900/30">
-                    <div className="flex items-start gap-4">
-                      <div className="p-2.5 rounded-xl bg-primary-600 dark:bg-primary-500 shadow-lg shadow-primary-500/20">
-                        <Zap className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-bold text-text-primary mb-1">AI Insight</h4>
-                        <p className="text-sm text-text-secondary leading-relaxed mb-4">
-                          Your listings with AI-generated descriptions receive <strong className="text-text-primary font-bold">34% more inquiries</strong> on average.
-                          Consider generating descriptions for your 12 listings without AI content.
-                        </p>
-                        <button className="btn btn-primary btn-sm shadow-md">
+                {/* AI Insights */}
+                <div className="card p-6 bg-gradient-to-br from-primary-50 to-amber-50 dark:from-primary-900/10 dark:to-amber-900/10 border-primary-100 dark:border-primary-900/30">
+                  <div className="flex items-start gap-4">
+                    <div className="p-2.5 rounded-xl bg-primary-600 dark:bg-primary-500 shadow-lg shadow-primary-500/20">
+                      <Zap className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-text-primary mb-1">AI Insight</h4>
+                      <p className="text-sm text-text-secondary leading-relaxed mb-4">
+                        You have <strong className="text-text-primary font-bold">{counts?.pendingFollowUps || 0} pending follow-ups</strong> that need attention.
+                        {counts?.hotLeads && counts.hotLeads > 0 ? (
+                          <> Also <strong className="text-text-primary font-bold">{counts.hotLeads} hot leads</strong> are ready for immediate contact.</>
+                        ) : null}
+                      </p>
+                      {counts && counts.pendingFollowUps > 0 ? (
+                        <Link to="/followups" className="btn btn-primary btn-sm shadow-md">
                           <Plus className="w-3.5 h-3.5" />
-                          Generate Descriptions
-                        </button>
-                      </div>
+                          View Follow-ups
+                        </Link>
+                      ) : null}
                     </div>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {activeTab === 'listings' && (
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                  <div className="flex items-center gap-2 flex-1">
-                    <input
-                      type="search"
-                      placeholder="Search listings..."
-                      className="input max-w-xs"
-                    />
-                    <select className="input w-40">
-                      <option>All Status</option>
-                      <option>Active</option>
-                      <option>Pending</option>
-                      <option>Sold</option>
-                    </select>
-                    <button className="btn btn-secondary">
-                      <Filter className="w-4 h-4" />
-                      Filters
-                    </button>
-                  </div>
-                  <Link to="/listings/new" className="btn btn-primary">
-                    <Plus className="w-4 h-4" />
-                    New Listing
-                  </Link>
+          {activeTab === 'listings' && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                <div className="flex items-center gap-2 flex-1">
+                  <input
+                    type="search"
+                    placeholder="Search listings..."
+                    className="input max-w-xs"
+                  />
+                  <select className="input w-40">
+                    <option>All Status</option>
+                    <option>Active</option>
+                    <option>Pending</option>
+                    <option>Draft</option>
+                    <option>Sold</option>
+                  </select>
+                  <button className="btn btn-secondary">
+                    <Filter className="w-4 h-4" />
+                    Filters
+                  </button>
                 </div>
+                <Link to="/listings/new" className="btn btn-primary">
+                  <Plus className="w-4 h-4" />
+                  New Listing
+                </Link>
+              </div>
 
-                <div className="table-container border border-border rounded-xl">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        {['Property', 'Location', 'Price', 'Status', 'Views', 'Inquiries', 'Actions'].map((header, i) => (
-                          <th key={i}>{header}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {topListings.map((listing) => (
+              <div className="table-container border border-border rounded-xl">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      {['Property', 'Location', 'Price', 'Status', 'Created', 'Actions'].map((header, i) => (
+                        <th key={i}>{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {topListings.length > 0 ? (
+                      topListings.map((listing) => (
                         <tr key={listing.id}>
                           <td className="py-4">
                             <div className="flex items-center gap-3">
@@ -322,7 +420,7 @@ export default function Dashboard() {
                               </div>
                               <div>
                                 <p className="font-bold text-text-primary">{listing.title}</p>
-                                <p className="text-xs text-text-tertiary">{listing.id}</p>
+                                <p className="text-xs text-text-tertiary">{listing.id.slice(0, 8)}</p>
                               </div>
                             </div>
                           </td>
@@ -332,14 +430,15 @@ export default function Dashboard() {
                               {listing.location}
                             </div>
                           </td>
-                          <td className="font-bold text-text-primary">{listing.price}</td>
+                          <td className="font-bold text-text-primary">{formatPrice(listing.price)}</td>
                           <td>
-                            <span className={`badge ${listing.status === 'Active' ? 'badge-success' : 'badge-warning'}`}>
-                              {listing.status}
+                            <span className={getStatusBadge(listing.status)}>
+                              {listing.status.charAt(0).toUpperCase() + listing.status.slice(1)}
                             </span>
                           </td>
-                          <td className="text-text-secondary">{listing.views.toLocaleString()}</td>
-                          <td className="text-text-secondary">{listing.inquiries}</td>
+                          <td className="text-text-secondary">
+                            {new Date(listing.createdAt).toLocaleDateString()}
+                          </td>
                           <td>
                             <div className="flex items-center gap-1">
                               <button className="btn btn-ghost btn-icon" title="View"><Eye className="w-4 h-4" /></button>
@@ -348,63 +447,64 @@ export default function Dashboard() {
                             </div>
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="text-center py-8 text-text-secondary">
+                          No listings yet
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-            )}
+            </div>
+          )}
 
-            {activeTab === 'leads' && (
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
-                  <div className="flex items-center gap-2 flex-1">
-                    <input
-                      type="search"
-                      placeholder="Search leads..."
-                      className="input max-w-xs"
-                    />
-                    <select className="input w-40">
-                      <option>All Status</option>
-                      <option>Hot</option>
-                      <option>Warm</option>
-                      <option>Cold</option>
-                    </select>
-                  </div>
-                  <Link to="/leads/new" className="btn btn-primary">
-                    <Plus className="w-4 h-4" />
-                    Add Lead
-                  </Link>
+          {activeTab === 'leads' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
+                <div className="flex items-center gap-2 flex-1">
+                  <input
+                    type="search"
+                    placeholder="Search leads..."
+                    className="input max-w-xs"
+                  />
+                  <select className="input w-40">
+                    <option>All Status</option>
+                    <option>Hot</option>
+                    <option>Warm</option>
+                    <option>Cold</option>
+                  </select>
                 </div>
+                <Link to="/leads?action=new" className="btn btn-primary">
+                  <Plus className="w-4 h-4" />
+                  Add Lead
+                </Link>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {[
-                    { name: 'John Doe', email: 'john@example.com', phone: '+62 812-3456-7890', status: 'Hot', source: 'Website', lastContact: 'Today', tags: ['Villa', 'Kemang', 'Urgent'] },
-                    { name: 'Sarah Wilson', email: 'sarah@company.com', phone: '+62 813-9876-5432', status: 'Warm', source: 'Referral', lastContact: '2 days ago', tags: ['Apartment', 'SCBD'] },
-                    { name: 'Michael Chen', email: 'mchen@email.com', phone: '+62 811-5555-1234', status: 'Hot', source: 'Social Media', lastContact: 'Yesterday', tags: ['House', 'Pondok Indah', 'Investment'] },
-                    { name: 'Emily Park', email: 'emily.park@mail.com', phone: '+62 812-4444-9999', status: 'Cold', source: 'Website', lastContact: '1 week ago', tags: ['Land', 'Bogor'] },
-                    { name: 'David Kim', email: 'david.kim@corp.com', phone: '+62 813-7777-8888', status: 'Warm', source: 'Event', lastContact: '3 days ago', tags: ['Commercial', 'Sudirman'] },
-                    { name: 'Lisa Tan', email: 'lisa.tan@startup.io', phone: '+62 811-2222-3333', status: 'Hot', source: 'Referral', lastContact: 'Today', tags: ['Condo', 'Kuningan', 'Rental'] },
-                  ].map((lead, i) => (
-                    <div key={i} className="card card-hover p-6 border-border group">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {recentLeads.length > 0 ? (
+                  recentLeads.map((lead) => (
+                    <div key={lead.id} className="card card-hover p-6 border-border group">
                       <div className="flex items-start justify-between mb-4">
                         <div>
                           <p className="font-bold text-lg text-text-primary">{lead.name}</p>
-                          <p className="text-xs text-text-tertiary font-mono">{lead.email}</p>
+                          <p className="text-xs text-text-tertiary font-mono">{lead.phone}</p>
                         </div>
-                        <span className={`badge ${lead.status === 'Hot' ? 'badge-danger' : lead.status === 'Warm' ? 'badge-warning' : 'badge-secondary'}`}>
-                          {lead.status}
+                        <span className={`badge ${lead.score === 'Hot' ? 'badge-danger' : lead.score === 'Warm' ? 'badge-warning' : 'badge-secondary'}`}>
+                          {lead.score || '—'}
                         </span>
                       </div>
                       <div className="space-y-2.5 text-sm text-text-secondary mb-5">
-                        <div className="flex items-center gap-2.5"><Phone className="w-3.5 h-3.5 text-text-tertiary" /> {lead.phone}</div>
-                        <div className="flex items-center gap-2.5"><Tag className="w-3.5 h-3.5 text-text-tertiary" /> {lead.source}</div>
-                        <div className="flex items-center gap-2.5"><Clock className="w-3.5 h-3.5 text-text-tertiary" /> Last contact: {lead.lastContact}</div>
+                        <div className="flex items-center gap-2.5"><MapPin className="w-3.5 h-3.5 text-text-tertiary" /> {lead.location || '—'}</div>
+                        <div className="flex items-center gap-2.5"><Tag className="w-3.5 h-3.5 text-text-tertiary" /> {lead.unitType || '—'}</div>
+                        <div className="flex items-center gap-2.5"><Clock className="w-3.5 h-3.5 text-text-tertiary" /> Last contact: {formatRelativeTime(lead.lastContactAt || lead.createdAt)}</div>
                       </div>
                       <div className="flex flex-wrap gap-1.5 mb-6">
-                        {lead.tags.map((tag, ti) => (
-                          <span key={ti} className="px-2 py-0.5 bg-primary-50 dark:bg-primary-950/30 text-primary-700 dark:text-primary-300 text-[10px] font-bold rounded uppercase tracking-wider border border-primary-100 dark:border-primary-900/30">{tag}</span>
-                        ))}
+                        {lead.urgency && (
+                          <span className="px-2 py-0.5 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 text-[10px] font-bold rounded uppercase tracking-wider border border-amber-100 dark:border-amber-900/30">{lead.urgency}</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 pt-2 border-t border-border">
                         <button className="btn btn-ghost btn-sm flex-1 text-xs px-1">Message</button>
@@ -412,12 +512,17 @@ export default function Dashboard() {
                         <button className="btn btn-primary btn-sm flex-1 text-xs px-1">Follow-up</button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  ))
+                ) : (
+                  <div className="col-span-full text-center py-8 text-text-secondary">
+                    No leads yet
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
+    </div>
   );
 }
