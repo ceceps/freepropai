@@ -218,6 +218,25 @@ export interface GeneratedDescriptions {
   casual_2: string;
 }
 
+export interface VideoScriptRecord {
+  id: string;
+  listing_id: string;
+  name: string;
+  style: string;
+  model: string;
+  aspect_ratio: string;
+  custom_instructions: string | null;
+  include_voice_over: boolean;
+  voice_gender: string | null;
+  voice_age: string | null;
+  voice_language: string | null;
+  script: string;
+  voice_over_script: string | null;
+  script_json: any;
+  created_at: Date;
+  updated_at: Date;
+}
+
 // API Response Types
 export interface ApiResponse<T = any> {
   success: boolean;

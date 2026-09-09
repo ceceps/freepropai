@@ -10,36 +10,54 @@
 
 ### ✅ Completed Features
 
-1. **Listing Management System**
+1. **Auth & User Foundation**
+   - Register / login / logout / refresh-token flows with JWT (15m access / 7d refresh cookies)
+   - Role-based access (`solo_agent`, `team_owner`, `team_agent`)
+   - Protected routes + auto token refresh on the frontend
+
+2. **Listing Management System**
    - Create listings with manual input
    - Upload multiple photos per listing
    - Generate AI-powered descriptions (3 variants: formal, casual_1, casual_2)
    - View and manage listings
    - Select preferred description variant
+   - Auto thumbnail generation + shimmer loading
 
-2. **Database Infrastructure**
+3. **Property Scraping**
+   - Scraping jobs + scraped listings + configs (DB tables, API endpoints)
+   - Deterministic cheerio parsers for **Acehome.co.id** and **prolov.id** (no LLM required)
+   - Single & batch import into listings with photo download
+
+4. **Lead Qualifying System**
+   - Lead model + `/api/leads` CRUD + `/api/leads/qualify` (LLM extraction with heuristic fallback)
+   - WhatsApp-style chat → structured lead (name, phone, budget, location, urgency, score Hot/Warm/Cold)
+   - Full CRUD UI on the Leads page
+
+5. **Follow-up Scheduler**
+   - Follow-up model + `/api/followups` queue (generate, approve, reject, edit, send)
+   - LLM-drafted WhatsApp messages with template fallback; approval workflow before sending
+   - Full CRUD UI on the Follow-ups page
+
+6. **Database Infrastructure**
    - PostgreSQL with Drizzle ORM
-   - Schema for listings, listing_photos, listing_descriptions
+   - Schema: users, teams, listings, listing_photos, listing_descriptions, leads, follow_ups, scraping_jobs, scraped_listings, scraping_configs
    - Migration system in place
 
-3. **Backend API**
+7. **Backend API**
    - Express.js server with TypeScript
    - File upload handling with Multer
-   - LLM integration via Anthropic Claude API
-   - RESTful API endpoints for listings
+   - LLM integration via Anthropic Claude API (agentrouter)
+   - RESTful API endpoints for listings, scraping, leads, follow-ups
 
-4. **Frontend Application**
+8. **Frontend Application**
    - React with TypeScript and Vite
    - Tailwind CSS for styling
-   - Listing form with photo upload
-   - Description variants display
-   - Dashboard and listings pages
+   - Listing form with photo upload, description variants display
+   - Dashboard, listings, scraping, leads, and follow-ups pages
 
 ### 🚧 Pending Features (From Original Plan)
 
-1. **Lead Qualifying System** - Not yet implemented
-2. **Follow-up Scheduler** - Not yet implemented
-3. **WhatsApp Chat Mock** - Not yet implemented
+1. **WhatsApp Chat Mock** - Not yet implemented
 
 ---
 
@@ -170,7 +188,7 @@ CREATE INDEX idx_scraping_configs_source ON scraping_configs(source_name);
 CREATE INDEX idx_scraping_configs_active ON scraping_configs(is_active);
 ```
 
-### Planned Tables (Not Yet Implemented)
+### Implemented Tables (Lead & Follow-up Modules)
 
 #### `leads`
 ```sql
@@ -227,25 +245,25 @@ freepropai/
 │   │   │   ├── Listing.ts            # ✅ Implemented
 │   │   │   ├── 🆕 ScrapingJob.ts     # NEW: Scraping job model
 │   │   │   ├── 🆕 ScrapedListing.ts  # NEW: Scraped listing model
-│   │   │   ├── Lead.ts               # 🚧 Planned
-│   │   │   └── FollowUp.ts           # 🚧 Planned
+│   │   │   ├── Lead.ts               # ✅ Implemented
+│   │   │   └── FollowUp.ts           # ✅ Implemented
 │   │   ├── services/
 │   │   │   ├── descriptionGenerator.service.ts  # ✅ Implemented
 │   │   │   ├── 🆕 scraper.service.ts            # NEW: Core scraping logic
 │   │   │   ├── 🆕 acehomeScraper.service.ts     # NEW: Acehome-specific scraper
 │   │   │   ├── 🆕 scrapingOrchestrator.service.ts # NEW: Job management
-│   │   │   ├── leadQualifier.service.ts         # 🚧 Planned
-│   │   │   └── followUpScheduler.service.ts     # 🚧 Planned
+│   │   │   ├── leadQualifier.service.ts         # ✅ Implemented
+│   │   │   └── followUpScheduler.service.ts     # ✅ Implemented
 │   │   ├── controllers/
 │   │   │   ├── listing.controller.ts  # ✅ Implemented
 │   │   │   ├── 🆕 scraping.controller.ts # NEW: Scraping endpoints
-│   │   │   ├── lead.controller.ts     # 🚧 Planned
-│   │   │   └── followUp.controller.ts # 🚧 Planned
+│   │   │   ├── lead.controller.ts     # ✅ Implemented
+│   │   │   └── followUp.controller.ts # ✅ Implemented
 │   │   ├── routes/
 │   │   │   ├── listing.routes.ts      # ✅ Implemented
 │   │   │   ├── 🆕 scraping.routes.ts  # NEW: Scraping routes
-│   │   │   ├── lead.routes.ts         # 🚧 Planned
-│   │   │   └── followUp.routes.ts     # 🚧 Planned
+│   │   │   ├── lead.routes.ts         # ✅ Implemented
+│   │   │   └── followUp.routes.ts     # ✅ Implemented
 │   │   ├── middleware/
 │   │   │   ├── errorHandler.ts        # ✅ Implemented
 │   │   │   └── upload.ts              # ✅ Implemented
@@ -277,14 +295,14 @@ freepropai/
 │   │   │   │   ├── ScrapingJobCard.tsx     # NEW: Job status card
 │   │   │   │   ├── ScrapedListingCard.tsx  # NEW: Preview scraped data
 │   │   │   │   └── ImportReviewModal.tsx   # NEW: Review before import
-│   │   │   ├── leads/                 # 🚧 Planned
-│   │   │   └── followups/             # 🚧 Planned
+│   │   │   ├── leads/                 # ✅ Implemented
+│   │   │   └── followups/             # ✅ Implemented
 │   │   ├── pages/
 │   │   │   ├── Dashboard.tsx          # ✅ Implemented
 │   │   │   ├── ListingsPage.tsx       # ✅ Implemented
 │   │   │   ├── 🆕 ScrapingPage.tsx    # NEW: Scraping management page
-│   │   │   ├── LeadsPage.tsx          # 🚧 Planned
-│   │   │   └── FollowUpsPage.tsx      # 🚧 Planned
+│   │   │   ├── LeadsPage.tsx          # ✅ Implemented
+│   │   │   └── FollowUpsPage.tsx      # ✅ Implemented
 │   │   ├── services/
 │   │   │   └── api.ts                 # ✅ Implemented
 │   │   ├── hooks/
@@ -656,20 +674,22 @@ Pilih varian deskripsi untuk digunakan.
 
 ---
 
-### C. Planned Endpoints (🚧 Not Yet Implemented)
+### C. Implemented Endpoints — Lead & Follow-up Modules
 
-#### Lead Qualifying Endpoints
+#### Lead Qualifying Endpoints (✅ Implemented)
 - `POST /api/leads/qualify`
 - `GET /api/leads`
 - `GET /api/leads/:id`
 - `PATCH /api/leads/:id`
+- `DELETE /api/leads/:id`
 
-#### Follow-up Scheduler Endpoints
+#### Follow-up Scheduler Endpoints (✅ Implemented)
 - `POST /api/followups/generate`
 - `GET /api/followups/queue`
 - `PATCH /api/followups/:id/approve`
 - `PATCH /api/followups/:id/reject`
 - `PATCH /api/followups/:id/edit`
+- `DELETE /api/followups/:id`
 
 ---
 
@@ -998,18 +1018,16 @@ export function ImportReviewModal({ scrapedListing, onClose }: Props) {
 5. Add scraping to navigation
 6. Test full user flow
 
-### Phase 3: 🚧 Lead Qualifying (PLANNED)
-**Estimasi: 2 hari**
-- Lead endpoints & LLM integration
-- WhatsApp chat mock UI
-- Lead scoring & display
+### Phase 3: ✅ Lead Qualifying (IMPLEMENTED)
+- Lead endpoints & LLM integration — done
+- WhatsApp chat mock UI — pending
+- Lead scoring & display — done
 
-### Phase 4: 🚧 Follow-up Scheduler (PLANNED)
-**Estimasi: 2-3 hari**
-- Rule engine implementation
-- Follow-up generation with LLM
-- Approval queue UI
-- Timeline visualization
+### Phase 4: ✅ Follow-up Scheduler (IMPLEMENTED)
+- Rule engine implementation — done
+- Follow-up generation with LLM — done (template fallback without LLM key)
+- Approval queue UI — done
+- Timeline visualization — pending
 
 ### Phase 5: 🚧 Integration & Polish (PLANNED)
 **Estimasi: 1-2 hari**

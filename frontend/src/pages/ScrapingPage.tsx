@@ -162,6 +162,7 @@ export default function ScrapingPage() {
               className="input"
             >
               <option value="acehome">Acehome.com</option>
+              <option value="prolov">Prolov.id</option>
               <option value="rumah123" disabled>Rumah123 (Coming Soon)</option>
               <option value="olx" disabled>OLX (Coming Soon)</option>
             </select>

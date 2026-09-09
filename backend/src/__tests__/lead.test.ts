@@ -52,6 +52,41 @@ describe('Lead Qualifying System (Phase 3)', () => {
   });
 
   describe('Lead API Endpoints', () => {
+    it('POST /api/leads - should require name and phone', async () => {
+      const response = await request(app)
+        .post('/api/leads')
+        .send({ name: 'Only Name' })
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('name and phone are required');
+    });
+
+    it('POST /api/leads - should create a lead directly from form input', async () => {
+      const response = await request(app)
+        .post('/api/leads')
+        .send({
+          name: 'Andi',
+          phone: '081234567890',
+          budgetMin: 500000000,
+          budgetMax: 800000000,
+          location: 'Batam Centre',
+          unitType: 'Rumah',
+          urgency: 'soon',
+          score: 'Warm',
+          notes: 'Manual entry dari form',
+        })
+        .expect(201);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.id).toBeDefined();
+      expect(response.body.data.name).toBe('Andi');
+      expect(response.body.data.phone).toBe('081234567890');
+      expect(response.body.data.urgency).toBe('soon');
+      expect(response.body.data.score).toBe('Warm');
+      expect(response.body.data.status).toBe('new');
+    });
+
     it('POST /api/leads/qualify - should require rawChatText', async () => {
       const response = await request(app)
         .post('/api/leads/qualify')

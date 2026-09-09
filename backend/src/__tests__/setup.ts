@@ -10,7 +10,7 @@ beforeAll(async () => {
 // Cleanup after each test using TRUNCATE CASCADE
 afterEach(async () => {
   try {
-    await db.execute(sql`TRUNCATE TABLE follow_ups, leads, listing_descriptions, listing_photos, scraped_listings, scraping_jobs, listings CASCADE;`);
+    await db.execute(sql`TRUNCATE TABLE follow_ups, leads, listing_descriptions, listing_photos, listing_video_prompts, scraped_listings, scraping_jobs, listings CASCADE;`);
   } catch (err) {
     try {
       await db.execute(sql`TRUNCATE TABLE listings CASCADE;`);

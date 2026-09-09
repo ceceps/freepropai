@@ -236,7 +236,7 @@ export default function FollowUpsPage() {
       {/* Follow-ups List */}
       {loading ? (
         <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
         </div>
       ) : error ? (
         <div className="card p-6 flex flex-col items-center justify-center text-center">
@@ -257,7 +257,7 @@ export default function FollowUpsPage() {
           {filteredFollowUps.map((fu) => {
             const config = getStatusConfig(fu.status);
             return (
-              <div key={fu.id} className="card p-6 flex flex-col md:flex-row md:items-start justify-between gap-4 border-l-4 border-l-primary-500">
+              <div key={fu.id} className="card p-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
                 <div className="space-y-3 flex-1">
                   <div className="flex flex-wrap items-center gap-3">
                     <h3 className="font-bold text-text-primary dark:text-text-primary-dark text-lg">

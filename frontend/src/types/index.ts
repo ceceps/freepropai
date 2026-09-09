@@ -82,6 +82,103 @@ export interface ListingWithDetails extends Listing {
   descriptions: ListingDescription[];
 }
 
+// Video Script Generator Types
+export type VideoStyle = 'cinematic' | 'aerial' | 'lifestyle' | 'walkthrough';
+export type VideoModel = 'runway' | 'veo' | 'pika' | 'kling' | 'sora';
+export type AspectRatio = '16:9' | '9:16' | '4:5';
+export type VOGender = 'pria' | 'wanita';
+export type VOLanguage = 'indonesia' | 'inggris';
+export type VOAgeRange = 'anak' | 'remaja' | 'dewasa_muda' | 'dewasa' | 'senior';
+
+export interface VoiceOverConfig {
+  enabled: boolean;
+  gender?: VOGender;
+  language?: VOLanguage;
+  ageRange?: VOAgeRange;
+}
+
+export interface VideoScriptOptions {
+  style?: VideoStyle;
+  model?: VideoModel;
+  aspectRatio?: AspectRatio;
+  voiceOver?: VoiceOverConfig;
+  customInstructions?: string;
+}
+
+export interface VideoOnScreenText {
+  content: string;
+  style: string;
+  animation: string;
+}
+
+export interface VideoTransition {
+  in: string;
+  out: string;
+}
+
+export interface VideoSceneVisuals {
+  description: string;
+  camera: string;
+  on_screen_text: VideoOnScreenText | null;
+}
+
+export interface VideoSceneAudio {
+  ambient?: string;
+  effects?: string;
+  voice_over?: {
+    text: string;
+    style: string;
+  };
+}
+
+export interface VideoScriptScene {
+  scene_number: number;
+  duration_seconds: number;
+  transition: VideoTransition;
+  visuals: VideoSceneVisuals;
+  audio: VideoSceneAudio;
+}
+
+export interface VideoScriptJson {
+  project: string;
+  settings: {
+    total_duration_seconds: number;
+    resolution: string;
+    aspect_ratio: string;
+  };
+  scenes: VideoScriptScene[];
+}
+
+export interface VideoScriptRecord {
+  id: string;
+  listing_id: string;
+  name: string;
+  style: VideoStyle;
+  model: VideoModel;
+  aspect_ratio: AspectRatio;
+  custom_instructions: string | null;
+  include_voice_over: boolean;
+  voice_gender: string | null;
+  voice_age: string | null;
+  voice_language: string | null;
+  script: string;
+  voice_over_script: string | null;
+  script_json: VideoScriptJson;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VideoScriptResult {
+  listingId: string;
+  style: VideoStyle;
+  model: VideoModel;
+  aspectRatio: AspectRatio;
+  voiceOver?: VoiceOverConfig;
+  script: string;
+  voiceOverScript: string | null;
+  scriptJson: VideoScriptJson;
+}
+
 export interface CreateListingData {
   title: string;
   landArea?: number;
@@ -229,6 +326,7 @@ export interface Lead {
   extractedAt?: string;
   lastContactAt?: string | null;
   status: string;
+  listingId?: string | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -238,6 +336,19 @@ export interface QualifyLeadData {
   rawChatText: string;
   name?: string;
   phone?: string;
+}
+
+export interface CreateLeadData {
+  name: string;
+  phone: string;
+  budgetMin?: number | null;
+  budgetMax?: number | null;
+  location?: string;
+  unitType?: string;
+  urgency?: Lead['urgency'];
+  score?: Lead['score'];
+  notes?: string;
+  listingId?: string | null;
 }
 
 // Follow-up Types
@@ -261,4 +372,46 @@ export interface GenerateFollowUpData {
   leadId: string;
   contextMessage?: string;
   scheduledForDays?: number;
+}
+
+// Dashboard Types
+export interface DashboardCounts {
+  totalLeads: number;
+  hotLeads: number;
+  warmLeads: number;
+  coldLeads: number;
+  newLeads7d: number;
+  totalListings: number;
+  activeListings: number;
+  draftListings: number;
+  totalFollowUps: number;
+  pendingFollowUps: number;
+}
+
+export interface DashboardRecentListing {
+  id: string;
+  title: string;
+  location: string;
+  price: number | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface DashboardRecentFollowUp {
+  id: string;
+  leadId: string;
+  status: string;
+  scheduledFor: string | null;
+  createdAt: string;
+  leadName: string;
+  leadPhone: string;
+}
+
+export interface DashboardStats {
+  counts: DashboardCounts;
+  recentLeads: Lead[];
+  recentListings: DashboardRecentListing[];
+  recentFollowUps: DashboardRecentFollowUp[];
 }

@@ -65,6 +65,7 @@ export const leads = pgTable('leads', {
   extractedAt: timestamp('extracted_at').defaultNow(),
   lastContactAt: timestamp('last_contact_at'),
   status: varchar('status', { length: 50 }).default('new'),
+  listingId: uuid('listing_id').references(() => listings.id, { onDelete: 'set null' }),
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
@@ -134,6 +135,29 @@ export const listingDescriptions = pgTable('listing_descriptions', {
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => ({
   variantCheck: check('variant_check', sql`${table.variantType} IN ('formal', 'casual_1', 'casual_2')`),
+}));
+
+// Listing video prompts table (saved versions of generated video scripts)
+export const listingVideoPrompts = pgTable('listing_video_prompts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  listingId: uuid('listing_id').notNull().references(() => listings.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(), // User-defined name for this version
+  style: varchar('style', { length: 50 }).notNull(),
+  model: varchar('model', { length: 50 }).notNull(),
+  aspectRatio: varchar('aspect_ratio', { length: 10 }).notNull().default('16:9'),
+  customInstructions: text('custom_instructions'),
+  includeVoiceOver: boolean('include_voice_over').notNull().default(false),
+  voiceGender: varchar('voice_gender', { length: 20 }),
+  voiceAge: varchar('voice_age', { length: 20 }),
+  voiceLanguage: varchar('voice_language', { length: 10 }),
+  script: text('script').notNull(),
+  voiceOverScript: text('voice_over_script'),
+  scriptJson: jsonb('script_json').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  listingIdx: index('idx_video_prompts_listing').on(table.listingId),
+  createdAtIdx: index('idx_video_prompts_created').on(table.createdAt),
 }));
 
 // Scraping jobs table

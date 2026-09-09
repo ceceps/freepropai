@@ -1,11 +1,12 @@
-import { db, listings, listingPhotos, listingDescriptions } from '../db';
-import { eq, desc, isNull, and } from 'drizzle-orm';
+import { db, listings, listingPhotos, listingDescriptions, listingVideoPrompts } from '../db';
+import { eq, desc, isNull, and, or, ilike } from 'drizzle-orm';
 import type {
   Listing,
   ListingPhoto,
   ListingDescription,
   ListingWithDetails,
-  CreateListingRequest
+  CreateListingRequest,
+  VideoScriptRecord
 } from '../types';
 
 export class ListingModel {
@@ -66,6 +67,26 @@ export class ListingModel {
     }
 
     const results = await query;
+    return results.map(this.mapToListing);
+  }
+
+  // Search listings by title/location (for autocomplete)
+  async search(q?: string): Promise<Listing[]> {
+    const conditions = [isNull(listings.deletedAt)];
+
+    if (q) {
+      conditions.push(or(
+        ilike(listings.title, `%${q}%`),
+        ilike(listings.location, `%${q}%`)
+      )!);
+    }
+
+    const results = await db
+      .select()
+      .from(listings)
+      .where(and(...conditions))
+      .orderBy(desc(listings.createdAt));
+
     return results.map(this.mapToListing);
   }
 
@@ -191,6 +212,13 @@ export class ListingModel {
     return this.mapToDescription(description);
   }
 
+  // Clear all descriptions for a listing (before re-generating)
+  async clearDescriptions(listingId: string): Promise<void> {
+    await db
+      .delete(listingDescriptions)
+      .where(eq(listingDescriptions.listingId, listingId));
+  }
+
   // Get descriptions for listing
   async getDescriptions(listingId: string): Promise<ListingDescription[]> {
     const descriptions = await db
@@ -224,6 +252,142 @@ export class ListingModel {
       .where(eq(listingDescriptions.id, descriptionId));
 
     return true;
+  }
+
+  // ============================================================
+  // VIDEO SCRIPT CRUD
+  // ============================================================
+
+  // Save a generated video script
+  async saveVideoScript(data: {
+    listingId: string;
+    name: string;
+    style: string;
+    model: string;
+    aspectRatio: string;
+    customInstructions?: string;
+    includeVoiceOver: boolean;
+    voiceGender?: string;
+    voiceAge?: string;
+    voiceLanguage?: string;
+    script: string;
+    voiceOverScript: string | null;
+    scriptJson: any;
+  }): Promise<VideoScriptRecord> {
+    const [row] = await db.insert(listingVideoPrompts).values({
+      listingId: data.listingId,
+      name: data.name,
+      style: data.style,
+      model: data.model,
+      aspectRatio: data.aspectRatio,
+      customInstructions: data.customInstructions || null,
+      includeVoiceOver: data.includeVoiceOver,
+      voiceGender: data.voiceGender || null,
+      voiceAge: data.voiceAge || null,
+      voiceLanguage: data.voiceLanguage || null,
+      script: data.script,
+      voiceOverScript: data.voiceOverScript || null,
+      scriptJson: data.scriptJson,
+    }).returning();
+
+    return this.mapToVideoScriptRecord(row);
+  }
+
+  // Update an existing video script
+  async updateVideoScript(id: string, data: Partial<{
+    name: string;
+    script: string;
+    voiceOverScript: string | null;
+    scriptJson: any;
+    style: string;
+    model: string;
+    aspectRatio: string;
+    customInstructions: string;
+    includeVoiceOver: boolean;
+    voiceGender: string;
+    voiceAge: string;
+    voiceLanguage: string;
+  }>): Promise<VideoScriptRecord | null> {
+    const updateData: Record<string, any> = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.script !== undefined) updateData.script = data.script;
+    if (data.voiceOverScript !== undefined) updateData.voiceOverScript = data.voiceOverScript;
+    if (data.scriptJson !== undefined) updateData.scriptJson = data.scriptJson;
+    if (data.style !== undefined) updateData.style = data.style;
+    if (data.model !== undefined) updateData.model = data.model;
+    if (data.aspectRatio !== undefined) updateData.aspectRatio = data.aspectRatio;
+    if (data.customInstructions !== undefined) updateData.customInstructions = data.customInstructions;
+    if (data.includeVoiceOver !== undefined) updateData.includeVoiceOver = data.includeVoiceOver;
+    if (data.voiceGender !== undefined) updateData.voiceGender = data.voiceGender;
+    if (data.voiceAge !== undefined) updateData.voiceAge = data.voiceAge;
+    if (data.voiceLanguage !== undefined) updateData.voiceLanguage = data.voiceLanguage;
+
+    if (Object.keys(updateData).length === 0) {
+      const [row] = await db.select().from(listingVideoPrompts).where(eq(listingVideoPrompts.id, id));
+      return row ? this.mapToVideoScriptRecord(row) : null;
+    }
+
+    updateData.updatedAt = new Date();
+
+    const [updated] = await db
+      .update(listingVideoPrompts)
+      .set(updateData)
+      .where(eq(listingVideoPrompts.id, id))
+      .returning();
+
+    return updated ? this.mapToVideoScriptRecord(updated) : null;
+  }
+
+  // List all video scripts for a listing
+  async listVideoScripts(listingId: string): Promise<VideoScriptRecord[]> {
+    const rows = await db
+      .select()
+      .from(listingVideoPrompts)
+      .where(eq(listingVideoPrompts.listingId, listingId))
+      .orderBy(desc(listingVideoPrompts.createdAt));
+
+    return rows.map(this.mapToVideoScriptRecord);
+  }
+
+  // Get a single video script by id
+  async getVideoScript(id: string): Promise<VideoScriptRecord | null> {
+    const [row] = await db
+      .select()
+      .from(listingVideoPrompts)
+      .where(eq(listingVideoPrompts.id, id));
+
+    return row ? this.mapToVideoScriptRecord(row) : null;
+  }
+
+  // Delete a video script
+  async deleteVideoScript(id: string): Promise<boolean> {
+    const result = await db
+      .delete(listingVideoPrompts)
+      .where(eq(listingVideoPrompts.id, id))
+      .returning();
+
+    return result.length > 0;
+  }
+
+  private mapToVideoScriptRecord(data: any): VideoScriptRecord {
+    return {
+      id: data.id,
+      listing_id: data.listingId,
+      name: data.name,
+      style: data.style,
+      model: data.model,
+      aspect_ratio: data.aspectRatio,
+      custom_instructions: data.customInstructions || null,
+      include_voice_over: data.includeVoiceOver,
+      voice_gender: data.voiceGender || null,
+      voice_age: data.voiceAge || null,
+      voice_language: data.voiceLanguage || null,
+      script: data.script,
+      voice_over_script: data.voiceOverScript || null,
+      script_json: data.scriptJson,
+      created_at: data.createdAt,
+      updated_at: data.updatedAt,
+    };
   }
 
   // Helper: Map database result to Listing type

@@ -19,7 +19,12 @@ import type {
   Lead,
   FollowUp,
   QualifyLeadData,
-  GenerateFollowUpData
+  CreateLeadData,
+  GenerateFollowUpData,
+  VideoScriptOptions,
+  VideoScriptResult,
+  VideoScriptRecord,
+  DashboardStats
 } from '../types';
 
 // Create axios instance
@@ -206,10 +211,44 @@ export const listingApi = {
   },
 
   // Generate video script
-  async generateVideoScript(id: string, customInstructions?: string): Promise<ApiResponse<{ listingId: string; script: string }>> {
-    const response = await api.post<ApiResponse<{ listingId: string; script: string }>>(
+  async generateVideoScript(id: string, options?: VideoScriptOptions): Promise<ApiResponse<VideoScriptResult>> {
+    const response = await api.post<ApiResponse<VideoScriptResult>>(
       `/listings/${id}/generate-video-script`,
-      { customInstructions }
+      options || {}
+    );
+    return response.data;
+  },
+
+  // Save video script
+  async saveVideoScript(id: string, data: { name: string; style: string; model: string; aspectRatio: string; customInstructions?: string; voiceOver?: any; script: string; voiceOverScript?: string | null; scriptJson: any }): Promise<ApiResponse<VideoScriptRecord>> {
+    const response = await api.post<ApiResponse<VideoScriptRecord>>(
+      `/listings/${id}/video-scripts`,
+      data
+    );
+    return response.data;
+  },
+
+  // Get saved video scripts for listing
+  async getVideoScripts(id: string): Promise<ApiResponse<VideoScriptRecord[]>> {
+    const response = await api.get<ApiResponse<VideoScriptRecord[]>>(
+      `/listings/${id}/video-scripts`
+    );
+    return response.data;
+  },
+
+  // Update a saved video script
+  async updateVideoScript(scriptId: string, data: Partial<{ name: string; script: string; voiceOverScript?: string | null; scriptJson: any }>): Promise<ApiResponse<VideoScriptRecord>> {
+    const response = await api.put<ApiResponse<VideoScriptRecord>>(
+      `/listings/video-scripts/${scriptId}`,
+      data
+    );
+    return response.data;
+  },
+
+  // Delete a saved video script
+  async deleteVideoScript(scriptId: string): Promise<ApiResponse> {
+    const response = await api.delete<ApiResponse>(
+      `/listings/video-scripts/${scriptId}`
     );
     return response.data;
   },
@@ -231,6 +270,12 @@ export const listingApi = {
   // Set photo as featured
   async setFeaturedPhoto(listingId: string, photoId: string): Promise<ApiResponse> {
     const response = await api.patch<ApiResponse>(`/listings/${listingId}/photos/${photoId}/featured`);
+    return response.data;
+  },
+
+  // Search listings for autocomplete (lead form)
+  async searchListings(q?: string): Promise<ApiResponse<{ id: string; title: string; location: string; price: number | string; bedrooms?: number; bathrooms?: number; propertyType?: string }[]>> {
+    const response = await api.get<ApiResponse<{ id: string; title: string; location: string; price: number | string; bedrooms?: number; bathrooms?: number; propertyType?: string }[]>>('/listings', { params: { q } });
     return response.data;
   },
 };
@@ -298,6 +343,11 @@ export const leadApi = {
     return response.data;
   },
 
+  async create(data: CreateLeadData): Promise<ApiResponse<Lead>> {
+    const response = await api.post<ApiResponse<Lead>>('/leads', data);
+    return response.data;
+  },
+
   async qualify(data: QualifyLeadData): Promise<ApiResponse<Lead>> {
     const response = await api.post<ApiResponse<Lead>>('/leads/qualify', data);
     return response.data;
@@ -343,6 +393,14 @@ export const followUpApi = {
 
   async delete(id: string): Promise<ApiResponse> {
     const response = await api.delete<ApiResponse>(`/followups/${id}`);
+    return response.data;
+  },
+};
+
+// Dashboard API
+export const dashboardApi = {
+  async getStats(): Promise<ApiResponse<DashboardStats>> {
+    const response = await api.get<ApiResponse<DashboardStats>>('/dashboard/stats');
     return response.data;
   },
 };

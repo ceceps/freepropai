@@ -17,6 +17,7 @@ import authRoutes from './routes/auth.routes';
 import scrapingRoutes from './routes/scraping.routes';
 import leadRoutes from './routes/lead.routes';
 import followUpRoutes from './routes/followUp.routes';
+import dashboardRoutes from './routes/dashboard.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
@@ -53,6 +54,7 @@ app.get('/api', (req, res) => {
       leads: '/api/leads',
       followups: '/api/followups',
       listings: '/api/listings',
+      dashboard: '/api/dashboard',
     },
   });
 });
@@ -63,6 +65,7 @@ app.use('/api/listings', listingRoutes);
 app.use('/api/scraping', scrapingRoutes);
 app.use('/api/leads', leadRoutes);
 app.use('/api/followups', followUpRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Error handling
 app.use(notFound);

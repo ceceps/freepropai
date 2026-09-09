@@ -4,10 +4,12 @@ import {
   Clock, Eye, Edit, Trash2, ArrowUpRight,
   Sparkles, AlertCircle, X
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { leadApi, followUpApi } from '../services/api';
-import type { Lead } from '../types';
+import type { Lead, CreateLeadData } from '../types';
 
 export default function LeadsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -15,22 +17,46 @@ export default function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   
+  // Listing autocomplete search states
+  const [listingSearchTerm, setListingSearchTerm] = useState<string>('');
+  const [listingSearchResults, setListingSearchResults] = useState<Array<{ id: string; title: string; location: string; price: number | string; bedrooms?: number; bathrooms?: number; propertyType?: string }>>([]);
+  const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
+  
   // Modals
-  const [isQualifyModalOpen, setIsQualifyModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   
   // Selected / Form States
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [qualifyData, setQualifyData] = useState({ name: '', phone: '', rawChatText: '' });
+  const [addData, setAddData] = useState<CreateLeadData>({ name: '', phone: '', score: 'Warm', urgency: 'flexible', listingId: null });
   const [editData, setEditData] = useState<Partial<Lead>>({});
   const [scheduleData, setScheduleData] = useState({ contextMessage: '', scheduledForDays: 1 });
   const [submitting, setSubmitting] = useState(false);
 
+  // Debounce handling via effect
+  useEffect(() => {
+    const timeout = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/listings?q=${encodeURIComponent(listingSearchTerm || '')}`);
+        if (res.ok) {
+          const json = await res.json();
+          const list = Array.isArray(json.data) ? json.data : [];
+          setListingSearchResults(list.slice(0, 10));
+        }
+      } catch (e) { /* ignore */ }
+    }, 320);
+    return () => clearTimeout(timeout);
+  }, [listingSearchTerm]);
+
   useEffect(() => {
     fetchLeads();
-  }, []);
+    if (searchParams.get('action') === 'new') {
+      setIsAddModalOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams]);
 
   const fetchLeads = async () => {
     setLoading(true);
@@ -48,18 +74,19 @@ export default function LeadsPage() {
     }
   };
 
-  const handleQualifyLead = async (e: React.FormEvent) => {
+  const handleAddLead = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!qualifyData.rawChatText) return;
+    if (!addData.name || !addData.phone) return;
     setSubmitting(true);
     try {
-      const response = await leadApi.qualify(qualifyData);
+      const response = await leadApi.create(addData);
       if (response.success && response.data) {
         setLeads((prev) => [response.data!, ...prev]);
-        setIsQualifyModalOpen(false);
-        setQualifyData({ name: '', phone: '', rawChatText: '' });
+        setIsAddModalOpen(false);
+        setAddData({ name: '', phone: '', score: 'Warm', urgency: 'flexible', listingId: null });
+        setListingSearchTerm('');
       } else {
-        alert(response.error || 'Failed to qualify lead');
+        alert(response.error || 'Failed to add lead');
       }
     } catch (err: any) {
       alert(err.message || 'An error occurred');
@@ -166,12 +193,12 @@ export default function LeadsPage() {
         <div>
           <h1 className="text-3xl font-bold text-text-primary dark:text-text-primary-dark">Leads Management</h1>
           <p className="text-text-secondary dark:text-text-secondary-dark mt-1">
-            Qualify leads with AI from WhatsApp chat text and track follow-ups.
+            Add and manage leads with WhatsApp contact details and track follow-ups.
           </p>
         </div>
-        <button onClick={() => setIsQualifyModalOpen(true)} className="btn btn-primary">
+        <button onClick={() => setIsAddModalOpen(true)} className="btn btn-primary">
           <Plus className="w-4 h-4" />
-          AI Qualify Lead
+          Add Leads
         </button>
       </div>
 
@@ -204,7 +231,7 @@ export default function LeadsPage() {
       {/* Leads Table */}
       {loading ? (
         <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
         </div>
       ) : error ? (
         <div className="card p-6 flex flex-col items-center justify-center text-center">
@@ -217,7 +244,7 @@ export default function LeadsPage() {
           <Clock className="w-12 h-12 text-text-tertiary dark:text-text-tertiary-dark mx-auto mb-4" />
           <h3 className="text-lg font-medium text-text-primary dark:text-text-primary-dark">No leads found</h3>
           <p className="text-text-secondary dark:text-text-secondary-dark mt-1">
-            Try adjusting your search filters or qualify a new lead with AI.
+            Try adjusting your search filters or add a new lead.
           </p>
         </div>
       ) : (
@@ -315,62 +342,169 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* 1. AI Qualify Lead Modal */}
-      {isQualifyModalOpen && (
+      {/* 1. Add Leads Modal */}
+      {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="card w-full max-w-lg overflow-hidden animate-slide-up">
             <div className="flex items-center justify-between p-6 border-b border-border dark:border-border-dark">
               <h2 className="text-xl font-bold flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-primary-500" /> AI Lead Qualifier
+                <Plus className="w-5 h-5 text-primary-500" /> Add Leads
               </h2>
-              <button onClick={() => setIsQualifyModalOpen(false)} className="p-1 hover:bg-accent dark:hover:bg-accent-dark rounded-lg">
+              <button onClick={() => setIsAddModalOpen(false)} className="p-1 hover:bg-accent dark:hover:bg-accent-dark rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleQualifyLead} className="p-6 space-y-4">
+            <form onSubmit={handleAddLead} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
               <div>
-                <label className="label">Contact Name (Optional)</label>
+                <label className="label">Name</label>
                 <input
                   type="text"
-                  placeholder="e.g. John Doe"
-                  value={qualifyData.name}
-                  onChange={(e) => setQualifyData({ ...qualifyData, name: e.target.value })}
-                  className="input"
-                />
-              </div>
-              <div>
-                <label className="label">Phone / WhatsApp Number (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 0812345678"
-                  value={qualifyData.phone}
-                  onChange={(e) => setQualifyData({ ...qualifyData, phone: e.target.value })}
-                  className="input"
-                />
-              </div>
-              <div>
-                <label className="label">WhatsApp Chat Text (Required)</label>
-                <textarea
                   required
-                  rows={5}
-                  placeholder="Paste WhatsApp conversation here..."
-                  value={qualifyData.rawChatText}
-                  onChange={(e) => setQualifyData({ ...qualifyData, rawChatText: e.target.value })}
-                  className="input font-mono text-sm"
+                  placeholder="e.g. John Doe"
+                  value={addData.name}
+                  onChange={(e) => setAddData({ ...addData, name: e.target.value })}
+                  className="input"
                 />
-                <p className="text-xs text-text-tertiary mt-1">
-                  AI will analyze the message to extract budget, location, property preference, urgency, and score.
-                </p>
               </div>
-              <div className="flex justify-end gap-3 pt-4 border-t border-border dark:border-border-dark">
-                <button type="button" onClick={() => setIsQualifyModalOpen(false)} className="btn btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" disabled={submitting} className="btn btn-primary">
-                  {submitting ? 'Analyzing...' : 'Qualify Lead'}
-                </button>
+              <div>
+                <label className="label">WhatsApp Number</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 0812345678"
+                  value={addData.phone}
+                  onChange={(e) => setAddData({ ...addData, phone: e.target.value })}
+                  className="input"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Min Budget</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 500000000"
+                    value={addData.budgetMin ?? ''}
+                    onChange={(e) => setAddData({ ...addData, budgetMin: e.target.value ? Number(e.target.value) : null })}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="label">Max Budget</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 1000000000"
+                    value={addData.budgetMax ?? ''}
+                    onChange={(e) => setAddData({ ...addData, budgetMax: e.target.value ? Number(e.target.value) : null })}
+                    className="input"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Unit Type</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Rumah"
+                    value={addData.unitType || ''}
+                    onChange={(e) => setAddData({ ...addData, unitType: e.target.value })}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="label">Location</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Batam Centre"
+                    value={addData.location || ''}
+                    onChange={(e) => setAddData({ ...addData, location: e.target.value })}
+                    className="input"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Lead Score</label>
+                  <select
+                    value={addData.score || 'Warm'}
+                    onChange={(e) => setAddData({ ...addData, score: e.target.value as any })}
+                    className="input"
+                  >
+                    <option value="Hot">Hot</option>
+                    <option value="Warm">Warm</option>
+                    <option value="Cold">Cold</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Urgency</label>
+                  <select
+                    value={addData.urgency || 'flexible'}
+                    onChange={(e) => setAddData({ ...addData, urgency: e.target.value as any })}
+                    className="input"
+                  >
+                    <option value="immediate">Immediate</option>
+                    <option value="soon">Soon</option>
+                    <option value="flexible">Flexible</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="label">Listing (optional)</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search listing title or location…"
+                    value={selectedListingId ? (listingSearchResults.find(l => l.id === selectedListingId)?.title || selectedListingId) : listingSearchTerm}
+                    onChange={e => { setSelectedListingId(null); setAddData({ ...addData, listingId: null }); setListingSearchTerm(e.target.value); }}
+                    onFocus={() => setListingSearchTerm(listingSearchTerm || '')}
+                    className="input"
+                  />
+                  {(listingSearchTerm !== '' || listingSearchResults.length > 0) && (
+                    <div className="absolute z-20 mt-1 w-full bg-white dark:bg-neutral-900 border border-border dark:border-border-dark rounded-lg shadow-lg max-h-56 overflow-auto divide-y divide-border/50">
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedListingId(null); setAddData({ ...addData, listingId: null }); setListingSearchTerm(''); setListingSearchResults([]); }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-accent dark:hover:bg-accent-dark ${!addData.listingId ? 'bg-accent/40 dark:bg-accent-dark/40 font-medium' : ''}`}
+                      >
+                        No listing (default)
+                      </button>
+                      {listingSearchResults.map(l => (
+                        <button
+                          key={l.id}
+                          type="button"
+                          onClick={() => { setSelectedListingId(l.id); setAddData({ ...addData, listingId: l.id }); setListingSearchTerm(l.title); }}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-accent dark:hover:bg-accent-dark flex justify-between gap-2 ${selectedListingId === l.id || addData.listingId === l.id ? 'bg-accent/40 dark:bg-accent-dark/40 font-medium' : ''}`}
+                        >
+                          <span className="truncate">{l.title} — {l.location}</span>
+                          <span className="shrink-0 text-xs text-text-tertiary">#{l.id.slice(0,8)}</span>
+                        </button>
+                      ))}
+                      {listingSearchTerm && listingSearchResults.length === 0 && (
+                        <div className="px-3 py-2 text-sm text-text-tertiary">No listings found</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-text-tertiary dark:text-text-tertiary-dark mt-1">Default: not linked to a listing. Clear to unlink.</p>
+              </div>
+              <div>
+                <label className="label">Notes</label>
+                <textarea
+                  rows={3}
+                  placeholder="Requirement summary, preferences, etc."
+                  value={addData.notes || ''}
+                  onChange={(e) => setAddData({ ...addData, notes: e.target.value })}
+                  className="input text-sm"
+                />
               </div>
             </form>
+            <div className="flex justify-end gap-3 p-6 border-t border-border dark:border-border-dark bg-white dark:bg-neutral-900">
+              <button type="button" onClick={() => setIsAddModalOpen(false)} className="btn btn-secondary">
+                Cancel
+              </button>
+              <button onClick={(e) => handleAddLead(e as any)} disabled={submitting} className="btn btn-primary">
+                {submitting ? 'Adding...' : 'Add Leads'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -550,6 +684,31 @@ export default function LeadsPage() {
                 </div>
               </div>
               <div>
+                <label className="label">Listing (optional)</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search listing title or location…"
+                    value={editData.listingId ? (listingSearchResults.find(l => l.id === editData.listingId)?.title || editData.listingId) : (editData.listingId === null ? '' : listingSearchTerm)}
+                    onChange={e => { const v = e.target.value; setListingSearchTerm(v); if (!v) setEditData({ ...editData, listingId: null }); else setEditData({ ...editData, listingId: undefined as any }); }}
+                    className="input"
+                  />
+                  {(listingSearchTerm !== '' || listingSearchResults.length > 0) && (
+                    <div className="absolute z-20 mt-1 w-full bg-white dark:bg-neutral-900 border border-border dark:border-border-dark rounded-lg shadow-lg max-h-56 overflow-auto divide-y divide-border/50">
+                      <button type="button" onClick={() => { setEditData({ ...editData, listingId: null }); setListingSearchTerm(''); setListingSearchResults([]); }} className={`w-full text-left px-3 py-2 text-sm hover:bg-accent dark:hover:bg-accent-dark ${(!editData.listingId || editData.listingId === null) ? 'bg-accent/40 dark:bg-accent-dark/40 font-medium' : ''}`}>No listing (default)</button>
+                      {listingSearchResults.map(l => (
+                        <button key={l.id} type="button" onClick={() => { setEditData({ ...editData, listingId: l.id }); setListingSearchTerm(l.title); }} className={`w-full text-left px-3 py-2 text-sm hover:bg-accent dark:hover:bg-accent-dark flex justify-between gap-2 ${editData.listingId === l.id ? 'bg-accent/40 dark:bg-accent-dark/40 font-medium' : ''}`}>
+                          <span className="truncate">{l.title} — {l.location}</span>
+                          <span className="shrink-0 text-xs text-text-tertiary">#{l.id.slice(0,8)}</span>
+                        </button>
+                      ))}
+                      {listingSearchTerm && listingSearchResults.length === 0 && <div className="px-3 py-2 text-sm text-text-tertiary">No listings found</div>}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-text-tertiary dark:text-text-tertiary-dark mt-1">Clear to unlink.</p>
+              </div>
+              <div>
                 <label className="label">Notes / Requirements Summary</label>
                 <textarea
                   rows={3}
@@ -558,15 +717,15 @@ export default function LeadsPage() {
                   className="input text-sm"
                 />
               </div>
-              <div className="flex justify-end gap-3 pt-4 border-t border-border dark:border-border-dark">
-                <button type="button" onClick={() => setIsEditModalOpen(false)} className="btn btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" disabled={submitting} className="btn btn-primary">
-                  {submitting ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
             </form>
+            <div className="flex justify-end gap-3 p-6 border-t border-border dark:border-border-dark bg-white dark:bg-neutral-900">
+              <button type="button" onClick={() => setIsEditModalOpen(false)} className="btn btn-secondary">
+                Cancel
+              </button>
+              <button onClick={(e) => handleUpdateLead(e as any)} disabled={submitting} className="btn btn-primary">
+                {submitting ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
           </div>
         </div>
       )}

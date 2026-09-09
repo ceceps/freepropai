@@ -2,6 +2,20 @@ import { Request, Response, NextFunction } from 'express';
 import { leadQualifierService } from '../services/leadQualifier.service';
 
 export class LeadController {
+  async create(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { name, phone } = req.body;
+      if (!name || !phone) {
+        return res.status(400).json({ success: false, error: 'name and phone are required' });
+      }
+
+      const lead = await leadQualifierService.createLead(req.body);
+      return res.status(201).json({ success: true, data: lead });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async qualify(req: Request, res: Response, next: NextFunction) {
     try {
       const { rawChatText, name, phone } = req.body;

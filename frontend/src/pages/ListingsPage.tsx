@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin, Download, Check, Info, Video, Copy } from 'lucide-react';
+import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin, Download, Check, Info, Video, RefreshCw } from 'lucide-react';
 import { listingApi } from '../services/api';
 import ListingForm from '../components/listings/ListingForm';
 import DescriptionVariants from '../components/listings/DescriptionVariants';
+import VideoScriptGenerator from '../components/listings/VideoScriptGenerator';
 import ListingImage from '../components/listings/ListingImage';
 import ZoomableImage from '../components/common/ZoomableImage';
 import type { ListingSummary, ListingWithDetails, CreateListingData } from '../types';
@@ -12,30 +13,6 @@ type View = 'list' | 'create' | 'detail' | 'edit';
 export default function ListingsPage() {
   const [view, setView] = useState<View>('list');
   const [activeTab, setActiveTab] = useState<'info' | 'ai' | 'video'>('info');
-  const [videoScript, setVideoScript] = useState<string | null>(null);
-  const [isVideoGenerating, setIsVideoGenerating] = useState(false);
-
-  const handleGenerateVideoScript = async () => {
-    if (!selectedListing) return;
-    if (selectedListing.photos.length === 0) {
-      alert('Property must have at least one photo to generate a video script.');
-      return;
-    }
-
-    try {
-      setIsVideoGenerating(true);
-      setError(null);
-      const response = await listingApi.generateVideoScript(selectedListing.id);
-      if (response.success && response.data) {
-        setVideoScript(response.data.script);
-      }
-    } catch (err: any) {
-      console.error('Failed to generate video script:', err);
-      setError('Failed to generate video script');
-    } finally {
-      setIsVideoGenerating(false);
-    }
-  };
   const [listings, setListings] = useState<ListingSummary[]>([]);
   const [selectedListing, setSelectedListing] = useState<ListingWithDetails | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -44,6 +21,11 @@ export default function ListingsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
+
+  // Reset to info tab when selectedListing changes
+  useEffect(() => {
+    setActiveTab('info');
+  }, [selectedListing?.id]);
 
   // Load listings on mount
   useEffect(() => {
@@ -357,7 +339,7 @@ export default function ListingsPage() {
           {/* Listings Grid */}
           {isLoading ? (
             <div className="card p-8 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-4" />
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent mx-auto mb-4" />
               <p className="text-text-secondary dark:text-text-secondary-dark">Loading listings...</p>
             </div>
           ) : filteredListings.length === 0 ? (
@@ -585,7 +567,7 @@ export default function ListingsPage() {
                   onClick={() => setActiveTab('info')}
                   className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'info'
-                      ? 'bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 shadow-sm'
+                      ? 'bg-primary-100 text-text-primary dark:bg-primary-600 dark:text-white shadow-sm'
                       : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50'
                   }`}
                 >
@@ -595,7 +577,7 @@ export default function ListingsPage() {
                   onClick={() => setActiveTab('ai')}
                   className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'ai'
-                      ? 'bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 shadow-sm'
+                      ? 'bg-primary-100 text-text-primary dark:bg-primary-600 dark:text-white shadow-sm'
                       : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50'
                   }`}
                 >
@@ -605,11 +587,11 @@ export default function ListingsPage() {
                   onClick={() => setActiveTab('video')}
                   className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'video'
-                      ? 'bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 shadow-sm'
+                      ? 'bg-primary-100 text-text-primary dark:bg-primary-600 dark:text-white shadow-sm'
                       : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50'
                   }`}
                 >
-                  <Video className="w-4 h-4" /> AI Video Prompt
+                  <Video className="w-4 h-4" /> Video Generator
                 </button>
               </nav>
             </div>
@@ -689,74 +671,26 @@ export default function ListingsPage() {
                 <div className="space-y-6">
                   <div className="flex justify-between items-center">
                     <h4 className="text-large font-semibold text-text-primary">AI-Generated Descriptions</h4>
-                    {selectedListing.descriptions.length === 0 && (
-                      <button
-                        onClick={handleGenerateDescriptions}
-                        disabled={isGenerating}
-                        className="btn btn-primary flex items-center gap-2"
-                      >
-                        <Sparkles className="w-5 h-5" />
-                        <span>{isGenerating ? 'Generating...' : 'Generate Descriptions'}</span>
-                      </button>
-                    )}
+                    <button
+                      onClick={handleGenerateDescriptions}
+                      disabled={isGenerating}
+                      className="btn btn-primary flex items-center gap-2"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
+                      <span>{isGenerating ? 'Generating...' : selectedListing.descriptions.length > 0 ? 'Re-generate' : 'Generate Descriptions'}</span>
+                    </button>
                   </div>
                   <DescriptionVariants
                     descriptions={selectedListing.descriptions}
                     onSelect={handleSelectDescription}
+                    onRegenerate={handleGenerateDescriptions}
                     isGenerating={isGenerating}
                   />
                 </div>
               )}
 
                {activeTab === 'video' && (
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-large font-semibold text-text-primary">AI Video Prompt (Google Flow / Runway Ready)</h4>
-                    <button
-                      onClick={handleGenerateVideoScript}
-                      disabled={isVideoGenerating || selectedListing.photos.length === 0}
-                      className="btn btn-primary flex items-center gap-2"
-                    >
-                      <Video className="w-5 h-5" />
-                      <span>{isVideoGenerating ? 'Generating Prompt...' : 'Generate Video Prompt'}</span>
-                    </button>
-                  </div>
-
-                  {selectedListing.photos.length === 0 && (
-                    <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 p-4 rounded-lg flex items-start gap-3">
-                      <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                      <p className="text-sm">Video prompt creation requires at least one property photo for visual reference.</p>
-                    </div>
-                  )}
-
-                  {videoScript ? (
-                    <div className="space-y-4">
-                      <div className="relative bg-grey-50 dark:bg-grey-900/40 border border-border p-6 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap">
-                        <button 
-                          onClick={() => {
-                            navigator.clipboard.writeText(videoScript);
-                            alert('Copied prompt to clipboard!');
-                          }}
-                          className="absolute top-4 right-4 p-2 bg-surface border border-border rounded-lg hover:bg-grey-100 transition-colors flex items-center gap-1.5 text-xs font-sans font-medium"
-                          title="Copy prompt"
-                        >
-                          <Copy className="w-4 h-4" />
-                          <span>Copy Prompt</span>
-                        </button>
-                        {videoScript}
-                      </div>
-                      <p className="text-xs text-text-tertiary">
-                        *This prompt is optimized for text-to-video tools like Google Vids, Runway Gen-2, Pika, and Sora.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="p-12 text-center border-2 border-dashed border-border rounded-xl">
-                      <Video className="w-12 h-12 text-text-tertiary mx-auto mb-4 opacity-50" />
-                      <p className="text-text-secondary mb-2">No prompt generated yet.</p>
-                      <p className="text-sm text-text-tertiary">Click the button above to generate a ready-to-use AI Video prompt for Google Flow/Vids or Runway.</p>
-                    </div>
-                  )}
-                </div>
+                <VideoScriptGenerator listing={selectedListing} />
               )}
             </div>
           </div>

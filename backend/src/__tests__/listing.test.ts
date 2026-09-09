@@ -1,16 +1,18 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import app from '../server';
 import { db } from '../db';
-import { listings, listingPhotos, listingDescriptions, scrapedListings } from '../db/schema';
+import { listings, listingPhotos, listingDescriptions, listingVideoPrompts, scrapedListings } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import path from 'path';
+import llmClient from '../utils/llmClient';
 
 describe('Listing API Endpoints', () => {
   let testListingId: string;
 
   beforeEach(async () => {
     // Clean up before each test - proper order to avoid FK constraints
+    await db.delete(listingVideoPrompts);
     await db.delete(listingDescriptions);
     await db.delete(listingPhotos);
     await db.delete(scrapedListings);
@@ -401,6 +403,33 @@ describe('Listing API Endpoints', () => {
       // This test would require mocking the LLM service
       // For now, we'll skip it or implement with proper mocking
     });
+
+    it('should return natural prose without section markers when LLM fails', async () => {
+      vi.spyOn(llmClient, 'generateJSON').mockRejectedValue(new Error('Forced fallback'));
+
+      const response = await request(app)
+        .post(`/api/listings/${testListingId}/generate-descriptions`)
+        .expect(201);
+
+      expect(response.body.success).toBe(true);
+
+      const variants = response.body.data.descriptions as Array<{
+        variant_type: string;
+        description_text: string;
+      }>;
+      expect(variants).toHaveLength(3);
+
+      for (const v of variants) {
+        expect(v.description_text).not.toMatch(/\[(HOOK|PROBLEM|AGITATE|SOLUTION|CTA)\]/i);
+        expect(v.description_text.trim().length).toBeGreaterThan(0);
+      }
+
+      const formal = variants.find(v => v.variant_type === 'formal');
+      expect(formal?.description_text).toContain('BSD City');
+      expect(formal?.description_text).toContain('dilengkapi dengan');
+      expect(formal?.description_text).toContain('hubungi agen kami');
+      vi.restoreAllMocks();
+    });
   });
 
   describe('PATCH /api/listings/:listingId/descriptions/:descId/select', () => {
@@ -456,6 +485,334 @@ describe('Listing API Endpoints', () => {
         .expect(404);
 
       expect(response.body.success).toBe(false);
+    });
+  });
+
+  describe('POST /api/listings/:id/generate-video-script', () => {
+    let listingWithPhotosId: string;
+    let listingNoPhotosId: string;
+
+    beforeEach(async () => {
+      const [listingA] = await db.insert(listings).values({
+        title: 'Listing With Photos',
+        location: 'Jakarta',
+        price: '2000000000',
+        status: 'draft',
+      }).returning();
+      listingWithPhotosId = listingA.id;
+
+      await db.insert(listingPhotos).values({
+        listingId: listingWithPhotosId,
+        photoUrl: '/uploads/test-photo.jpg',
+        photoOrder: 0,
+      });
+
+      const [listingB] = await db.insert(listings).values({
+        title: 'Listing No Photos',
+        location: 'Bandung',
+        price: '1500000000',
+        status: 'draft',
+      }).returning();
+      listingNoPhotosId = listingB.id;
+    });
+
+    it('should return 404 for non-existent listing', async () => {
+      const fakeId = '00000000-0000-0000-0000-000000000000';
+
+      const response = await request(app)
+        .post(`/api/listings/${fakeId}/generate-video-script`)
+        .send({ customInstructions: '' })
+        .expect(404);
+
+      expect(response.body.success).toBe(false);
+    });
+
+    it('should return 400 when listing has no photos', async () => {
+      const response = await request(app)
+        .post(`/api/listings/${listingNoPhotosId}/generate-video-script`)
+        .send({ customInstructions: '' })
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('photo');
+    });
+
+    it('should generate a video script for listing with photos', async () => {
+      const mockScript = 'Cinematic slow motion pan through a modern kitchen with soft sunlight...';
+      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue(mockScript);
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ customInstructions: 'Focus on modern kitchen' })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.script).toBe(mockScript);
+      expect(response.body.data.listingId).toBe(listingWithPhotosId);
+      vi.restoreAllMocks();
+    });
+
+    it('should accept empty custom instructions', async () => {
+      const mockScript = 'Cinematic drone shot of a luxury property...';
+      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue(mockScript);
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({})
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.script).toBe(mockScript);
+      vi.restoreAllMocks();
+    });
+
+    it('should include custom instructions in the generated prompt', async () => {
+      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue('Customized prompt...');
+
+      await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ customInstructions: 'Emphasize the garden view' })
+        .expect(200);
+
+      expect(llmClient.generateCompletion).toHaveBeenCalledTimes(1);
+      const [systemPrompt, userPrompt] = (llmClient.generateCompletion as any).mock.calls[0];
+      expect(userPrompt).toContain('Emphasize the garden view');
+      expect(userPrompt).toContain('Total Photos Available: 1');
+      vi.restoreAllMocks();
+    });
+
+    it('should fall back to template when LLM returns empty response', async () => {
+      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue('');
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({})
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.script).toContain('Cinematic real estate video showcase');
+      vi.restoreAllMocks();
+    });
+
+    it('should handle LLM errors gracefully by falling back to template-based script', async () => {
+      vi.spyOn(llmClient, 'generateCompletion').mockRejectedValue(new Error('LLM API Error'));
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({})
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.script).toContain('Cinematic real estate video showcase');
+      expect(response.body.data.script).toContain('Listing With Photos');
+      expect(response.body.data.listingId).toBe(listingWithPhotosId);
+      vi.restoreAllMocks();
+    });
+
+    it('should accept video style, model, and voice over options', async () => {
+      const mockScript = 'Aerial drone flight over the property...';
+      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue(mockScript);
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ style: 'aerial', model: 'veo', voiceOver: { enabled: true }, customInstructions: 'Show the pool' })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.script).toBe(mockScript);
+      expect(response.body.data.style).toBe('aerial');
+      expect(response.body.data.model).toBe('veo');
+      expect(response.body.data.voiceOver).toEqual({ enabled: true });
+      expect(response.body.data.voiceOverScript).toBe(mockScript);
+      vi.restoreAllMocks();
+    });
+
+    it('should fall back to default style/model when options are invalid', async () => {
+      const mockScript = 'Cinematic opening shot...';
+      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue(mockScript);
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ style: 'invalid-style', model: 'invalid-model' })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.style).toBe('cinematic');
+      expect(response.body.data.model).toBe('runway');
+      expect(response.body.data.voiceOverScript).toBeNull();
+      vi.restoreAllMocks();
+    });
+
+    it('should generate an Indonesian voice over when requested', async () => {
+      const mockScript = 'Cinematic walkthrough of the villa...';
+      const mockVoiceOver = '[Scene 1] Selamat datang di properti ini...';
+      vi.spyOn(llmClient, 'generateCompletion')
+        .mockResolvedValueOnce(mockScript)
+        .mockResolvedValueOnce(mockVoiceOver);
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ style: 'walkthrough', includeVoiceOver: true })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.script).toBe(mockScript);
+      expect(response.body.data.voiceOverScript).toBe(mockVoiceOver);
+      expect(llmClient.generateCompletion).toHaveBeenCalledTimes(2);
+      vi.restoreAllMocks();
+    });
+
+    it('should fall back to an Indonesian voice over template when LLM fails', async () => {
+      vi.spyOn(llmClient, 'generateCompletion').mockRejectedValue(new Error('LLM API Error'));
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ includeVoiceOver: true })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.script).toContain('Cinematic real estate video showcase');
+      expect(response.body.data.voiceOverScript).toContain('[Scene 1');
+      expect(response.body.data.voiceOverScript).toContain('Listing With Photos');
+      vi.restoreAllMocks();
+    });
+
+    it('should not generate a voice over when includeVoiceOver is false', async () => {
+      const mockScript = 'Cinematic showcase...';
+      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue(mockScript);
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ includeVoiceOver: false })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.voiceOverScript).toBeNull();
+      expect(response.body.data.voiceOver).toBeUndefined();
+      expect(llmClient.generateCompletion).toHaveBeenCalledTimes(1);
+      vi.restoreAllMocks();
+    });
+
+    it('should return a deterministic multi-scene JSON document', async () => {
+      const mockScript = 'Cinematic showcase...';
+      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue(mockScript);
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ style: 'cinematic', model: 'veo', includeVoiceOver: false })
+        .expect(200);
+
+      const json = response.body.data.scriptJson;
+      expect(json.project).toContain('video_campaign');
+      expect(json.settings).toEqual({
+        total_duration_seconds: 22,
+        resolution: '1920x1080',
+        aspect_ratio: '16:9',
+      });
+      expect(Array.isArray(json.scenes)).toBe(true);
+      expect(json.scenes).toHaveLength(5);
+
+      json.scenes.forEach((scene, index) => {
+        expect(scene.scene_number).toBe(index + 1);
+        expect(scene.duration_seconds).toEqual(expect.any(Number));
+        expect(scene.transition).toBeDefined();
+        expect(scene.transition.in).toEqual(expect.any(String));
+        expect(scene.transition.out).toEqual(expect.any(String));
+        expect(scene.visuals.description).toEqual(expect.any(String));
+        expect(scene.visuals.camera).toEqual(expect.any(String));
+        expect(scene.audio.ambient).toEqual(expect.any(String));
+        expect(scene.audio.effects).toEqual(expect.any(String));
+        expect(scene.audio.voice_over).toBeUndefined();
+      });
+      vi.restoreAllMocks();
+    });
+
+    it('should embed Indonesian voice over text inside the JSON scenes when requested', async () => {
+      const mockScript = 'Cinematic showcase...';
+      const mockVoiceOver = '[Scene 1: Establishing Shot]\nSelamat datang di properti nyaman ini.\n\n[Scene 2: Interior]\nRuangannya luas dan terang.';
+      vi.spyOn(llmClient, 'generateCompletion')
+        .mockResolvedValueOnce(mockScript)
+        .mockResolvedValueOnce(mockVoiceOver);
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ includeVoiceOver: true })
+        .expect(200);
+
+      const scenes = response.body.data.scriptJson.scenes;
+      expect(scenes).toHaveLength(5);
+      expect(scenes[0].audio.voice_over.text).toContain('Selamat datang di properti nyaman ini');
+      expect(scenes[1].audio.voice_over.text).toContain('Ruangannya luas dan terang');
+      expect(scenes[0].audio.voice_over.style).toEqual(expect.any(String));
+
+      for (const scene of scenes.slice(2)) {
+        expect(scene.audio.voice_over.text).toEqual(expect.any(String));
+      }
+      vi.restoreAllMocks();
+    });
+
+    it('should save, list, update, and delete video scripts', async () => {
+      // 1. Save video script
+      const saveRes = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/video-scripts`)
+        .send({
+          name: 'Versi Cinematic 9:16',
+          style: 'cinematic',
+          model: 'runway',
+          aspectRatio: '9:16',
+          script: 'Visual video prompt content...',
+          scriptJson: { project: 'test', settings: {}, scenes: [] },
+        })
+        .expect(201);
+
+      expect(saveRes.body.success).toBe(true);
+      const savedId = saveRes.body.data.id;
+      expect(saveRes.body.data.name).toBe('Versi Cinematic 9:16');
+
+      // 2. List video scripts
+      const listRes = await request(app)
+        .get(`/api/listings/${listingWithPhotosId}/video-scripts`)
+        .expect(200);
+
+      expect(listRes.body.success).toBe(true);
+      expect(listRes.body.data.length).toBeGreaterThanOrEqual(1);
+      expect(listRes.body.data[0].id).toBe(savedId);
+
+      // 3. Update video script
+      const updateRes = await request(app)
+        .put(`/api/listings/video-scripts/${savedId}`)
+        .send({ name: 'Versi Cinematic 9:16 (Updated)', script: 'Updated prompt content' })
+        .expect(200);
+
+      expect(updateRes.body.success).toBe(true);
+      expect(updateRes.body.data.name).toBe('Versi Cinematic 9:16 (Updated)');
+      expect(updateRes.body.data.script).toBe('Updated prompt content');
+
+      // 4. Delete video script
+      const deleteRes = await request(app)
+        .delete(`/api/listings/video-scripts/${savedId}`)
+        .expect(200);
+
+      expect(deleteRes.body.success).toBe(true);
+    });
+
+    it('should fill voice over fallback into JSON scenes when LLM narration is unusable', async () => {
+      const mockScript = 'Cinematic showcase...';
+      const mockVoiceOver = 'Narration without scene markers...';
+      vi.spyOn(llmClient, 'generateCompletion')
+        .mockResolvedValueOnce(mockScript)
+        .mockResolvedValueOnce(mockVoiceOver);
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ includeVoiceOver: true })
+        .expect(200);
+
+      const scenes = response.body.data.scriptJson.scenes;
+      expect(scenes).toHaveLength(5);
+      expect(scenes[0].audio.voice_over.text).toContain('Listing With Photos');
+      expect(scenes[4].audio.voice_over.text).toContain('hubungi agen kami');
+      vi.restoreAllMocks();
     });
   });
 

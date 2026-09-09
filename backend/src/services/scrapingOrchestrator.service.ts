@@ -2,6 +2,7 @@ import { db } from '../db';
 import { scrapingJobs, scrapedListings, listings, listingPhotos } from '../db/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { AcehomeScraperService } from './acehomeScraper.service';
+import { ProlovScraperService } from './prolovScraper.service';
 import descriptionGenerator from './descriptionGenerator.service';
 import axios from 'axios';
 import * as fs from 'fs';
@@ -37,10 +38,12 @@ interface BatchImportResult {
 
 export class ScrapingOrchestratorService {
   private acehomeScraper: AcehomeScraperService;
+  private prolovScraper: ProlovScraperService;
   private uploadDir: string;
 
   constructor() {
     this.acehomeScraper = new AcehomeScraperService();
+    this.prolovScraper = new ProlovScraperService();
     this.uploadDir = process.env.UPLOAD_DIR || './uploads';
 
     // Ensure upload directory exists
@@ -114,6 +117,11 @@ export class ScrapingOrchestratorService {
             url: job.sourceUrl,
             maxPages: 3, // Default to 3 pages for testing
           });
+        }
+      } else if (job.sourceName === 'prolov') {
+        const detail = await this.prolovScraper.scrapeListingDetail(job.sourceUrl);
+        if (detail) {
+          scrapedData = [detail];
         }
       } else {
         throw new Error(`Unsupported source: ${job.sourceName}`);

@@ -6,7 +6,7 @@ import { asyncHandler, AppError } from '../middleware/errorHandler';
 import { validatePhotoUploads } from '../middleware/upload';
 import ListingModel from '../models/Listing';
 import descriptionGenerator from '../services/descriptionGenerator.service';
-import llmClient from '../utils/llmClient';
+import videoScriptGenerator from '../services/videoScriptGenerator.service';
 import type { CreateListingRequest, ApiResponse, PaginatedResponse } from '../types';
 
 class ListingController {
@@ -95,7 +95,25 @@ class ListingController {
    * GET /api/listings?status=draft
    */
   getListings = asyncHandler(async (req: Request, res: Response) => {
-    const { status } = req.query;
+    const { status, q } = req.query;
+
+    // If query param q is present, use search mode
+    if (q !== undefined) {
+      const results = await ListingModel.search(q ? String(q) : undefined);
+      const response: ApiResponse = {
+        success: true,
+        data: results.map(listing => ({
+          id: listing.id,
+          title: listing.title,
+          location: listing.location,
+          price: listing.price,
+          bedrooms: listing.bedrooms,
+          bathrooms: listing.bathrooms,
+          property_type: listing.property_type,
+        })),
+      };
+      return res.json(response);
+    }
 
     const filters = status ? { status: status as string } : undefined;
     const listings = await ListingModel.findAll(filters);
@@ -276,6 +294,9 @@ class ListingController {
     // Generate descriptions using LLM
     const descriptions = await descriptionGenerator.generateDescriptions(listing);
 
+    // Clear existing descriptions before saving new ones
+    await ListingModel.clearDescriptions(id);
+
     // Save descriptions to database
     const savedDescriptions = await Promise.all([
       ListingModel.addDescription(id, 'formal', descriptions.formal),
@@ -310,39 +331,114 @@ class ListingController {
       throw new AppError('Property must have at least one photo to generate a video script prompt', 400);
     }
 
-    const { customInstructions } = req.body || {};
-
-    const systemPrompt = `You are an expert AI video prompt engineer for real estate.
-Generate a detailed, cinematic video generation prompt optimized for tools like Runway, Pika, or Google Vids.
-Focus on:
-1. Cinematic style, high-end real estate videography, natural light, 4K, smooth gimbal camera movements.
-2. Descriptive sequence: "Slow motion pan through [Room Name], soft sunlight, architectural photography style."
-3. Atmosphere: Luxury, inviting, modern.
-
-Output only the prompt block.`;
-
-    const userPrompt = `Property Details:
-Title: ${listing.title}
-Price: Rp ${listing.price}
-Location: ${listing.location}
-Land/Building: ${listing.land_area || '-'} m² / ${listing.building_area || '-'} m²
-Bedrooms/Bathrooms: ${listing.bedrooms || '-'} / ${listing.bathrooms || '-'}
-Property Type: ${listing.property_type || 'Rumah'}
-Key Features: ${listing.additional_info || 'None'}
-Total Photos Available: ${listing.photos.length}
-
-${customInstructions ? `Additional User Instructions: ${customInstructions}` : ''}
-
-Generate the video generation prompt in English for optimal AI video model performance.`;
-
-    const scriptText = await llmClient.generateCompletion(systemPrompt, userPrompt);
+    const body = (req.body || {}) as { style?: string; model?: string; aspectRatio?: string; voiceOver?: any; includeVoiceOver?: boolean; customInstructions?: string };
+    const voiceOver = body.voiceOver || (body.includeVoiceOver ? { enabled: true } : { enabled: false });
+    const result = await videoScriptGenerator.generate(listing, {
+      style: body.style,
+      model: body.model,
+      aspectRatio: body.aspectRatio,
+      voiceOver,
+      customInstructions: body.customInstructions,
+    });
 
     res.json({
       success: true,
       data: {
         listingId: id,
-        script: scriptText
-      }
+        ...result,
+      },
+    });
+  });
+
+  /**
+   * Save a video script
+   * POST /api/listings/:id/video-scripts
+   */
+  saveVideoScript = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const listing = await ListingModel.findById(id);
+    if (!listing) {
+      throw new AppError('Listing not found', 404);
+    }
+
+    const { name, style, model, aspectRatio, customInstructions, voiceOver, script, voiceOverScript, scriptJson } = req.body;
+    if (!name || !style || !model || !script || !scriptJson) {
+      throw new AppError('Missing required fields: name, style, model, script, scriptJson', 400);
+    }
+
+    const voConfig = voiceOver || {};
+    const saved = await ListingModel.saveVideoScript({
+      listingId: id,
+      name: name.trim(),
+      style,
+      model,
+      aspectRatio: aspectRatio || '16:9',
+      customInstructions,
+      includeVoiceOver: !!voConfig.enabled,
+      voiceGender: voConfig.gender,
+      voiceAge: voConfig.ageRange,
+      voiceLanguage: voConfig.language,
+      script,
+      voiceOverScript,
+      scriptJson,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: saved,
+    });
+  });
+
+  /**
+   * Get all saved video scripts for a listing
+   * GET /api/listings/:id/video-scripts
+   */
+  getVideoScripts = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const listing = await ListingModel.findById(id);
+    if (!listing) {
+      throw new AppError('Listing not found', 404);
+    }
+
+    const scripts = await ListingModel.listVideoScripts(id);
+    res.json({
+      success: true,
+      data: scripts,
+    });
+  });
+
+  /**
+   * Update a video script
+   * PUT /api/listings/video-scripts/:scriptId
+   */
+  updateVideoScript = asyncHandler(async (req: Request, res: Response) => {
+    const { scriptId } = req.params;
+    const existing = await ListingModel.getVideoScript(scriptId);
+    if (!existing) {
+      throw new AppError('Video script not found', 404);
+    }
+
+    const updated = await ListingModel.updateVideoScript(scriptId, req.body);
+    res.json({
+      success: true,
+      data: updated,
+    });
+  });
+
+  /**
+   * Delete a saved video script
+   * DELETE /api/listings/video-scripts/:scriptId
+   */
+  deleteVideoScript = asyncHandler(async (req: Request, res: Response) => {
+    const { scriptId } = req.params;
+    const success = await ListingModel.deleteVideoScript(scriptId);
+    if (!success) {
+      throw new AppError('Video script not found', 404);
+    }
+
+    res.json({
+      success: true,
+      message: 'Video script deleted successfully',
     });
   });
 
