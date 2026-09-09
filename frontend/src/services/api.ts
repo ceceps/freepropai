@@ -24,7 +24,8 @@ import type {
   VideoScriptOptions,
   VideoScriptResult,
   VideoScriptRecord,
-  DashboardStats
+  DashboardStats,
+  ListingAnalysis
 } from '../types';
 
 // Create axios instance
@@ -276,6 +277,12 @@ export const listingApi = {
   // Search listings for autocomplete (lead form)
   async searchListings(q?: string): Promise<ApiResponse<{ id: string; title: string; location: string; price: number | string; bedrooms?: number; bathrooms?: number; propertyType?: string }[]>> {
     const response = await api.get<ApiResponse<{ id: string; title: string; location: string; price: number | string; bedrooms?: number; bathrooms?: number; propertyType?: string }[]>>('/listings', { params: { q } });
+    return response.data;
+  },
+
+  // Generate analysis for a listing
+  async generateAnalysis(id: string): Promise<ApiResponse<ListingAnalysis>> {
+    const response = await api.post<ApiResponse<ListingAnalysis>>(`/listings/${id}/generate-analysis`);
     return response.data;
   },
 };

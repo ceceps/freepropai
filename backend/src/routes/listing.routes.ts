@@ -103,4 +103,11 @@ router.delete('/photos/:photoId', listingController.deletePhoto);
  */
 router.patch('/:listingId/photos/:photoId/featured', listingController.setFeaturedPhoto);
 
+/**
+ * @route   POST /api/listings/:id/generate-analysis
+ * @desc    Analyze listing to determine buyer personas, target market, and marketing channels
+ * @access  Public
+ */
+router.post('/:id/generate-analysis', listingController.analyzeListing);
+
 export default router;

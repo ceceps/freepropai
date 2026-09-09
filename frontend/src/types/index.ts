@@ -271,6 +271,23 @@ export interface ScrapedListing {
   updatedAt: string;
 }
 
+export interface ListingAnalysis {
+  buyerPersonas: {
+    name: string;
+    description: string;
+    characteristics: string[];
+  }[];
+  targetMarket: {
+    segment: string;
+    profile: string;
+  }[];
+  marketingChannels: {
+    channel: string;
+    reasoning: string;
+    tactics: string[];
+  }[];
+}
+
 export interface CreateScrapingJobData {
   sourceUrl: string;
   sourceName: string;

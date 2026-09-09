@@ -7,6 +7,7 @@ import { validatePhotoUploads } from '../middleware/upload';
 import ListingModel from '../models/Listing';
 import descriptionGenerator from '../services/descriptionGenerator.service';
 import videoScriptGenerator from '../services/videoScriptGenerator.service';
+import { listingAnalysisService } from '../services/listingAnalysis.service';
 import type { CreateListingRequest, ApiResponse, PaginatedResponse } from '../types';
 
 class ListingController {
@@ -503,6 +504,28 @@ class ListingController {
     const response: ApiResponse = {
       success: true,
       message: 'Foto utama berhasil diperbarui',
+    };
+
+    res.json(response);
+  });
+
+  /**
+   * Analyze a listing to get buyer personas, target market, and marketing channels
+   * POST /api/listings/:id/generate-analysis
+   */
+  analyzeListing = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    const listing = await ListingModel.findById(id);
+    if (!listing) {
+      throw new AppError('Listing not found', 404);
+    }
+
+    const analysis = await listingAnalysisService.analyze(listing);
+
+    const response: ApiResponse = {
+      success: true,
+      data: analysis,
     };
 
     res.json(response);

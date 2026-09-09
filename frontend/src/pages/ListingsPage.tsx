@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin, Download, Check, Info, Video, RefreshCw } from 'lucide-react';
+import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin, Download, Check, Info, Video, RefreshCw, Target } from 'lucide-react';
 import { listingApi } from '../services/api';
 import ListingForm from '../components/listings/ListingForm';
 import DescriptionVariants from '../components/listings/DescriptionVariants';
 import VideoScriptGenerator from '../components/listings/VideoScriptGenerator';
 import ListingImage from '../components/listings/ListingImage';
+import ListingAnalysis from '../components/listings/ListingAnalysis';
 import ZoomableImage from '../components/common/ZoomableImage';
 import type { ListingSummary, ListingWithDetails, CreateListingData } from '../types';
 
@@ -12,7 +13,7 @@ type View = 'list' | 'create' | 'detail' | 'edit';
 
 export default function ListingsPage() {
   const [view, setView] = useState<View>('list');
-  const [activeTab, setActiveTab] = useState<'info' | 'ai' | 'video'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'ai' | 'video' | 'analyze'>('info');
   const [listings, setListings] = useState<ListingSummary[]>([]);
   const [selectedListing, setSelectedListing] = useState<ListingWithDetails | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -574,6 +575,16 @@ export default function ListingsPage() {
                   <Info className="w-4 h-4" /> Info
                 </button>
                 <button
+                  onClick={() => setActiveTab('analyze')}
+                  className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === 'analyze'
+                      ? 'bg-primary-100 text-text-primary dark:bg-primary-600 dark:text-white shadow-sm'
+                      : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50'
+                  }`}
+                >
+                  <Target className="w-4 h-4" /> Analisa Listing
+                </button>
+                <button
                   onClick={() => setActiveTab('ai')}
                   className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     activeTab === 'ai'
@@ -665,6 +676,10 @@ export default function ListingsPage() {
                     </div>
                   )}
                 </div>
+              )}
+
+              {activeTab === 'analyze' && (
+                <ListingAnalysis listing={selectedListing} />
               )}
 
               {activeTab === 'ai' && (
