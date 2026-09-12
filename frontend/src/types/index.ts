@@ -329,6 +329,14 @@ export interface ScrapingConfig {
 }
 
 // Lead Types
+export interface LeadListingRef {
+  id: string;
+  title: string | null;
+  location: string | null;
+  price: number | null;
+  status: string | null;
+}
+
 export interface Lead {
   id: string;
   name: string;
@@ -344,6 +352,7 @@ export interface Lead {
   lastContactAt?: string | null;
   status: string;
   listingId?: string | null;
+  listing?: LeadListingRef | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;

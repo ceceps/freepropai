@@ -197,6 +197,23 @@ export interface ListingWithDetails extends Listing {
   descriptions: ListingDescription[];
 }
 
+export interface ListingAnalysis {
+  buyerPersonas: {
+    name: string;
+    description: string;
+    characteristics: string[];
+  }[];
+  targetMarket: {
+    segment: string;
+    profile: string;
+  }[];
+  marketingChannels: {
+    channel: string;
+    reasoning: string;
+    tactics: string[];
+  }[];
+}
+
 export interface CreateListingRequest {
   title: string;
   landArea?: number;

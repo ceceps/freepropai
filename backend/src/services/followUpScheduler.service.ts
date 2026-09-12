@@ -1,6 +1,6 @@
 import { llmClient } from '../utils/llmClient';
 import { db } from '../db';
-import { followUps, leads } from '../db/schema';
+import { followUps, leads, listings } from '../db/schema';
 import { eq } from 'drizzle-orm';
 
 export interface GenerateFollowUpInput {
@@ -89,12 +89,32 @@ Instruksi:
       leadUrgency: leads.urgency,
       leadScore: leads.score,
       leadNotes: leads.notes,
+      leadListingId: leads.listingId,
+      listingTitle: listings.title,
+      listingLocation: listings.location,
+      listingPrice: listings.price,
+      listingStatus: listings.status,
     })
     .from(followUps)
     .innerJoin(leads, eq(followUps.leadId, leads.id))
+    .leftJoin(listings, eq(leads.listingId, listings.id))
     .orderBy(followUps.scheduledFor);
 
-    return rows.map(({ leadName, leadPhone, leadLocation, leadUnitType, leadUrgency, leadScore, leadNotes, ...followUp }) => ({
+    return rows.map(({
+      leadName,
+      leadPhone,
+      leadLocation,
+      leadUnitType,
+      leadUrgency,
+      leadScore,
+      leadNotes,
+      leadListingId,
+      listingTitle,
+      listingLocation,
+      listingPrice,
+      listingStatus,
+      ...followUp
+    }) => ({
       ...followUp,
       lead: {
         id: followUp.leadId,
@@ -105,6 +125,15 @@ Instruksi:
         urgency: leadUrgency,
         score: leadScore,
         notes: leadNotes,
+        listing: leadListingId
+          ? {
+              id: leadListingId,
+              title: listingTitle,
+              location: listingLocation,
+              price: listingPrice ? parseFloat(listingPrice) : null,
+              status: listingStatus,
+            }
+          : null,
       },
     }));
   }
@@ -140,6 +169,19 @@ Instruksi:
         messageDraft: newDraft,
         updatedAt: new Date(),
       })
+      .where(eq(followUps.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async updateStatus(id: string, status: string) {
+    const allowedStatuses = ['pending', 'approved', 'rejected', 'sent'];
+    if (!allowedStatuses.includes(status)) {
+      throw new Error(`Invalid status. Must be one of: ${allowedStatuses.join(', ')}`);
+    }
+
+    const [updated] = await db.update(followUps)
+      .set({ status, updatedAt: new Date() })
       .where(eq(followUps.id, id))
       .returning();
     return updated || null;

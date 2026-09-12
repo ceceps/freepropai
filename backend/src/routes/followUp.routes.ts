@@ -14,6 +14,7 @@ router.get('/queue', followUpController.getQueue);
 router.patch('/:id/approve', followUpController.approve);
 router.patch('/:id/reject', followUpController.reject);
 router.patch('/:id/edit', followUpController.edit);
+router.patch('/:id/status', followUpController.updateStatus);
 router.delete('/:id', followUpController.delete);
 
 export default router;

@@ -58,6 +58,27 @@ export class FollowUpController {
     }
   }
 
+  async updateStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      if (!status) {
+        return res.status(400).json({ success: false, error: 'status is required' });
+      }
+
+      const followUp = await followUpSchedulerService.updateStatus(id, status);
+      if (!followUp) {
+        return res.status(404).json({ success: false, error: 'Follow-up not found' });
+      }
+      return res.json({ success: true, data: followUp });
+    } catch (error: any) {
+      if (error?.message?.startsWith('Invalid status')) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+      next(error);
+    }
+  }
+
   async edit(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;

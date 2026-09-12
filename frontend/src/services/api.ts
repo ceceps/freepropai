@@ -404,6 +404,11 @@ export const followUpApi = {
     return response.data;
   },
 
+  async updateStatus(id: string, status: FollowUp['status']): Promise<ApiResponse<FollowUp>> {
+    const response = await api.patch<ApiResponse<FollowUp>>(`/followups/${id}/status`, { status });
+    return response.data;
+  },
+
   async delete(id: string): Promise<ApiResponse> {
     const response = await api.delete<ApiResponse>(`/followups/${id}`);
     return response.data;

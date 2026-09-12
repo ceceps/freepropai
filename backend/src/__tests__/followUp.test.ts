@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import app from '../server';
 import { db } from '../db';
-import { leads, followUps } from '../db/schema';
+import { leads, followUps, listings } from '../db/schema';
 import { followUpSchedulerService } from '../services/followUpScheduler.service';
 import { llmClient } from '../utils/llmClient';
 
@@ -17,6 +17,14 @@ describe('Follow-up Scheduler System (Phase 4)', () => {
     await db.delete(followUps);
     await db.delete(leads);
 
+    // Seed a listing the lead is interested in
+    const [listing] = await db.insert(listings).values({
+      title: 'Rumah Minimalis Batam Centre',
+      location: 'Batam Centre',
+      price: '1000000000',
+      status: 'published',
+    }).returning();
+
     // Seed test lead
     const [lead] = await db.insert(leads).values({
       name: 'Budi Santoso',
@@ -27,6 +35,7 @@ describe('Follow-up Scheduler System (Phase 4)', () => {
       score: 'Hot',
       notes: 'Cari rumah 3 KT',
       status: 'new',
+      listingId: listing.id,
     }).returning();
 
     testLeadId = lead.id;
@@ -89,6 +98,9 @@ describe('Follow-up Scheduler System (Phase 4)', () => {
       expect(response.body.data[0].leadId).toBe(testLeadId);
       expect(response.body.data[0].lead.name).toBe('Budi Santoso');
       expect(response.body.data[0].lead.phone).toBe('08123456789');
+      expect(response.body.data[0].lead.listing).toBeDefined();
+      expect(response.body.data[0].lead.listing.title).toBe('Rumah Minimalis Batam Centre');
+      expect(response.body.data[0].lead.listing.price).toBe(1000000000);
     });
 
     it('PATCH /api/followups/:id/approve - should approve follow-up draft', async () => {
@@ -125,6 +137,37 @@ describe('Follow-up Scheduler System (Phase 4)', () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.messageDraft).toBe('Pesan kustom baru');
+    });
+
+    it('PATCH /api/followups/:id/status - should move follow-up to another kanban status', async () => {
+      const followUp = await followUpSchedulerService.generateAndSchedule({ leadId: testLeadId });
+
+      const approved = await request(app)
+        .patch(`/api/followups/${followUp.id}/status`)
+        .send({ status: 'approved' })
+        .expect(200);
+
+      expect(approved.body.success).toBe(true);
+      expect(approved.body.data.status).toBe('approved');
+
+      const sent = await request(app)
+        .patch(`/api/followups/${followUp.id}/status`)
+        .send({ status: 'sent' })
+        .expect(200);
+
+      expect(sent.body.data.status).toBe('sent');
+    });
+
+    it('PATCH /api/followups/:id/status - should reject invalid status', async () => {
+      const followUp = await followUpSchedulerService.generateAndSchedule({ leadId: testLeadId });
+
+      const response = await request(app)
+        .patch(`/api/followups/${followUp.id}/status`)
+        .send({ status: 'archived' })
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('Invalid status');
     });
   });
 });

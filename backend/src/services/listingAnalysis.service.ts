@@ -1,22 +1,7 @@
 import llmClient from '../utils/llmClient';
-import type { Listing } from '../types';
+import type { Listing, ListingAnalysis } from '../types';
 
-export interface ListingAnalysis {
-  buyerPersonas: {
-    name: string;
-    description: string;
-    characteristics: string[];
-  }[];
-  targetMarket: {
-    segment: string;
-    profile: string;
-  }[];
-  marketingChannels: {
-    channel: string;
-    reasoning: string;
-    tactics: string[];
-  }[];
-}
+export type { ListingAnalysis };
 
 function normalizeText(text: string): string {
   if (!text) return '';
