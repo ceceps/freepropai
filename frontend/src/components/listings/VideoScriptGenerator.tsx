@@ -96,6 +96,12 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
   const [activeSavedScript, setActiveSavedScript] = useState<VideoScriptRecord | null>(null);
 
   const includeVoiceOver = voPreset === 'custom';
+  const isVeo = model === 'veo';
+  const promptLanguageLabel = isVeo
+    ? includeVoiceOver && voLanguage === 'inggris'
+      ? 'English'
+      : 'Bahasa Indonesia'
+    : 'English';
 
   const jsonText = useMemo(
     () => (result?.scriptJson ? JSON.stringify(result.scriptJson, null, 2) : ''),
@@ -405,7 +411,11 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <p className="text-xs text-text-tertiary">The prompt is optimized for the selected model.</p>
+          <p className="text-xs text-text-tertiary">
+            {isVeo
+              ? 'Veo/Omni prompt uses structured [Visual] + VO blocks with native audio.'
+              : 'The prompt is optimized for the selected model.'}
+          </p>
         </div>
 
         {/* Format video */}
@@ -652,12 +662,22 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
             </div>
           ) : (
             <>
+              {isVeo && (
+                <div className="bg-primary-50 dark:bg-primary-950/30 border border-primary-200 dark:border-primary-800 text-primary-700 dark:text-primary-300 p-3 rounded-lg flex items-start gap-2">
+                  <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs">
+                    Veo/Omni format: each scene pairs a <code>[Visual: ...]</code> block with a <code>VO: ...</code> line
+                    {includeVoiceOver ? ' so the native voice over is generated in the same pass.' : ' (visual only, no narration).'}
+                  </p>
+                </div>
+              )}
+
               {/* Video prompt */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h5 className="text-sm font-semibold text-text-primary flex items-center gap-2">
                     <Video className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-                    Video Prompt <span className="text-text-tertiary font-normal">(English)</span>
+                    Video Prompt <span className="text-text-tertiary font-normal">({promptLanguageLabel})</span>
                   </h5>
                   <button
                     onClick={() => handleCopy(result.script, 'prompt')}
@@ -808,7 +828,7 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
                     <div className="mt-3 p-3 bg-grey-50 dark:bg-grey-800/60 rounded-lg space-y-3">
                       <div>
                         <label className="block text-xs font-semibold text-text-secondary mb-1">
-                          Edit Video Prompt (English)
+                          Edit Video Prompt ({saved.model === 'veo' && saved.include_voice_over && saved.voice_language === 'inggris' ? 'English' : saved.model === 'veo' ? 'Bahasa Indonesia' : 'English'})
                         </label>
                         <textarea
                           value={editingScriptText}

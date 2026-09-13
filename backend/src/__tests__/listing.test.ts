@@ -813,6 +813,64 @@ describe('Listing API Endpoints', () => {
       expect(scenes[4].audio.voice_over.text).toContain('hubungi agen kami');
       vi.restoreAllMocks();
     });
+
+    it('should instruct veo to alternate [Visual] and VO blocks in the prompt', async () => {
+      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue('[Visual: Exterior shot.]\nVO: Selamat datang.');
+
+      await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ model: 'veo', includeVoiceOver: true })
+        .expect(200);
+
+      const [systemPrompt, userPrompt] = (llmClient.generateCompletion as any).mock.calls[0];
+      expect(systemPrompt).toContain('[Visual:');
+      expect(systemPrompt).toContain('VO:');
+      expect(systemPrompt).toContain('Bahasa Indonesia');
+      expect(userPrompt).toContain('alternating [Visual: ...] and VO: ... blocks');
+      vi.restoreAllMocks();
+    });
+
+    it('should not use the [Visual]/VO structure for non-veo models', async () => {
+      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue('Generic cinematic prompt...');
+
+      await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ model: 'runway', includeVoiceOver: true })
+        .expect(200);
+
+      const [systemPrompt] = (llmClient.generateCompletion as any).mock.calls[0];
+      expect(systemPrompt).not.toContain('[Visual:');
+      vi.restoreAllMocks();
+    });
+
+    it('should build an alternating [Visual]/VO fallback for veo when LLM fails', async () => {
+      vi.spyOn(llmClient, 'generateCompletion').mockRejectedValue(new Error('LLM API Error'));
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ model: 'veo', includeVoiceOver: true })
+        .expect(200);
+
+      const script = response.body.data.script as string;
+      expect(script.match(/\[Visual:/g)).toHaveLength(5);
+      expect(script.match(/\nVO: /g)).toHaveLength(5);
+      expect(script).toContain('Selamat datang di Listing With Photos');
+      vi.restoreAllMocks();
+    });
+
+    it('should omit VO lines from the veo fallback when voice over is disabled', async () => {
+      vi.spyOn(llmClient, 'generateCompletion').mockRejectedValue(new Error('LLM API Error'));
+
+      const response = await request(app)
+        .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
+        .send({ model: 'veo', includeVoiceOver: false })
+        .expect(200);
+
+      const script = response.body.data.script as string;
+      expect(script.match(/\[Visual:/g)).toHaveLength(5);
+      expect(script).not.toContain('VO:');
+      vi.restoreAllMocks();
+    });
   });
 
   describe('DELETE /api/listings/photos/:photoId', () => {

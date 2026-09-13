@@ -22,7 +22,7 @@ export const VIDEO_STYLES = {
 
 export const VIDEO_MODELS = {
   runway: { label: 'Runway (Gen-3/4)', note: 'Short descriptive prompts, strong camera language.' },
-  veo: { label: 'Google Veo 3 / Omni Flash', note: 'Scene-based natural language, clear subject and motion, native audio + voice over.' },
+  veo: { label: 'Google Veo 3 / Omni Flash', note: 'Structured [Visual]/VO scene prompts with native audio + voice over.' },
   pika: { label: 'Pika 2.0', note: 'Compact prompts, bold motion and style words.' },
   kling: { label: 'Kling AI 2.0', note: 'Detailed scene descriptions with camera movement.' },
   sora: { label: 'Sora (OpenAI)', note: 'Rich cinematic language, coherent multi-shot continuity.' },
@@ -131,13 +131,24 @@ class VideoScriptGeneratorService {
 
     const plan = this.buildScenePlan(listing);
 
+    // Veo / Omni use a dedicated [Visual]/VO alternating prompt so the native
+    // audio voice-over is embedded directly in the generation prompt.
+    const isVeo = model === 'veo';
+    const promptLanguage: 'indonesia' | 'inggris' = voiceOver.enabled
+      ? (voiceOver.language || 'indonesia')
+      : 'indonesia';
+
     let script = '';
     let scriptFromLlm = false;
     try {
       script = await llmClient.generateCompletion(
-        this.buildSystemPrompt(style, model, plan),
-        this.buildUserPrompt(listing, style, model, aspectRatio, voiceOver, customInstructions, plan),
-        { temperature: 0.7, maxTokens: 2500 }
+        isVeo
+          ? this.buildVeoSystemPrompt(style, model, plan, voiceOver, promptLanguage)
+          : this.buildSystemPrompt(style, model, plan),
+        isVeo
+          ? this.buildVeoUserPrompt(listing, style, model, aspectRatio, voiceOver, customInstructions, plan, promptLanguage)
+          : this.buildUserPrompt(listing, style, model, aspectRatio, voiceOver, customInstructions, plan),
+        { temperature: isVeo ? 0.75 : 0.7, maxTokens: 2500 }
       );
       if (!script || script.trim().length === 0) {
         throw new Error('LLM returned an empty video prompt');
@@ -145,7 +156,9 @@ class VideoScriptGeneratorService {
       scriptFromLlm = true;
     } catch (error) {
       console.warn('⚠️ LLM video prompt generation failed, using template-based fallback:', error);
-      script = this.buildFallbackScript(listing, style, model, aspectRatio, voiceOver, customInstructions, plan);
+      script = isVeo
+        ? this.buildVeoFallbackScript(listing, aspectRatio, voiceOver, customInstructions, plan, promptLanguage)
+        : this.buildFallbackScript(listing, style, model, aspectRatio, voiceOver, customInstructions, plan);
     }
 
     let voiceOverScript: string | null = null;
@@ -275,6 +288,107 @@ Rules:
     return lines.join('\n');
   }
 
+  /**
+   * Veo 3 / Omni Flash prompt writer. These models generate native audio, so the
+   * prompt alternates a visual block with the spoken line for every scene.
+   */
+  private buildVeoSystemPrompt(
+    style: VideoStyle,
+    model: VideoModel,
+    plan: ScenePlan[],
+    voiceOver: VoiceOverConfig,
+    language: 'indonesia' | 'inggris'
+  ): string {
+    const langLabel = language === 'inggris' ? 'English' : 'Bahasa Indonesia';
+    const styleInfo = VIDEO_STYLES[style];
+    const modelInfo = VIDEO_MODELS[model];
+    const scenes = plan
+      .map((s) => `Scene ${s.scene}: "${s.title}" (target ~${s.durationSeconds} seconds)`)
+      .join('\n');
+    const voiceRule = voiceOver.enabled
+      ? `Narator: ${voiceOver.gender === 'pria' ? 'pria' : 'wanita'}, bahasa ${langLabel}, usia ${voiceOver.ageRange || 'dewasa'}.`
+      : 'Tidak ada preferensi narator; gunakan suara netral yang ramah.';
+
+    const structureRule = voiceOver.enabled
+      ? `The prompt MUST alternate a visual block and a spoken line for every scene, using EXACTLY these labels:
+
+[Visual: <camera, subject, movement, lighting and mood — 1-2 sentences>]
+VO: <spoken narration for that scene — 1-2 sentences that fit the scene duration>`
+      : `The prompt MUST contain one visual block per scene, using EXACTLY this label:
+
+[Visual: <camera, subject, movement, lighting and mood — 1-2 sentences>]`;
+
+    return `You are an expert AI video prompt engineer for real estate listings, writing a ready-to-paste prompt for ${modelInfo.label} (${modelInfo.note}).
+
+Write the prompt in ${langLabel}.
+
+${structureRule}
+
+Visual style — "${styleInfo.label}": ${styleInfo.description}
+
+Scene order and target duration:
+${scenes}
+
+Rules:
+- Start directly with the first [Visual: ...] block — no title, no heading.
+- Follow every [Visual: ...] block immediately with its line, in scene order.${voiceOver.enabled ? '' : ' Do not add VO lines.'}
+- In each [Visual] block, describe cinematic camera work (handheld POV, drone, gimbal, slide, tilt) and what is on screen.
+- ${voiceOver.enabled ? 'The VO must sound like a real person speaking naturally (casual, engaging, not a stiff ad read) and must fit the scene duration. ' : ''}Never invent rooms, fixtures, specs, or numbers that are not present in the property details.
+- ${voiceRule}
+- ${voiceOver.enabled ? 'End the last scene\'s VO with a friendly call to action.' : 'Keep the visuals grounded in the provided property details.'}
+- Output only the prompt blocks ([Visual]${voiceOver.enabled ? '/VO' : ''}). No commentary, no extra headings.`;
+  }
+
+  private buildVeoUserPrompt(
+    listing: Listing,
+    style: VideoStyle,
+    model: VideoModel,
+    aspectRatio: string,
+    voiceOver: VoiceOverConfig,
+    customInstructions: string,
+    plan: ScenePlan[],
+    language: 'indonesia' | 'inggris'
+  ): string {
+    const langLabel = language === 'inggris' ? 'English' : 'Bahasa Indonesia';
+    const lines: string[] = [
+      'Property Details:',
+      `Title: ${listing.title}`,
+      `Price: ${IDR.format(listing.price)}`,
+      `Location: ${listing.location}`,
+      `Land/Building: ${listing.land_area || '-'} m² / ${listing.building_area || '-'} m²`,
+      `Bedrooms/Bathrooms: ${listing.bedrooms || '-'} / ${listing.bathrooms || '-'}`,
+      `Property Type: ${listing.property_type || 'Rumah'}`,
+      `Key Features: ${listing.additional_info || 'None'}`,
+      `Total Photos Available: ${(listing as any).photos?.length ?? 0}`,
+      '',
+      `Style: ${style} (${VIDEO_STYLES[style].label})`,
+      `Target Model: ${model} (${VIDEO_MODELS[model].label})`,
+      `Aspect Ratio: ${aspectRatio} (${ASPECT_RATIO_MAP[aspectRatio]?.resolution || '1920x1080'})`,
+    ];
+
+    if (voiceOver.enabled) {
+      lines.push(`Voice Over: ${voiceOver.gender || 'wanita'}, ${voiceOver.language || 'indonesia'}, usia: ${voiceOver.ageRange || 'dewasa'}`);
+    } else {
+      lines.push('Voice Over: Tanpa VO');
+    }
+
+    lines.push(
+      `Scene structure to follow (${plan.length} scenes with durations):`,
+      ...plan.map((s) => `  - Scene ${s.scene} "${s.title}" (~${s.durationSeconds}s)`)
+    );
+
+    if (customInstructions) {
+      lines.push('', `Additional User Instructions: ${customInstructions}`);
+    }
+
+    lines.push(
+      '',
+      `Write the prompt in ${langLabel} using ${voiceOver.enabled ? 'alternating [Visual: ...] and VO: ... blocks' : 'one [Visual: ...] block per scene'}, in scene order.`,
+      'Output only the [Visual]/blocks prompt.'
+    );
+    return lines.join('\n');
+  }
+
   private buildVoiceOverSystemPrompt(style: VideoStyle, voiceOver: VoiceOverConfig, plan: ScenePlan[]): string {
     const scenes = plan.map((s) => `Scene ${s.scene}: "${s.title}"`).join('\n');
     const langStr = voiceOver.language === 'inggris' ? 'English' : 'Bahasa Indonesia';
@@ -377,6 +491,61 @@ Rules:
       : `${styleInfo.label} real estate video of "${listing.title}" located in ${listing.location}.`;
 
     return `${opening}\n\n${blocks.join('\n\n')}\n\nStyle: ${ASPECT_RATIO_MAP[aspectRatio]?.resolution || '1920x1080'} resolution (${aspectRatio}), architectural photography style, ${styleInfo.description} Model note: ${modelInfo.note} 24fps, warm color grade, DJI gimbal movements, soft natural lighting.${customInstructions ? `\n\nUser Notes: ${customInstructions}` : ''}`;
+  }
+
+  /**
+   * Veo/Omni fallback used when the LLM is unavailable. Produces the same
+   * [Visual]/VO alternating structure as the LLM prompt so the format stays
+   * consistent for the user's clipboard.
+   */
+  private buildVeoFallbackScript(
+    listing: Listing,
+    aspectRatio: string,
+    voiceOver: VoiceOverConfig,
+    customInstructions: string,
+    plan: ScenePlan[],
+    language: 'indonesia' | 'inggris'
+  ): string {
+    const priceFormatted = IDR.format(listing.price);
+    const type = listing.property_type || 'Rumah';
+    const isEn = language === 'inggris';
+
+    const visualsId: Record<number, string> = {
+      1: `Drone turun perlahan ke arah fasad depan ${type} dengan pencahayaan golden hour yang hangat. Tilt halus memperlihatkan ${listing.title} di ${listing.location} secara utuh.`,
+      2: `Kamera handheld POV masuk melalui pintu utama ke ruang tamu yang lapang, plafon tinggi, dan cahaya alami yang melimpah. Panahan gimbal halus.`,
+      3: `Gimbal glide perlahan menyusuri kamar tidur utama${listing.bedrooms ? ` (total ${listing.bedrooms} kamar)` : ''}, menonjolkan tata ruang rapi dan finishing modern.`,
+      4: `Slider shot perlahan melewati kamar mandi${listing.bathrooms ? ` (total ${listing.bathrooms} kamar mandi)` : ''} dengan fixture bersih dan material premium.`,
+      5: `Kamera terangkat perlahan memperlihatkan keseluruhan properti dan lingkungan sekitar saat senja. Teks di layar: "Dijual - ${priceFormatted}".`,
+    };
+    const visualsEn: Record<number, string> = {
+      1: `Drone slowly descending toward the front facade of the ${type} in warm golden-hour light. A smooth tilt reveals ${listing.title} in ${listing.location}.`,
+      2: `Handheld POV camera enters through the front door into a spacious living room with high ceilings and abundant natural light. Smooth gimbal pan.`,
+      3: `Slow gimbal glide along the master bedroom${listing.bedrooms ? ` (${listing.bedrooms} bedrooms in total)` : ''}, highlighting efficient layout and modern finishes.`,
+      4: `Slow slider shot across the bathroom${listing.bathrooms ? ` (${listing.bathrooms} bathrooms in total)` : ''} with clean fixtures and premium materials.`,
+      5: `Camera rises to a wide reveal of the whole property and its surroundings at dusk. On-screen text: "For Sale - ${priceFormatted}".`,
+    };
+
+    const visuals = isEn ? visualsEn : visualsId;
+    const withVoice = voiceOver.enabled;
+
+    const blocks = plan.map((s) => {
+      const visual = visuals[s.scene] || visuals[5];
+      if (!withVoice) return `[Visual: ${visual}]`;
+      const narration = this.fallbackNarration(listing, s.scene, voiceOver);
+      return `[Visual: ${visual}]\nVO: ${narration}`;
+    });
+
+    const header = isEn
+      ? `Structured video prompt for ${listing.title} in ${listing.location} (${ASPECT_RATIO_MAP[aspectRatio]?.resolution || '1920x1080'}, ${aspectRatio}).`
+      : `Prompt video terstruktur untuk ${listing.title} di ${listing.location} (${ASPECT_RATIO_MAP[aspectRatio]?.resolution || '1920x1080'}, ${aspectRatio}).`;
+
+    const note = customInstructions
+      ? isEn
+        ? `\n\nUser Notes: ${customInstructions}`
+        : `\n\nCatatan Pengguna: ${customInstructions}`
+      : '';
+
+    return `${header}\n\n${blocks.join('\n\n')}${note}`;
   }
 
   private buildFallbackVoiceOver(listing: Listing, voiceOver: VoiceOverConfig, plan: ScenePlan[]): string {
