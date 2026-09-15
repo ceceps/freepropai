@@ -441,3 +441,130 @@ export interface DashboardStats {
   recentListings: DashboardRecentListing[];
   recentFollowUps: DashboardRecentFollowUp[];
 }
+
+// Pipeline (read-only freepropai_db) Types
+export interface PipelineOverview {
+  sources: number;
+  listings: number;
+  activeListings: number;
+  analyses: number;
+  promoContent: number;
+  calendarItems: number;
+  pendingCalendar: number;
+}
+
+export interface PipelineSource {
+  id: number;
+  code: string;
+  name: string;
+  baseUrl: string;
+  isActive: boolean | null;
+  lastStatus: string | null;
+  lastError: string | null;
+  lastScrapedAt: string | null;
+  lastScrapedPage: number | null;
+  lastScrapeMode: string | null;
+  listingCount: number;
+}
+
+export interface PipelineListing {
+  id: string;
+  title: string | null;
+  propertyType: string | null;
+  price: number | null;
+  pricePerM2: number | null;
+  lb: number | null;
+  lt: number | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  garage: number | null;
+  floors: number | null;
+  certificate: string | null;
+  address: unknown;
+  description: string | null;
+  features: string[] | null;
+  photos: string[] | null;
+  photoLabels: unknown;
+  featureImage: string | null;
+  videoUrl: string | null;
+  agentName: string | null;
+  agentPhone: string | null;
+  agency: string | null;
+  status: string | null;
+  isActive: boolean | null;
+  marketStatus: string | null;
+  sourceId: number | null;
+  sourceUrl: string;
+  scrapedAt: string;
+  createdAt: string | null;
+  sourceName: string | null;
+  sourceCode: string | null;
+}
+
+export interface PipelineAnalysis {
+  id: string;
+  listingId: string | null;
+  buyerPersona: string | null;
+  sellingPoints: string | null;
+  fullAnalysisMarkdown: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  listingTitle?: string | null;
+  listingPrice?: number | null;
+  listingPropertyType?: string | null;
+  listingFeatureImage?: string | null;
+}
+
+export interface PipelinePromoContent {
+  id: string;
+  listingId: string | null;
+  dayNum: number;
+  seqNum: number;
+  angle: string | null;
+  posterSpec: unknown;
+  captionHpsc: string | null;
+  videoScript: string | null;
+  videoMeta: unknown;
+  createdAt: string | null;
+  listingTitle?: string | null;
+  listingFeatureImage?: string | null;
+}
+
+export interface PipelineCalendarItem {
+  id: string;
+  listingId: string | null;
+  date: string;
+  platform: string;
+  contentType: string;
+  hook: string | null;
+  captionDraft: string | null;
+  assetFiles: string[] | null;
+  disclosureTags: string[] | null;
+  approvalStatus: string | null;
+  approvedBy: string | null;
+  postedAt: string | null;
+  performanceJson: unknown;
+  createdAt: string | null;
+  listingTitle?: string | null;
+  listingFeatureImage?: string | null;
+  approvedByName?: string | null;
+}
+
+export interface PipelineListingDetail extends PipelineListing {
+  analysis: PipelineAnalysis | null;
+  promoContent: PipelinePromoContent[];
+  calendar: PipelineCalendarItem[];
+}
+
+export interface PipelineFacets {
+  platforms: string[];
+  approvalStatuses: string[];
+  marketStatuses: string[];
+  contentTypes: string[];
+}
+
+export type PipelineListResponse<T> = ApiResponse<T[]> & {
+  total: number;
+  limit: number;
+  offset: number;
+};

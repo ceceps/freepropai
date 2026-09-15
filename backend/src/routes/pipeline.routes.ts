@@ -1,0 +1,21 @@
+import { Router } from 'express';
+import { pipelineController } from '../controllers/pipeline.controller';
+import { authMiddleware as authenticate } from '../middleware/auth.middleware';
+
+const router = Router();
+
+// Apply auth middleware if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  router.use(authenticate);
+}
+
+router.get('/overview', pipelineController.getOverview);
+router.get('/facets', pipelineController.getFacets);
+router.get('/sources', pipelineController.getSources);
+router.get('/listings', pipelineController.getListings);
+router.get('/listings/:id', pipelineController.getListing);
+router.get('/analyses', pipelineController.getAnalyses);
+router.get('/promo-content', pipelineController.getPromoContent);
+router.get('/content-calendar', pipelineController.getContentCalendar);
+
+export default router;

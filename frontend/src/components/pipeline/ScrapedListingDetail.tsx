@@ -1,0 +1,188 @@
+import { useEffect, useState } from 'react';
+import { X, MapPin, ExternalLink, Phone, User, Bed, Bath, Car, Maximize, FileText, Tag } from 'lucide-react';
+import { pipelineApi } from '../../services/api';
+import ZoomableImage from '../common/ZoomableImage';
+import { formatCompactIDR, formatDateTime } from '../../utils/format';
+import type { PipelineListingDetail } from '../../types';
+
+interface ScrapedListingDetailProps {
+  listingId: string;
+  onClose: () => void;
+}
+
+export default function ScrapedListingDetail({ listingId, onClose }: ScrapedListingDetailProps) {
+  const [detail, setDetail] = useState<PipelineListingDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError(null);
+    pipelineApi
+      .getListing(listingId)
+      .then((res) => {
+        if (active && res.success && res.data) setDetail(res.data);
+      })
+      .catch((err) => {
+        if (active) setError(err?.response?.data?.error || 'Failed to load listing');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [listingId]);
+
+  const specs = detail
+    ? [
+        { icon: Bed, label: 'Bedrooms', value: detail.bedrooms },
+        { icon: Bath, label: 'Bathrooms', value: detail.bathrooms },
+        { icon: Car, label: 'Garage', value: detail.garage },
+        { icon: Maximize, label: 'Building / Land', value: detail.lb || detail.lt ? `${detail.lb ?? '-'} / ${detail.lt ?? '-'} m²` : null },
+      ].filter((s) => s.value !== null && s.value !== undefined)
+    : [];
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex justify-end" onClick={onClose}>
+      <div
+        className="w-full max-w-2xl h-full bg-surface overflow-y-auto shadow-2xl animate-fade-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 bg-surface border-b border-border">
+          <h3 className="text-base font-semibold text-text-primary truncate">Scraped Listing Detail</h3>
+          <button onClick={onClose} className="btn btn-ghost btn-icon" aria-label="Close detail">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="p-10 text-center text-text-tertiary animate-pulse">Loading listing...</div>
+        ) : error ? (
+          <div className="m-5 card border-danger-200 bg-danger-50 dark:bg-danger-950/20 text-danger-700 p-4">{error}</div>
+        ) : detail ? (
+          <div className="p-5 space-y-6">
+            {detail.featureImage && (
+              <ZoomableImage
+                src={detail.featureImage}
+                alt={detail.title || 'Listing photo'}
+                className="w-full h-64 rounded-xl"
+                variant="corner"
+              />
+            )}
+
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-text-primary">{detail.title || 'Untitled listing'}</h2>
+              <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">{formatCompactIDR(detail.price)}</p>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
+                {detail.sourceName && <span className="badge badge-info">{detail.sourceName}</span>}
+                {detail.marketStatus && <span className="badge badge-secondary">{detail.marketStatus}</span>}
+                {detail.propertyType && <span className="badge badge-secondary">{detail.propertyType}</span>}
+                {detail.certificate && <span className="badge badge-secondary">{detail.certificate}</span>}
+              </div>
+            </div>
+
+            {(specs.length > 0 || detail.pricePerM2) && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {specs.map((spec) => (
+                  <div key={spec.label} className="card p-3 text-center">
+                    <spec.icon className="w-4 h-4 mx-auto text-primary-600 dark:text-primary-400 mb-1" />
+                    <p className="text-sm font-semibold text-text-primary">{spec.value}</p>
+                    <p className="text-xs text-text-tertiary">{spec.label}</p>
+                  </div>
+                ))}
+                {detail.pricePerM2 && (
+                  <div className="card p-3 text-center">
+                    <Tag className="w-4 h-4 mx-auto text-primary-600 dark:text-primary-400 mb-1" />
+                    <p className="text-sm font-semibold text-text-primary">{formatCompactIDR(detail.pricePerM2)}</p>
+                    <p className="text-xs text-text-tertiary">per m²</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {detail.description && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-primary-600 dark:text-primary-400" /> Description
+                </h4>
+                <p className="text-sm text-text-secondary whitespace-pre-wrap">{detail.description}</p>
+              </div>
+            )}
+
+            {detail.features && detail.features.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-text-primary">Features</h4>
+                <div className="flex flex-wrap gap-2">
+                  {detail.features.map((feature) => (
+                    <span key={feature} className="badge badge-secondary">{feature}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(detail.agentName || detail.agentPhone || detail.agency) && (
+              <div className="card p-4 space-y-2">
+                <h4 className="text-sm font-semibold text-text-primary">Agent</h4>
+                {detail.agentName && (
+                  <p className="text-sm text-text-secondary flex items-center gap-2">
+                    <User className="w-4 h-4 text-text-tertiary" /> {detail.agentName}
+                  </p>
+                )}
+                {detail.agency && <p className="text-sm text-text-secondary">{detail.agency}</p>}
+                {detail.agentPhone && (
+                  <p className="text-sm text-text-secondary flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-text-tertiary" /> {detail.agentPhone}
+                  </p>
+                )}
+                <a
+                  href={detail.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400 hover:underline"
+                >
+                  <ExternalLink className="w-4 h-4" /> View source listing
+                </a>
+              </div>
+            )}
+
+            {detail.analysis && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-text-primary">AI Listing Analysis</h4>
+                {detail.analysis.buyerPersona && (
+                  <div className="card p-4">
+                    <p className="text-xs font-semibold text-text-tertiary uppercase mb-1">Buyer Persona</p>
+                    <p className="text-sm text-text-secondary whitespace-pre-wrap">{detail.analysis.buyerPersona}</p>
+                  </div>
+                )}
+                {detail.analysis.sellingPoints && (
+                  <div className="card p-4">
+                    <p className="text-xs font-semibold text-text-tertiary uppercase mb-1">Selling Points</p>
+                    <p className="text-sm text-text-secondary whitespace-pre-wrap">{detail.analysis.sellingPoints}</p>
+                  </div>
+                )}
+                {detail.analysis.fullAnalysisMarkdown && (
+                  <div className="card p-4">
+                    <p className="text-xs font-semibold text-text-tertiary uppercase mb-1">Full Analysis</p>
+                    <p className="text-sm text-text-secondary whitespace-pre-wrap">{detail.analysis.fullAnalysisMarkdown}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-text-primary">Pipeline Activity</h4>
+              <p className="text-xs text-text-tertiary">
+                Promo items: {detail.promoContent.length} · Calendar items: {detail.calendar.length} · Scraped: {formatDateTime(detail.scrapedAt)}
+              </p>
+              <p className="text-xs text-text-tertiary flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5" /> Source ID: {detail.sourceId ?? '-'}
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}

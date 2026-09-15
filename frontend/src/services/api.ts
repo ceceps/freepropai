@@ -25,7 +25,16 @@ import type {
   VideoScriptResult,
   VideoScriptRecord,
   DashboardStats,
-  ListingAnalysis
+  ListingAnalysis,
+  PipelineOverview,
+  PipelineSource,
+  PipelineListing,
+  PipelineListingDetail,
+  PipelineAnalysis,
+  PipelinePromoContent,
+  PipelineCalendarItem,
+  PipelineFacets,
+  PipelineListResponse
 } from '../types';
 
 // Create axios instance
@@ -419,6 +428,73 @@ export const followUpApi = {
 export const dashboardApi = {
   async getStats(): Promise<ApiResponse<DashboardStats>> {
     const response = await api.get<ApiResponse<DashboardStats>>('/dashboard/stats');
+    return response.data;
+  },
+};
+
+// Pipeline API (read-only freepropai_db)
+export const pipelineApi = {
+  async getOverview(): Promise<ApiResponse<PipelineOverview>> {
+    const response = await api.get<ApiResponse<PipelineOverview>>('/pipeline/overview');
+    return response.data;
+  },
+
+  async getFacets(): Promise<ApiResponse<PipelineFacets>> {
+    const response = await api.get<ApiResponse<PipelineFacets>>('/pipeline/facets');
+    return response.data;
+  },
+
+  async getSources(): Promise<ApiResponse<PipelineSource[]>> {
+    const response = await api.get<ApiResponse<PipelineSource[]>>('/pipeline/sources');
+    return response.data;
+  },
+
+  async getListings(params?: {
+    sourceId?: number;
+    search?: string;
+    marketStatus?: string;
+    isActive?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<PipelineListResponse<PipelineListing>> {
+    const response = await api.get<PipelineListResponse<PipelineListing>>('/pipeline/listings', { params });
+    return response.data;
+  },
+
+  async getListing(id: string): Promise<ApiResponse<PipelineListingDetail>> {
+    const response = await api.get<ApiResponse<PipelineListingDetail>>(`/pipeline/listings/${id}`);
+    return response.data;
+  },
+
+  async getAnalyses(params?: {
+    listingId?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<PipelineListResponse<PipelineAnalysis>> {
+    const response = await api.get<PipelineListResponse<PipelineAnalysis>>('/pipeline/analyses', { params });
+    return response.data;
+  },
+
+  async getPromoContent(params?: {
+    listingId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<PipelineListResponse<PipelinePromoContent>> {
+    const response = await api.get<PipelineListResponse<PipelinePromoContent>>('/pipeline/promo-content', { params });
+    return response.data;
+  },
+
+  async getContentCalendar(params?: {
+    listingId?: string;
+    platform?: string;
+    approvalStatus?: string;
+    from?: string;
+    to?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<PipelineListResponse<PipelineCalendarItem>> {
+    const response = await api.get<PipelineListResponse<PipelineCalendarItem>>('/pipeline/content-calendar', { params });
     return response.data;
   },
 };

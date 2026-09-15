@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { validateLLMConfig } from './config/llm';
 import { testConnection } from './db';
+import { testPipelineConnection } from './db/pipeline';
 import { authMiddleware } from './middleware/auth.middleware';
 
 // Load environment variables
@@ -18,6 +19,7 @@ import scrapingRoutes from './routes/scraping.routes';
 import leadRoutes from './routes/lead.routes';
 import followUpRoutes from './routes/followUp.routes';
 import dashboardRoutes from './routes/dashboard.routes';
+import pipelineRoutes from './routes/pipeline.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
@@ -55,6 +57,7 @@ app.get('/api', (req, res) => {
       followups: '/api/followups',
       listings: '/api/listings',
       dashboard: '/api/dashboard',
+      pipeline: '/api/pipeline',
     },
   });
 });
@@ -66,6 +69,7 @@ app.use('/api/scraping', scrapingRoutes);
 app.use('/api/leads', leadRoutes);
 app.use('/api/followups', followUpRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/pipeline', pipelineRoutes);
 
 // Error handling
 app.use(notFound);
@@ -76,6 +80,9 @@ const startServer = async () => {
   try {
     // Test database connection
     await testConnection();
+
+    // Test optional pipeline database connection (non-fatal)
+    await testPipelineConnection();
     
     // Validate LLM configuration
     validateLLMConfig();
