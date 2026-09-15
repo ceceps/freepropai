@@ -123,6 +123,79 @@ bun run dev
 
 ---
 
+## Setting Up on Another Machine (Full Data Sync)
+
+Cloning only brings tracked files. The following are **gitignored** and must be copied or recreated: `backend/.env`, `backend/uploads/`, and the PostgreSQL database itself.
+
+### 1. Clone the Repository
+
+```bash
+# Clone and switch to the shared branch
+git clone git@github.com:ceceps/freepropai.git
+git checkout main
+```
+
+### 2. Copy the Environment File
+
+`backend/.env` holds the database credentials and LLM key and is not committed. Copy it from an already configured machine:
+
+```bash
+# Copy the untracked environment file
+scp root@<source-machine>:/workspace/backend/.env ./backend/.env
+```
+
+### 3. Restore the Database
+
+Option A - exact data match (recommended). Dump the database on the configured machine:
+
+```bash
+# Create a compressed dump of the dev database
+pg_dump -U postgres -h localhost -Fc freepropai > /tmp/opencode/freepropai.dump
+```
+
+Copy the dump to the other machine, then restore it:
+
+```bash
+# Create the database and restore the dump
+createdb -U postgres freepropai
+pg_restore -U postgres -h localhost -d freepropai /path/to/freepropai.dump
+```
+
+Option B - rebuild the schema and seed data only (not the same rows):
+
+```bash
+# Install deps, apply migrations, and seed sample listings
+cd backend
+bun install
+bun run db:migrate
+bun run seed
+```
+
+### 4. Copy Uploaded Photos
+
+Uploaded photos live in `backend/uploads/` and are gitignored:
+
+```bash
+# Copy the uploads directory
+scp -r root@<source-machine>:/workspace/backend/uploads ./backend/uploads
+```
+
+### 5. Install Dependencies and Run
+
+```bash
+# Install backend and frontend dependencies, then start both servers
+bun install --cwd backend
+bun install --cwd frontend
+./dev.sh
+```
+
+Notes:
+
+- `backend/.env.test` is committed, but the `freepropai_test` database is not. Recreate it and run migrations before running the test suite.
+- The LLM credentials (`ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` in `backend/.env`) must be supplied by you; they are never committed.
+
+---
+
 ## 🧪 Running Tests
 
 FreePropAI comes with an automated integration test suite for backend API endpoints using Vitest:
