@@ -373,8 +373,7 @@ describe('Listing API Endpoints', () => {
     });
 
     it.skip('should generate 3 description variants', async () => {
-      // Skipped: Requires real LLM API key and takes 30+ seconds
-      // To test manually: Set AGENTROUTER_API_KEY in .env.test.local and remove .skip
+      // Skipped: Requires a reachable LLM endpoint (backend/.env.test.local) and takes 30+ seconds
       const response = await request(app)
         .post(`/api/listings/${testListingId}/generate-descriptions`)
         .expect(201);

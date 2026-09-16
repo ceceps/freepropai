@@ -1,14 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { scrapingApi } from '../services/api';
 import ZoomableImage from '../components/common/ZoomableImage';
 import type { ScrapingJob, ScrapedListing } from '../types';
 
+const JOBS_PAGE_SIZE = 5;
+
 export default function ScrapingPage() {
   const [jobs, setJobs] = useState<ScrapingJob[]>([]);
+  const [jobsTotal, setJobsTotal] = useState(0);
+  const [jobsLoading, setJobsLoading] = useState(false);
+  const [jobsLoadingMore, setJobsLoadingMore] = useState(false);
   const [selectedJob, setSelectedJob] = useState<ScrapingJob | null>(null);
   const [scrapedListings, setScrapedListings] = useState<ScrapedListing[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loadingMoreRef = useRef(false);
+
+  const hasMoreJobs = jobs.length < jobsTotal;
   
   // Form state
   const [sourceUrl, setSourceUrl] = useState('https://www.acehome.co.id/?reg=BBR&kat=rumah');
@@ -29,15 +37,42 @@ export default function ScrapingPage() {
 
   const fetchJobs = async () => {
     try {
-      setLoading(true);
-      const response = await scrapingApi.getJobs();
+      setJobsLoading(true);
+      const response = await scrapingApi.getJobs({ limit: JOBS_PAGE_SIZE, offset: 0 });
       if (response.success && response.data) {
         setJobs(response.data);
+        setJobsTotal(response.meta?.total ?? response.data.length);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to fetch jobs');
     } finally {
-      setLoading(false);
+      setJobsLoading(false);
+    }
+  };
+
+  const loadMoreJobs = async () => {
+    if (loadingMoreRef.current || !hasMoreJobs) return;
+    loadingMoreRef.current = true;
+    setJobsLoadingMore(true);
+    try {
+      const response = await scrapingApi.getJobs({ limit: JOBS_PAGE_SIZE, offset: jobs.length });
+      const newJobs = response.data;
+      if (response.success && newJobs && newJobs.length > 0) {
+        setJobs((prev) => [...prev, ...newJobs]);
+        if (response.meta?.total != null) setJobsTotal(response.meta.total);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to load more jobs');
+    } finally {
+      loadingMoreRef.current = false;
+      setJobsLoadingMore(false);
+    }
+  };
+
+  const handleJobsScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 64) {
+      loadMoreJobs();
     }
   };
 
@@ -209,19 +244,30 @@ export default function ScrapingPage() {
       {/* Jobs List */}
       <div className="card p-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-text-primary">Scraping Jobs</h2>
+          <h2 className="text-xl font-semibold text-text-primary">
+            Scraping Jobs
+            {jobsTotal > 0 && (
+              <span className="ml-2 text-sm font-normal text-text-tertiary">({jobsTotal})</span>
+            )}
+          </h2>
           <button
             onClick={fetchJobs}
+            disabled={jobsLoading}
             className="btn btn-ghost text-primary-600 hover:text-primary-700 font-medium"
           >
             Refresh
           </button>
         </div>
 
-        {jobs.length === 0 ? (
+        {jobsLoading && jobs.length === 0 ? (
+          <p className="text-text-tertiary text-center py-8">Loading jobs...</p>
+        ) : jobs.length === 0 ? (
           <p className="text-text-tertiary text-center py-8">No scraping jobs yet</p>
         ) : (
-          <div className="space-y-3">
+          <div
+            onScroll={handleJobsScroll}
+            className="max-h-[560px] space-y-3 overflow-y-auto pr-1"
+          >
             {jobs.map((job) => (
               <div
                 key={job.id}
@@ -248,6 +294,15 @@ export default function ScrapingPage() {
                 </div>
               </div>
             ))}
+
+            {jobsLoadingMore && (
+              <p className="text-center text-sm text-text-tertiary py-2">Loading more...</p>
+            )}
+            {!hasMoreJobs && jobs.length > JOBS_PAGE_SIZE && (
+              <p className="text-center text-sm text-text-tertiary py-2">
+                All {jobsTotal} jobs loaded
+              </p>
+            )}
           </div>
         )}
       </div>

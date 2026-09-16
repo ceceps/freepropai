@@ -1,4 +1,10 @@
 import { defineConfig } from 'vitest/config';
+import fs from 'node:fs';
+import dotenv from 'dotenv';
+
+const testLocalEnv = fs.existsSync('.env.test.local')
+  ? dotenv.parse(fs.readFileSync('.env.test.local'))
+  : {};
 
 export default defineConfig({
   test: {
@@ -6,6 +12,7 @@ export default defineConfig({
     environment: 'node',
     env: {
       NODE_ENV: 'test',
+      ...testLocalEnv,
     },
     fileParallelism: false,
     testTimeout: 10000,

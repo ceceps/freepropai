@@ -8,6 +8,7 @@ import {
   promoContent,
   sources,
 } from '../db/pipeline';
+import { posterPathToUrl, transformPosterSpec } from '../utils/posterUrl';
 
 export interface Pagination {
   limit?: number;
@@ -39,7 +40,7 @@ export interface CalendarFilters extends Pagination {
 }
 
 const DEFAULT_LIMIT = 24;
-const MAX_LIMIT = 100;
+const MAX_LIMIT = 1000;
 
 function clampLimit(limit?: number): number {
   if (!limit || Number.isNaN(limit)) return DEFAULT_LIMIT;
@@ -50,6 +51,83 @@ function clampOffset(offset?: number): number {
   if (!offset || Number.isNaN(offset) || offset < 0) return 0;
   return Math.trunc(offset);
 }
+
+/**
+ * The `content_calendar.content_type` naming differs slightly from
+ * `promo_content.angle`, so map one to the other when linking records.
+ */
+const CONTENT_TYPE_TO_ANGLE: Record<string, string> = {
+  property_showcase: 'showcase',
+  educational: 'education',
+  cta_promo: 'cta',
+  testimonial: 'testimonial',
+  neighborhood: 'neighborhood',
+};
+
+interface PromoRow {
+  id: string;
+  angle: string | null;
+  captionHpsc: string | null;
+  posterSpec: unknown;
+  videoScript: string | null;
+  videoMeta: unknown;
+}
+
+interface CalendarMatchSource {
+  hook: string | null;
+  captionDraft: string | null;
+  contentType: string;
+}
+
+/**
+ * The pipeline schema has no foreign key between `content_calendar` and
+ * `promo_content`, so link them by, in order of confidence: an exact caption
+ * match, the hook being the first line of the caption, then the content
+ * type / angle pairing.
+ */
+function matchPromoForCalendarItem(promos: PromoRow[], item: CalendarMatchSource): PromoRow | null {
+  if (promos.length === 0) return null;
+
+  const caption = item.captionDraft?.trim();
+  const hook = item.hook?.trim();
+  const angle = CONTENT_TYPE_TO_ANGLE[item.contentType] || item.contentType;
+
+  return (
+    (caption ? promos.find((p) => p.captionHpsc?.trim() === caption) : undefined) ||
+    (hook ? promos.find((p) => p.captionHpsc?.trim().startsWith(hook)) : undefined) ||
+    promos.find((p) => p.angle === angle) ||
+    null
+  );
+}
+
+const calendarSelection = {
+  id: contentCalendar.id,
+  listingId: contentCalendar.listingId,
+  date: contentCalendar.date,
+  platform: contentCalendar.platform,
+  contentType: contentCalendar.contentType,
+  hook: contentCalendar.hook,
+  captionDraft: contentCalendar.captionDraft,
+  assetFiles: contentCalendar.assetFiles,
+  disclosureTags: contentCalendar.disclosureTags,
+  approvalStatus: contentCalendar.approvalStatus,
+  approvedBy: contentCalendar.approvedBy,
+  postedAt: contentCalendar.postedAt,
+  performanceJson: contentCalendar.performanceJson,
+  createdAt: contentCalendar.createdAt,
+  listingTitle: pipelineListings.title,
+  listingFeatureImage: pipelineListings.featureImage,
+  approvedByName: agents.fullName,
+};
+
+const promoLinkSelection = {
+  id: promoContent.id,
+  angle: promoContent.angle,
+  captionHpsc: promoContent.captionHpsc,
+  posterSpec: promoContent.posterSpec,
+  videoScript: promoContent.videoScript,
+  videoMeta: promoContent.videoMeta,
+};
 
 const listingSelection = {
   id: pipelineListings.id,
@@ -191,8 +269,16 @@ export class PipelineService {
     return {
       ...listing,
       analysis: analysisRows[0] ?? null,
-      promoContent: promoRows,
-      calendar: calendarRows,
+      promoContent: promoRows.map((row) => ({
+        ...row,
+        posterSpec: transformPosterSpec(row.posterSpec),
+      })),
+      calendar: calendarRows.map((row) => ({
+        ...row,
+        assetFiles: row.assetFiles
+          ? row.assetFiles.map((f) => posterPathToUrl(f) ?? f)
+          : row.assetFiles,
+      })),
     };
   }
 
@@ -254,7 +340,7 @@ export class PipelineService {
     const limit = clampLimit(filters.limit);
     const offset = clampOffset(filters.offset);
 
-    const [data, totalRows] = await Promise.all([
+    const [rows, totalRows] = await Promise.all([
       db
         .select({
           id: promoContent.id,
@@ -279,6 +365,11 @@ export class PipelineService {
       db.select({ value: count() }).from(promoContent).where(where),
     ]);
 
+    const data = rows.map((row) => ({
+      ...row,
+      posterSpec: transformPosterSpec(row.posterSpec),
+    }));
+
     return { data, total: Number(totalRows[0]?.value ?? 0), limit, offset };
   }
 
@@ -294,7 +385,7 @@ export class PipelineService {
     const limit = clampLimit(filters.limit);
     const offset = clampOffset(filters.offset);
 
-    const [data, totalRows] = await Promise.all([
+    const [rows, totalRows] = await Promise.all([
       db
         .select({
           id: contentCalendar.id,
@@ -324,6 +415,14 @@ export class PipelineService {
         .offset(offset),
       db.select({ value: count() }).from(contentCalendar).where(where),
     ]);
+
+    // Transform assetFiles paths (absolute server paths) into public URLs
+    const data = rows.map((row) => ({
+      ...row,
+      assetFiles: row.assetFiles
+        ? row.assetFiles.map((f) => posterPathToUrl(f) ?? f)
+        : row.assetFiles,
+    }));
 
     return { data, total: Number(totalRows[0]?.value ?? 0), limit, offset };
   }
