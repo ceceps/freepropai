@@ -119,12 +119,38 @@ export class PipelineController {
     }
   }
 
+  async getContentCalendarItem(req: Request, res: Response) {
+    try {
+      const data = await pipelineService.getContentCalendarItem(req.params.id);
+      if (!data) {
+        return res.status(404).json({ success: false, error: 'Content calendar item not found' });
+      }
+      res.json({ success: true, data });
+    } catch (error: any) {
+      handleError(res, error, 'Failed to load content calendar item');
+    }
+  }
+
   async getFacets(_req: Request, res: Response) {
     try {
       const data = await pipelineService.getFacets();
       res.json({ success: true, data });
     } catch (error: any) {
       handleError(res, error, 'Failed to load pipeline facets');
+    }
+  }
+
+  async schedulePromo(req: Request, res: Response) {
+    try {
+      const { promoId } = req.params;
+      const startDate = toStr(req.body?.startDate);
+      const result = await pipelineService.schedulePromoToCalendar(promoId, startDate);
+      res.status(201).json({ success: true, data: result });
+    } catch (error: any) {
+      if (error?.message === 'Promo content not found') {
+        return res.status(404).json({ success: false, error: error.message });
+      }
+      handleError(res, error, 'Failed to schedule promo content');
     }
   }
 }

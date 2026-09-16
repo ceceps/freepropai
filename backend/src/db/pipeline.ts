@@ -34,6 +34,9 @@ export function isPipelineConfigured(): boolean {
 let client: ReturnType<typeof postgres> | null = null;
 let dbInstance: PostgresJsDatabase<typeof pipelineSchema> | null = null;
 
+let writeClient: ReturnType<typeof postgres> | null = null;
+let writeDbInstance: PostgresJsDatabase<typeof pipelineSchema> | null = null;
+
 /**
  * Lazily created, server-enforced read-only connection to the pipeline database.
  * `default_transaction_read_only` makes every session reject writes.
@@ -61,6 +64,21 @@ export function getPipelineDb(): PostgresJsDatabase<typeof pipelineSchema> {
     dbInstance = drizzle(getPipelineClient(), { schema: pipelineSchema });
   }
   return dbInstance;
+}
+
+/** Writable connection to the pipeline database — use only for user-initiated writes (e.g. scheduling). */
+export function getPipelineWriteDb(): PostgresJsDatabase<typeof pipelineSchema> {
+  if (!writeDbInstance) {
+    const connectionString = resolveConnectionString();
+    if (!connectionString) throw new PipelineNotConfiguredError();
+    writeClient = postgres(connectionString, {
+      max: 2,
+      idle_timeout: 20,
+      connection: { application_name: 'freepropai-pipeline-write' },
+    });
+    writeDbInstance = drizzle(writeClient, { schema: pipelineSchema });
+  }
+  return writeDbInstance;
 }
 
 export async function testPipelineConnection(): Promise<boolean> {

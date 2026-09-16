@@ -33,6 +33,7 @@ import type {
   PipelineAnalysis,
   PipelinePromoContent,
   PipelineCalendarItem,
+  PipelineCalendarDetail,
   PipelineFacets,
   PipelineListResponse
 } from '../types';
@@ -495,6 +496,19 @@ export const pipelineApi = {
     offset?: number;
   }): Promise<PipelineListResponse<PipelineCalendarItem>> {
     const response = await api.get<PipelineListResponse<PipelineCalendarItem>>('/pipeline/content-calendar', { params });
+    return response.data;
+  },
+
+  async getContentCalendarItem(id: string): Promise<ApiResponse<PipelineCalendarDetail>> {
+    const response = await api.get<ApiResponse<PipelineCalendarDetail>>(`/pipeline/content-calendar/${id}`);
+    return response.data;
+  },
+
+  async schedulePromoToCalendar(promoId: string, startDate?: string): Promise<ApiResponse<{ inserted: number; from: string }>> {
+    const response = await api.post<ApiResponse<{ inserted: number; from: string }>>(
+      `/pipeline/promo-content/${promoId}/schedule`,
+      startDate ? { startDate } : {}
+    );
     return response.data;
   },
 };

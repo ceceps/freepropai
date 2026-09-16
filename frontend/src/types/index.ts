@@ -550,6 +550,44 @@ export interface PipelineCalendarItem {
   approvedByName?: string | null;
 }
 
+export interface PipelinePosterSpec {
+  ratio?: string | null;
+  width?: number | null;
+  height?: number | null;
+  /** Public URL of the generated poster image (filesystem paths are stripped). */
+  public_url?: string | null;
+  elements?: Array<Record<string, unknown>> | null;
+  [key: string]: unknown;
+}
+
+export interface PipelineVideoShot {
+  shot?: number;
+  time?: string;
+  visual?: string;
+  vo?: string;
+}
+
+export interface PipelineVideoMeta {
+  ratio?: string | null;
+  duration_s?: number | null;
+  vo_profile?: string | null;
+  storyboard?: PipelineVideoShot[] | null;
+  [key: string]: unknown;
+}
+
+export interface PipelineCalendarPromo {
+  id: string;
+  angle: string | null;
+  captionHpsc: string | null;
+  posterSpec: PipelinePosterSpec | null;
+  videoScript: string | null;
+  videoMeta: PipelineVideoMeta | null;
+}
+
+export interface PipelineCalendarDetail extends PipelineCalendarItem {
+  promo: PipelineCalendarPromo | null;
+}
+
 export interface PipelineListingDetail extends PipelineListing {
   analysis: PipelineAnalysis | null;
   promoContent: PipelinePromoContent[];

@@ -1,8 +1,61 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Megaphone, ChevronDown, ChevronUp, Video, Image as ImageIcon } from 'lucide-react';
+import { Megaphone, ChevronDown, ChevronUp, Video, Image as ImageIcon, CalendarPlus, Check, Loader2 } from 'lucide-react';
 import { pipelineApi } from '../../services/api';
 import { truncate } from '../../utils/format';
 import type { PipelinePromoContent } from '../../types';
+
+interface ListingGroup {
+  listingId: string;
+  listingTitle: string;
+  featureImage: string | null;
+  items: PipelinePromoContent[];
+}
+
+function ScheduleButton({ promoId }: { promoId: string }) {
+  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [msg, setMsg] = useState('');
+
+  const handleSchedule = async () => {
+    setState('loading');
+    try {
+      const res = await pipelineApi.schedulePromoToCalendar(promoId);
+      if (res.success && res.data) {
+        setMsg(`Scheduled from ${res.data.from}`);
+        setState('done');
+      } else {
+        setMsg('Failed');
+        setState('error');
+      }
+    } catch {
+      setMsg('Error');
+      setState('error');
+    }
+  };
+
+  if (state === 'done') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-success-600 dark:text-success-400">
+        <Check className="w-3.5 h-3.5" /> {msg}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={handleSchedule}
+      disabled={state === 'loading'}
+      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 dark:border-primary-800 dark:bg-primary-950/30 dark:text-primary-400 dark:hover:bg-primary-900/40 transition-colors disabled:opacity-60"
+      title="Schedule to calendar from next available date"
+    >
+      {state === 'loading' ? (
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      ) : (
+        <CalendarPlus className="w-3.5 h-3.5" />
+      )}
+      {state === 'error' ? msg : 'Schedule'}
+    </button>
+  );
+}
 
 const PAGE_SIZE = 24;
 
@@ -110,11 +163,14 @@ export default function PromoContentTab() {
                 {expanded && (
                   <div className="border-t border-border divide-y divide-border">
                     {group.items.map((item) => (
-                      <div key={item.id} className="p-4 space-y-3">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="badge badge-primary">Day {item.dayNum} · #{item.seqNum}</span>
-                          {item.angle && <span className="badge badge-secondary">{item.angle}</span>}
-                        </div>
+                        <div key={item.id} className="p-4 space-y-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="badge badge-primary">Day {item.dayNum} · #{item.seqNum}</span>
+                            {item.angle && <span className="badge badge-secondary">{item.angle}</span>}
+                            <div className="ml-auto">
+                              <ScheduleButton promoId={item.id} />
+                            </div>
+                          </div>
 
                         {item.captionHpsc && (
                           <div>

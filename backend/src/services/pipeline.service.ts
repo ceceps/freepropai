@@ -4,6 +4,7 @@ import {
   analisaListing,
   contentCalendar,
   getPipelineDb,
+  getPipelineWriteDb,
   pipelineListings,
   promoContent,
   sources,
@@ -387,25 +388,7 @@ export class PipelineService {
 
     const [rows, totalRows] = await Promise.all([
       db
-        .select({
-          id: contentCalendar.id,
-          listingId: contentCalendar.listingId,
-          date: contentCalendar.date,
-          platform: contentCalendar.platform,
-          contentType: contentCalendar.contentType,
-          hook: contentCalendar.hook,
-          captionDraft: contentCalendar.captionDraft,
-          assetFiles: contentCalendar.assetFiles,
-          disclosureTags: contentCalendar.disclosureTags,
-          approvalStatus: contentCalendar.approvalStatus,
-          approvedBy: contentCalendar.approvedBy,
-          postedAt: contentCalendar.postedAt,
-          performanceJson: contentCalendar.performanceJson,
-          createdAt: contentCalendar.createdAt,
-          listingTitle: pipelineListings.title,
-          listingFeatureImage: pipelineListings.featureImage,
-          approvedByName: agents.fullName,
-        })
+        .select(calendarSelection)
         .from(contentCalendar)
         .leftJoin(pipelineListings, eq(contentCalendar.listingId, pipelineListings.id))
         .leftJoin(agents, sql`${agents.id}::text = ${contentCalendar.approvedBy}`)
@@ -427,6 +410,47 @@ export class PipelineService {
     return { data, total: Number(totalRows[0]?.value ?? 0), limit, offset };
   }
 
+  /**
+   * Single calendar item with the promo content that produced it. The two
+   * tables have no foreign key, so the promo row is matched in memory
+   * (see matchPromoForCalendarItem). Returned poster specs have their
+   * filesystem path replaced by a public URL.
+   */
+  async getContentCalendarItem(id: string) {
+    const db = getPipelineDb();
+
+    const rows = await db
+      .select(calendarSelection)
+      .from(contentCalendar)
+      .leftJoin(pipelineListings, eq(contentCalendar.listingId, pipelineListings.id))
+      .leftJoin(agents, sql`${agents.id}::text = ${contentCalendar.approvedBy}`)
+      .where(eq(contentCalendar.id, id))
+      .limit(1);
+
+    const item = rows[0];
+    if (!item) return null;
+
+    let promo: (PromoRow & { posterSpec: unknown }) | null = null;
+    if (item.listingId) {
+      const promoRows = await db
+        .select(promoLinkSelection)
+        .from(promoContent)
+        .where(eq(promoContent.listingId, item.listingId))
+        .orderBy(asc(promoContent.dayNum), asc(promoContent.seqNum));
+
+      const matched = matchPromoForCalendarItem(promoRows, item);
+      if (matched) {
+        promo = { ...matched, posterSpec: transformPosterSpec(matched.posterSpec) };
+      }
+    }
+
+    return {
+      ...item,
+      assetFiles: item.assetFiles ? item.assetFiles.map((f) => posterPathToUrl(f) ?? f) : item.assetFiles,
+      promo,
+    };
+  }
+
   async getFacets() {
     const db = getPipelineDb();
     const [platforms, approvalStatuses, marketStatuses, contentTypes] = await Promise.all([
@@ -446,6 +470,72 @@ export class PipelineService {
       contentTypes: clean(contentTypes),
     };
   }
+
+  /**
+   * Schedule a promo content item into content_calendar starting from the
+   * next available date after the latest existing calendar entry (not from
+   * the first Monday of the current month).
+   *
+   * For each day slot in the promo plan we create one calendar row, advancing
+   * one day per slot.  If `startDate` is provided it is used as the base;
+   * otherwise we use MAX(date) from content_calendar + 1 day.
+   */
+  async schedulePromoToCalendar(promoId: string, startDate?: string): Promise<{ inserted: number; from: string }> {
+    const db = getPipelineDb();
+    const wdb = getPipelineWriteDb();
+
+    // Fetch the promo row
+    const [promo] = await db
+      .select()
+      .from(promoContent)
+      .where(eq(promoContent.id, promoId))
+      .limit(1);
+
+    if (!promo) throw new Error('Promo content not found');
+
+    // Determine base date
+    let base: Date;
+    if (startDate) {
+      base = new Date(startDate);
+    } else {
+      const [lastRow] = await db
+        .select({ maxDate: sql<string>`MAX(${contentCalendar.date})` })
+        .from(contentCalendar);
+      const lastDate = lastRow?.maxDate ? new Date(lastRow.maxDate) : new Date();
+      base = new Date(lastDate);
+      base.setDate(base.getDate() + 1);
+    }
+
+    // Normalise to midnight local
+    base.setHours(0, 0, 0, 0);
+
+    // Build rows — one per day_num × seq_num combo
+    // We treat each unique (dayNum, seqNum) as an individual post slot.
+    const toDateStr = (d: Date) => d.toLocaleDateString('en-CA'); // YYYY-MM-DD
+
+    const rows = [promo].map((p, i) => ({
+      id: crypto.randomUUID(),
+      listingId: p.listingId,
+      date: toDateStr(new Date(base.getTime() + i * 86_400_000)),
+      platform: 'instagram_feed', // default; user can edit after scheduling
+      contentType: p.angle || 'property_showcase',
+      hook: null as string | null,
+      captionDraft: p.captionHpsc,
+      assetFiles: null as string[] | null,
+      disclosureTags: null as string[] | null,
+      approvalStatus: 'pending',
+      approvedBy: null as string | null,
+      postedAt: null,
+      performanceJson: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+
+    await wdb.insert(contentCalendar).values(rows);
+
+    return { inserted: rows.length, from: rows[0].date };
+  }
 }
+
 
 export const pipelineService = new PipelineService();

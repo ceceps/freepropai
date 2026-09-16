@@ -1,30 +1,32 @@
 /**
- * Converts an absolute server path from sosmed-agent's generated_path
- * into a public URL served via /posters static route.
+ * Converts an absolute server path from sosmed-agent's `generated_path`
+ * into a URL served by the Express `/posters` static route.
  *
- * Requires env vars:
- *   POSTER_BASE_DIR  - absolute path to the posters directory
- *   PUBLIC_BASE_URL  - public base URL of this server (e.g. http://localhost:3001)
+ * Env vars:
+ *   POSTER_BASE_DIR  - absolute path to the posters directory (required)
+ *   PUBLIC_BASE_URL  - optional public origin of the API. Leave it empty to
+ *                      emit a same-origin relative URL, which keeps working
+ *                      behind the Vite dev proxy and any reverse proxy.
  */
 export function posterPathToUrl(filePath: string | null | undefined): string | null {
   if (!filePath) return null;
 
   const baseDir = process.env.POSTER_BASE_DIR;
-  const baseUrl = process.env.PUBLIC_BASE_URL || 'http://localhost:3001';
-
   if (!baseDir) return null;
 
+  const baseUrl = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
   const normalizedBase = baseDir.endsWith('/') ? baseDir : baseDir + '/';
-  const normalizedPath = filePath.startsWith(normalizedBase)
+  const relative = filePath.startsWith(normalizedBase)
     ? filePath.slice(normalizedBase.length)
-    : filePath.startsWith('/') ? filePath.slice(1) : filePath;
+    : filePath.replace(/^\/+/, '');
 
-  return `${baseUrl}/posters/${normalizedPath}`;
+  return `${baseUrl}/posters/${relative}`;
 }
 
 /**
- * Recursively walks a posterSpec object and replaces any `generated_path`
- * string values with a public URL.
+ * Recursively walks a posterSpec object and swaps any `generated_path`
+ * filesystem path for a `public_url`. The server path is only kept as a
+ * fallback when no public URL can be derived (e.g. POSTER_BASE_DIR unset).
  */
 export function transformPosterSpec(spec: unknown): unknown {
   if (!spec || typeof spec !== 'object') return spec;
@@ -35,8 +37,9 @@ export function transformPosterSpec(spec: unknown): unknown {
 
   for (const key of Object.keys(obj)) {
     if (key === 'generated_path' && typeof obj[key] === 'string') {
-      result[key] = obj[key]; // keep original
-      result['public_url'] = posterPathToUrl(obj[key] as string);
+      const url = posterPathToUrl(obj[key] as string);
+      if (url) result.public_url = url;
+      else result.generated_path = obj[key];
     } else {
       result[key] = transformPosterSpec(obj[key]);
     }

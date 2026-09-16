@@ -135,6 +135,37 @@ describe('Pipeline Endpoints', () => {
     });
   });
 
+  it('returns a content calendar item with its matched promo content', async () => {
+    vi.spyOn(pipelineService, 'getContentCalendarItem').mockResolvedValue({
+      id: 'cc1',
+      hook: 'Dijual rumah',
+      contentType: 'property_showcase',
+      promo: {
+        id: 'p1',
+        angle: 'showcase',
+        captionHpsc: 'Dijual rumah...',
+        posterSpec: { public_url: '/posters/poster_1.jpg' },
+        videoScript: null,
+        videoMeta: null,
+      },
+    } as any);
+
+    const res = await request(app).get('/api/pipeline/content-calendar/cc1').expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.promo.posterSpec.public_url).toBe('/posters/poster_1.jpg');
+  });
+
+  it('returns 404 for a missing content calendar item', async () => {
+    vi.spyOn(pipelineService, 'getContentCalendarItem').mockResolvedValue(null);
+
+    const res = await request(app)
+      .get('/api/pipeline/content-calendar/00000000-0000-0000-0000-000000000000')
+      .expect(404);
+
+    expect(res.body.success).toBe(false);
+  });
+
   it('returns facets', async () => {
     vi.spyOn(pipelineService, 'getFacets').mockResolvedValue({
       platforms: ['instagram', 'tiktok'],

@@ -17,5 +17,7 @@ router.get('/listings/:id', pipelineController.getListing);
 router.get('/analyses', pipelineController.getAnalyses);
 router.get('/promo-content', pipelineController.getPromoContent);
 router.get('/content-calendar', pipelineController.getContentCalendar);
+router.get('/content-calendar/:id', pipelineController.getContentCalendarItem);
+router.post('/promo-content/:promoId/schedule', pipelineController.schedulePromo);
 
 export default router;
