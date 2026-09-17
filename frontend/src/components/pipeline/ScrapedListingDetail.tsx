@@ -170,9 +170,7 @@ export default function ScrapedListingDetail({ listingId, onClose }: ScrapedList
                   <span className="flex-1">{importMsg.text}</span>
                   {importMsg.mainListingId && (
                     <a
-                      href={`/listings/${importMsg.mainListingId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href="/listings"
                       className="flex items-center gap-1 font-semibold underline whitespace-nowrap hover:opacity-80"
                     >
                       <Home className="w-3 h-3" /> View
