@@ -20,5 +20,6 @@ router.get('/content-calendar', pipelineController.getContentCalendar);
 router.get('/content-calendar/:id', pipelineController.getContentCalendarItem);
 router.post('/promo-content/:promoId/schedule', pipelineController.schedulePromo);
 router.post('/listings/:listingId/generate-calendar', pipelineController.generateCalendar);
+router.post('/listings/:id/import', pipelineController.importListing);
 
 export default router;

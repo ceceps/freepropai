@@ -168,6 +168,21 @@ export class PipelineController {
       handleError(res, error, 'Failed to generate calendar');
     }
   }
+
+  async importListing(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const userId = (req as any).user?.id;
+      const teamId = (req as any).user?.teamId;
+      const result = await pipelineService.importPipelineListingToMain(id, userId, teamId);
+      res.status(201).json({ success: true, data: result });
+    } catch (error: any) {
+      if (error?.message === 'Pipeline listing not found') {
+        return res.status(404).json({ success: false, error: error.message });
+      }
+      handleError(res, error, 'Failed to import pipeline listing');
+    }
+  }
 }
 
 export const pipelineController = new PipelineController();

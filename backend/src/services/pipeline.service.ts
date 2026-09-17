@@ -16,6 +16,7 @@ import {
   type ContentType,
   type Platform,
 } from './calendarContentGenerator.service';
+import { db, listings, listingPhotos } from '../db';
 
 export interface Pagination {
   limit?: number;
@@ -619,6 +620,76 @@ export class PipelineService {
     await wdb.insert(contentCalendar).values(rows);
 
     return { inserted: rows.length, from: rows[0].date };
+  }
+
+  /**
+   * Imports a read-only pipeline listing from `freepropai_db` into the main application `listings` database.
+   */
+  async importPipelineListingToMain(
+    pipelineListingId: string,
+    userId?: string,
+    teamId?: string
+  ): Promise<{ mainListingId: string; title: string }> {
+    const pdb = getPipelineDb();
+
+    // 1. Get pipeline listing
+    const [scraped] = await pdb
+      .select()
+      .from(pipelineListings)
+      .where(eq(pipelineListings.id, pipelineListingId))
+      .limit(1);
+
+    if (!scraped) {
+      throw new Error('Pipeline listing not found');
+    }
+
+    const title = scraped.title || 'Untitled Scraped Property';
+    const addressObj = scraped.address as any;
+    const locationStr = addressObj?.formatted_address || addressObj?.city || scraped.title || 'Indonesia';
+
+    // 2. Insert into main DB listings
+    const [created] = await db
+      .insert(listings)
+      .values({
+        userId: userId || null,
+        teamId: teamId || null,
+        title,
+        landArea: scraped.lt ? scraped.lt.toString() : null,
+        buildingArea: scraped.lb ? scraped.lb.toString() : null,
+        location: locationStr,
+        price: scraped.price ? scraped.price.toString() : '0',
+        bedrooms: scraped.bedrooms || null,
+        bathrooms: scraped.bathrooms || null,
+        propertyType: scraped.propertyType || 'House',
+        sourceUrl: scraped.sourceUrl || null,
+        additionalInfo: scraped.description || (scraped.features ? scraped.features.join(', ') : null),
+        status: 'active',
+      })
+      .returning();
+
+    // 3. Add photos if available
+    const photoUrls: string[] = [];
+    if (scraped.featureImage) photoUrls.push(scraped.featureImage);
+    if (scraped.photos && Array.isArray(scraped.photos)) {
+      for (const p of scraped.photos) {
+        if (p && !photoUrls.includes(p)) photoUrls.push(p);
+      }
+    }
+
+    if (photoUrls.length > 0) {
+      const photoValues = photoUrls.map((url, index) => ({
+        listingId: created.id,
+        photoUrl: url,
+        photoOrder: index,
+        isFeatured: index === 0,
+      }));
+      await db.insert(listingPhotos).values(photoValues);
+    }
+
+    return {
+      mainListingId: created.id,
+      title: created.title,
+    };
   }
 }
 

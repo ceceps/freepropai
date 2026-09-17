@@ -467,6 +467,11 @@ export const pipelineApi = {
     return response.data;
   },
 
+  async importPipelineListing(id: string): Promise<ApiResponse<{ mainListingId: string; title: string }>> {
+    const response = await api.post<ApiResponse<{ mainListingId: string; title: string }>>(`/pipeline/listings/${id}/import`);
+    return response.data;
+  },
+
   async getAnalyses(params?: {
     listingId?: string;
     search?: string;
