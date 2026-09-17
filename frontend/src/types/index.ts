@@ -606,3 +606,25 @@ export type PipelineListResponse<T> = ApiResponse<T[]> & {
   limit: number;
   offset: number;
 };
+
+export const allContentTypes = [
+  'aboutus',
+  'generalposting',
+  'pricing',
+  'productshowcase',
+  'promotion',
+  'promotionseasonal',
+  'spec',
+  'testimonial',
+] as const;
+
+export const contentTypeLabels: Record<string, string> = {
+  aboutus: 'About Us',
+  generalposting: 'General Posting',
+  pricing: 'Pricing / Harga',
+  productshowcase: 'Product Showcase',
+  promotion: 'Promotion',
+  promotionseasonal: 'Promosi Musiman',
+  spec: 'Spesifikasi',
+  testimonial: 'Testimonial',
+};

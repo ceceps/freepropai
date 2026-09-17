@@ -153,6 +153,21 @@ export class PipelineController {
       handleError(res, error, 'Failed to schedule promo content');
     }
   }
+
+  async generateCalendar(req: Request, res: Response) {
+    try {
+      const { listingId } = req.params;
+      const contentTypes = Array.isArray(req.body?.contentTypes) ? req.body.contentTypes : undefined;
+      const startDate = toStr(req.body?.startDate);
+      const result = await pipelineService.generateCalendarForListing(listingId, contentTypes, startDate);
+      res.status(201).json({ success: true, data: result });
+    } catch (error: any) {
+      if (error?.message === 'Listing not found') {
+        return res.status(404).json({ success: false, error: error.message });
+      }
+      handleError(res, error, 'Failed to generate calendar');
+    }
+  }
 }
 
 export const pipelineController = new PipelineController();

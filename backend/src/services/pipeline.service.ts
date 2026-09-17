@@ -10,6 +10,12 @@ import {
   sources,
 } from '../db/pipeline';
 import { posterPathToUrl, transformPosterSpec } from '../utils/posterUrl';
+import {
+  generateCalendarHooks,
+  allContentTypes,
+  type ContentType,
+  type Platform,
+} from './calendarContentGenerator.service';
 
 export interface Pagination {
   limit?: number;
@@ -519,10 +525,89 @@ export class PipelineService {
       date: toDateStr(new Date(base.getTime() + i * 86_400_000)),
       platform: 'instagram_feed', // default; user can edit after scheduling
       contentType: p.angle || 'property_showcase',
-      hook: null as string | null,
+      hook: (p.captionHpsc?.split('\n')[0] || p.videoScript?.split('\n')[0] || p.angle || 'Properti Pilihan').slice(0, 150),
       captionDraft: p.captionHpsc,
       assetFiles: null as string[] | null,
       disclosureTags: null as string[] | null,
+      approvalStatus: 'pending',
+      approvedBy: null as string | null,
+      postedAt: null,
+      performanceJson: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+
+    await wdb.insert(contentCalendar).values(rows);
+
+    return { inserted: rows.length, from: rows[0].date };
+  }
+
+  /**
+   * Generate AI-powered calendar hooks unique to the listing, then schedule
+   * them into content_calendar on consecutive days starting from the next available date.
+   */
+  async generateCalendarForListing(
+    listingId: string,
+    contentTypes: ContentType[] = allContentTypes,
+    startDate?: string
+  ): Promise<{ inserted: number; from: string }> {
+    const db = getPipelineDb();
+    const wdb = getPipelineWriteDb();
+
+    // Fetch the listing
+    const [listing] = await db
+      .select()
+      .from(pipelineListings)
+      .where(eq(pipelineListings.id, listingId))
+      .limit(1);
+
+    if (!listing) throw new Error('Listing not found');
+
+    // Determine base date
+    let base: Date;
+    if (startDate) {
+      base = new Date(startDate);
+    } else {
+      const [lastRow] = await db
+        .select({ maxDate: sql<string>`MAX(${contentCalendar.date})` })
+        .from(contentCalendar);
+      const lastDate = lastRow?.maxDate ? new Date(lastRow.maxDate) : new Date();
+      base = new Date(lastDate);
+      base.setDate(base.getDate() + 1);
+    }
+    base.setHours(0, 0, 0, 0);
+
+    // Build listing context for LLM
+    const listingContext = {
+      id: listing.id,
+      title: listing.title ?? '',
+      propertyType: listing.propertyType ?? '',
+      location: (listing.address as any)?.formatted_address ?? '',
+      price: listing.price ?? 0,
+      landArea: listing.lb ?? listing.lt ?? undefined,
+      buildingArea: listing.lt ?? listing.lb ?? undefined,
+      bedrooms: listing.bedrooms ?? undefined,
+      bathrooms: listing.bathrooms ?? undefined,
+      features: (listing.features as string[]) ?? [],
+      agentName: listing.agentName ?? undefined,
+      agency: listing.agency ?? undefined,
+    };
+
+    // Generate hooks + captions via LLM (with fallback)
+    const generated = await generateCalendarHooks(listingContext, contentTypes);
+
+    // Build rows
+    const toDateStr = (d: Date) => d.toLocaleDateString('en-CA');
+    const rows = generated.map((g, i) => ({
+      id: crypto.randomUUID(),
+      listingId,
+      date: toDateStr(new Date(base.getTime() + i * 86_400_000)),
+      platform: g.platform,
+      contentType: g.contentType,
+      hook: g.hook,
+      captionDraft: g.captionDraft,
+      assetFiles: null as string[] | null,
+      disclosureTags: g.disclosureTags ?? null as string[] | null,
       approvalStatus: 'pending',
       approvedBy: null as string | null,
       postedAt: null,

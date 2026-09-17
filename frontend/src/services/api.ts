@@ -511,6 +511,14 @@ export const pipelineApi = {
     );
     return response.data;
   },
+
+  async generateCalendarForListing(listingId: string, contentTypes?: string[], startDate?: string): Promise<ApiResponse<{ inserted: number; from: string }>> {
+    const response = await api.post<ApiResponse<{ inserted: number; from: string }>>(
+      `/pipeline/listings/${listingId}/generate-calendar`,
+      { contentTypes, startDate }
+    );
+    return response.data;
+  },
 };
 
 export default api;
