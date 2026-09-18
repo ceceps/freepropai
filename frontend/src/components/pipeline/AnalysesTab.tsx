@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Search, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 import { pipelineApi } from '../../services/api';
 import { formatCompactIDR, formatDate, truncate } from '../../utils/format';
+import MarkdownRenderer from '../common/MarkdownRenderer';
 import type { PipelineAnalysis } from '../../types';
 
 const PAGE_SIZE = 12;
@@ -112,25 +113,29 @@ export default function AnalysesTab() {
                 {analysis.buyerPersona && (
                   <div>
                     <p className="text-xs font-semibold text-text-tertiary uppercase mb-1">Buyer Persona</p>
-                    <p className="text-sm text-text-secondary whitespace-pre-wrap">
-                      {expanded ? analysis.buyerPersona : truncate(analysis.buyerPersona, 180)}
-                    </p>
+                    {expanded ? (
+                      <MarkdownRenderer content={analysis.buyerPersona} className="text-sm text-text-secondary" />
+                    ) : (
+                      <p className="text-sm text-text-secondary">{truncate(analysis.buyerPersona, 180)}</p>
+                    )}
                   </div>
                 )}
 
                 {analysis.sellingPoints && (
                   <div>
                     <p className="text-xs font-semibold text-text-tertiary uppercase mb-1">Selling Points</p>
-                    <p className="text-sm text-text-secondary whitespace-pre-wrap">
-                      {expanded ? analysis.sellingPoints : truncate(analysis.sellingPoints, 180)}
-                    </p>
+                    {expanded ? (
+                      <MarkdownRenderer content={analysis.sellingPoints} className="text-sm text-text-secondary" />
+                    ) : (
+                      <p className="text-sm text-text-secondary">{truncate(analysis.sellingPoints, 180)}</p>
+                    )}
                   </div>
                 )}
 
                 {expanded && analysis.fullAnalysisMarkdown && (
                   <div className="border-t border-border pt-3">
                     <p className="text-xs font-semibold text-text-tertiary uppercase mb-1">Full Analysis</p>
-                    <p className="text-sm text-text-secondary whitespace-pre-wrap">{analysis.fullAnalysisMarkdown}</p>
+                    <MarkdownRenderer content={analysis.fullAnalysisMarkdown} className="text-sm text-text-secondary" />
                   </div>
                 )}
               </div>

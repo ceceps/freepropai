@@ -161,6 +161,7 @@ export default function ScrapedListingsTab() {
               )}
               <div className="p-4 space-y-2 flex-1 flex flex-col">
                 <div className="flex items-center gap-2 flex-wrap">
+                  {listing.imported && <span className="badge badge-success">Imported</span>}
                   {listing.sourceName && <span className="badge badge-info">{listing.sourceName}</span>}
                   {listing.marketStatus && <span className="badge badge-secondary">{listing.marketStatus}</span>}
                 </div>
@@ -188,7 +189,15 @@ export default function ScrapedListingsTab() {
         </div>
       )}
 
-      {selectedId && <ScrapedListingDetail listingId={selectedId} onClose={() => setSelectedId(null)} />}
+      {selectedId && (
+        <ScrapedListingDetail
+          listingId={selectedId}
+          onClose={() => setSelectedId(null)}
+          onImported={(id) =>
+            setListings((prev) => prev.map((l) => (l.id === id ? { ...l, imported: true } : l)))
+          }
+        />
+      )}
     </div>
   );
 }

@@ -499,6 +499,9 @@ export interface PipelineListing {
   createdAt: string | null;
   sourceName: string | null;
   sourceCode: string | null;
+  imported?: boolean;
+  importedListingId?: string | null;
+  importedAt?: string | null;
 }
 
 export interface PipelineAnalysis {

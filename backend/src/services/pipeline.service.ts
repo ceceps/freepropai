@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, ilike, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
 import {
   agents,
   analisaListing,
@@ -106,6 +106,44 @@ function matchPromoForCalendarItem(promos: PromoRow[], item: CalendarMatchSource
     promos.find((p) => p.angle === angle) ||
     null
   );
+}
+
+/**
+ * The read-only pipeline database has no import marker, so determine whether a
+ * scraped listing already exists in the main `listings` table by matching its
+ * source URL. Returns a lookup keyed by source URL.
+ */
+async function resolveImportedListings(
+  sourceUrls: (string | null)[]
+): Promise<Map<string, { id: string; importedAt: Date | null }>> {
+  const urls = [...new Set(sourceUrls.filter((url): url is string => Boolean(url)))];
+  const imported = new Map<string, { id: string; importedAt: Date | null }>();
+  if (urls.length === 0) return imported;
+
+  const rows = await db
+    .select({ id: listings.id, sourceUrl: listings.sourceUrl, createdAt: listings.createdAt })
+    .from(listings)
+    .where(inArray(listings.sourceUrl, urls));
+
+  for (const row of rows) {
+    if (row.sourceUrl && !imported.has(row.sourceUrl)) {
+      imported.set(row.sourceUrl, { id: row.id, importedAt: row.createdAt ?? null });
+    }
+  }
+  return imported;
+}
+
+function withImportStatus<T extends { sourceUrl: string | null }>(
+  listing: T,
+  imported: Map<string, { id: string; importedAt: Date | null }>
+) {
+  const match = listing.sourceUrl ? imported.get(listing.sourceUrl) : undefined;
+  return {
+    ...listing,
+    imported: Boolean(match),
+    importedListingId: match?.id ?? null,
+    importedAt: match?.importedAt ?? null,
+  };
 }
 
 const calendarSelection = {
@@ -246,7 +284,14 @@ export class PipelineService {
       db.select({ value: count() }).from(pipelineListings).where(where),
     ]);
 
-    return { data, total: Number(totalRows[0]?.value ?? 0), limit, offset };
+    const imported = await resolveImportedListings(data.map((row) => row.sourceUrl));
+
+    return {
+      data: data.map((row) => withImportStatus(row, imported)),
+      total: Number(totalRows[0]?.value ?? 0),
+      limit,
+      offset,
+    };
   }
 
   async getScrapedListing(id: string) {
@@ -274,8 +319,10 @@ export class PipelineService {
         .orderBy(desc(contentCalendar.date)),
     ]);
 
+    const imported = await resolveImportedListings([listing.sourceUrl]);
+
     return {
-      ...listing,
+      ...withImportStatus(listing, imported),
       analysis: analysisRows[0] ?? null,
       promoContent: promoRows.map((row) => ({
         ...row,

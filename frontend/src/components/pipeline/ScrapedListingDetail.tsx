@@ -5,15 +5,17 @@ import {
 } from 'lucide-react';
 import { pipelineApi } from '../../services/api';
 import ZoomableImage from '../common/ZoomableImage';
+import MarkdownRenderer from '../common/MarkdownRenderer';
 import { formatCompactIDR, formatDateTime } from '../../utils/format';
 import type { PipelineListingDetail } from '../../types';
 
 interface ScrapedListingDetailProps {
   listingId: string;
   onClose: () => void;
+  onImported?: (listingId: string) => void;
 }
 
-export default function ScrapedListingDetail({ listingId, onClose }: ScrapedListingDetailProps) {
+export default function ScrapedListingDetail({ listingId, onClose, onImported }: ScrapedListingDetailProps) {
   const [detail, setDetail] = useState<PipelineListingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -108,58 +110,89 @@ export default function ScrapedListingDetail({ listingId, onClose }: ScrapedList
             </div>
 
             {/* ── Import to Listings ── */}
-            <div className="card p-4 space-y-3 bg-gradient-to-br from-grey-50 to-blue-50/40 dark:from-grey-900/60 dark:to-blue-950/20 border-border">
+            <div
+              className={`card p-4 space-y-3 ${
+                detail.imported
+                  ? 'bg-gradient-to-br from-success-50 to-grey-50/40 dark:from-success-950/30 dark:to-grey-900/60 border-success-200 dark:border-success-800'
+                  : 'bg-gradient-to-br from-grey-50 to-blue-50/40 dark:from-grey-900/60 dark:to-blue-950/20 border-border'
+              }`}
+            >
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
-                    <Download className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <div
+                    className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                      detail.imported
+                        ? 'bg-success-100 dark:bg-success-900/40'
+                        : 'bg-blue-100 dark:bg-blue-900/40'
+                    }`}
+                  >
+                    {detail.imported ? (
+                      <CheckCircle className="w-5 h-5 text-success-600 dark:text-success-400" />
+                    ) : (
+                      <Download className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    )}
                   </div>
                   <div className="min-w-0">
-                    <h4 className="text-sm font-semibold text-text-primary">Import to Listings</h4>
+                    <h4 className="text-sm font-semibold text-text-primary">
+                      {detail.imported ? 'Imported to Listings' : 'Import to Listings'}
+                    </h4>
                     <p className="text-xs text-text-tertiary truncate">
-                      Copy this property to your main listings database
+                      {detail.imported
+                        ? 'This property is already in your main listings database'
+                        : 'Copy this property to your main listings database'}
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={async () => {
-                    setImportLoading(true);
-                    setImportMsg(null);
-                    try {
-                      const res = await pipelineApi.importPipelineListing(listingId);
-                      if (res.success && res.data) {
-                        setImportMsg({
-                          type: 'success',
-                          text: `"${res.data.title}" imported successfully.`,
-                          mainListingId: res.data.mainListingId,
-                        });
-                        // Self-reload to refresh data
-                        await refreshDetail();
-                      } else {
-                        setImportMsg({ type: 'error', text: 'Failed to import listing.' });
+                {detail.imported ? (
+                  <a
+                    href="/listings"
+                    className="btn btn-secondary btn-sm flex items-center gap-1.5 whitespace-nowrap flex-shrink-0"
+                  >
+                    <Home className="w-3.5 h-3.5" />
+                    <span>View</span>
+                  </a>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      setImportLoading(true);
+                      setImportMsg(null);
+                      try {
+                        const res = await pipelineApi.importPipelineListing(listingId);
+                        if (res.success && res.data) {
+                          setImportMsg({
+                            type: 'success',
+                            text: `"${res.data.title}" imported successfully.`,
+                            mainListingId: res.data.mainListingId,
+                          });
+                          // Self-reload to refresh data
+                          await refreshDetail();
+                          onImported?.(listingId);
+                        } else {
+                          setImportMsg({ type: 'error', text: 'Failed to import listing.' });
+                        }
+                      } catch (err: any) {
+                        const msg = err?.response?.data?.error || err?.message || 'Import failed';
+                        setImportMsg({ type: 'error', text: msg });
+                      } finally {
+                        setImportLoading(false);
                       }
-                    } catch (err: any) {
-                      const msg = err?.response?.data?.error || err?.message || 'Import failed';
-                      setImportMsg({ type: 'error', text: msg });
-                    } finally {
-                      setImportLoading(false);
-                    }
-                  }}
-                  disabled={importLoading}
-                  className="btn btn-primary btn-sm flex items-center gap-1.5 whitespace-nowrap flex-shrink-0"
-                >
-                  {importLoading ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Importing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Import</span>
-                    </>
-                  )}
-                </button>
+                    }}
+                    disabled={importLoading}
+                    className="btn btn-primary btn-sm flex items-center gap-1.5 whitespace-nowrap flex-shrink-0"
+                  >
+                    {importLoading ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Importing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Import</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
 
               {importMsg && (
@@ -258,19 +291,19 @@ export default function ScrapedListingDetail({ listingId, onClose }: ScrapedList
                 {detail.analysis.buyerPersona && (
                   <div className="card p-4">
                     <p className="text-xs font-semibold text-text-tertiary uppercase mb-1">Buyer Persona</p>
-                    <p className="text-sm text-text-secondary whitespace-pre-wrap">{detail.analysis.buyerPersona}</p>
+                    <MarkdownRenderer content={detail.analysis.buyerPersona} className="text-sm text-text-secondary" />
                   </div>
                 )}
                 {detail.analysis.sellingPoints && (
                   <div className="card p-4">
                     <p className="text-xs font-semibold text-text-tertiary uppercase mb-1">Selling Points</p>
-                    <p className="text-sm text-text-secondary whitespace-pre-wrap">{detail.analysis.sellingPoints}</p>
+                    <MarkdownRenderer content={detail.analysis.sellingPoints} className="text-sm text-text-secondary" />
                   </div>
                 )}
                 {detail.analysis.fullAnalysisMarkdown && (
                   <div className="card p-4">
                     <p className="text-xs font-semibold text-text-tertiary uppercase mb-1">Full Analysis</p>
-                    <p className="text-sm text-text-secondary whitespace-pre-wrap">{detail.analysis.fullAnalysisMarkdown}</p>
+                    <MarkdownRenderer content={detail.analysis.fullAnalysisMarkdown} className="text-sm text-text-secondary" />
                   </div>
                 )}
               </div>
