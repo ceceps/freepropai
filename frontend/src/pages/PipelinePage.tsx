@@ -104,7 +104,7 @@ export default function PipelinePage() {
           <div
             role="tablist"
             aria-label="Pipeline sections"
-            className="inline-flex flex-wrap rounded-lg border border-border bg-grey-100 dark:bg-grey-900 p-1 gap-1"
+            className="flex w-fit max-w-full rounded-lg border border-border bg-grey-100 dark:bg-grey-900 p-1 gap-1 overflow-x-auto scrollbar-hide"
           >
             {TABS.map((t) => (
               <button
@@ -112,7 +112,7 @@ export default function PipelinePage() {
                 role="tab"
                 aria-selected={tab === t.id}
                 onClick={() => setTab(t.id)}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                className={`flex-shrink-0 whitespace-nowrap px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   tab === t.id
                     ? 'bg-surface text-text-primary shadow-sm'
                     : 'text-text-tertiary hover:text-text-secondary'

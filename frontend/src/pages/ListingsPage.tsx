@@ -473,22 +473,22 @@ export default function ListingsPage() {
                   className="w-full h-full"
                   downloadName={`${selectedListing.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 30) || 'property'}.jpg`}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none" />
                   <div className="absolute bottom-4 left-4 right-4 pointer-events-none">
                   <div className="flex items-end justify-between">
                     <div>
                       <span className={`badge ${getStatusConfig(selectedListing.status).badge} mb-2`}>
                         {getStatusConfig(selectedListing.status).label}
                       </span>
-                      <h2 className="text-2xl md:text-3xl font-bold text-white drop-shadow">{selectedListing.title}</h2>
-                      <p className="text-white/80 text-sm mt-1 flex items-center gap-1">
+                      <h2 className="text-lg sm:text-2xl md:text-3xl leading-snug font-bold text-white break-words [text-shadow:0_1px_3px_rgba(0,0,0,0.9),0_2px_10px_rgba(0,0,0,0.7)]">{selectedListing.title}</h2>
+                      <p className="text-white/90 text-sm mt-1 flex items-center gap-1 [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]">
                         <MapPin className="w-4 h-4" />{selectedListing.location}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl md:text-3xl font-bold text-white">{formatPrice(selectedListing.price)}</p>
+                      <p className="text-2xl md:text-3xl font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.9),0_2px_10px_rgba(0,0,0,0.7)]">{formatPrice(selectedListing.price)}</p>
                       {selectedListing.land_area && (
-                        <p className="text-white/70 text-sm">
+                        <p className="text-white/80 text-sm [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]">
                           {formatPrice(Math.round(selectedListing.price / selectedListing.land_area))}/m²
                         </p>
                       )}
@@ -563,10 +563,10 @@ export default function ListingsPage() {
           {/* TABS NAVIGATION */}
           <div className="card">
             <div className="border-b border-border">
-              <nav className="flex gap-1 p-1">
+              <nav className="flex gap-1 p-1 overflow-x-auto scrollbar-hide">
                 <button
                   onClick={() => setActiveTab('info')}
-                  className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  className={`flex flex-shrink-0 items-center gap-2 px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                     activeTab === 'info'
                       ? 'bg-primary-100 text-text-primary dark:bg-primary-600 dark:text-white shadow-sm'
                       : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50'
@@ -576,7 +576,7 @@ export default function ListingsPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab('analyze')}
-                  className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  className={`flex flex-shrink-0 items-center gap-2 px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                     activeTab === 'analyze'
                       ? 'bg-primary-100 text-text-primary dark:bg-primary-600 dark:text-white shadow-sm'
                       : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50'
@@ -586,7 +586,7 @@ export default function ListingsPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab('ai')}
-                  className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  className={`flex flex-shrink-0 items-center gap-2 px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                     activeTab === 'ai'
                       ? 'bg-primary-100 text-text-primary dark:bg-primary-600 dark:text-white shadow-sm'
                       : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50'
@@ -596,7 +596,7 @@ export default function ListingsPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab('video')}
-                  className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  className={`flex flex-shrink-0 items-center gap-2 px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                     activeTab === 'video'
                       ? 'bg-primary-100 text-text-primary dark:bg-primary-600 dark:text-white shadow-sm'
                       : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50'
@@ -607,7 +607,7 @@ export default function ListingsPage() {
               </nav>
             </div>
 
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {activeTab === 'info' && (
                 <div className="space-y-6">
                   {/* Photo Gallery */}

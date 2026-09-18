@@ -51,6 +51,14 @@ export default function ScrapedListingDetail({ listingId, onClose }: ScrapedList
     };
   }, [listingId]);
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
   const specs = detail
     ? [
         { icon: Bed, label: 'Bedrooms', value: detail.bedrooms },
@@ -63,7 +71,7 @@ export default function ScrapedListingDetail({ listingId, onClose }: ScrapedList
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex justify-end" onClick={onClose}>
       <div
-        className="w-full max-w-2xl h-full bg-surface overflow-y-auto shadow-2xl animate-fade-in"
+        className="w-full sm:max-w-2xl h-dvh max-h-dvh bg-surface overflow-y-auto overscroll-contain shadow-2xl animate-fade-in pb-[env(safe-area-inset-bottom)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 bg-surface border-b border-border">
@@ -78,7 +86,7 @@ export default function ScrapedListingDetail({ listingId, onClose }: ScrapedList
         ) : error ? (
           <div className="m-5 card border-danger-200 bg-danger-50 dark:bg-danger-950/20 text-danger-700 p-4">{error}</div>
         ) : detail ? (
-          <div className="p-5 space-y-6">
+          <div className="p-4 sm:p-5 pb-12 space-y-6">
             {detail.featureImage && (
               <ZoomableImage
                 src={detail.featureImage}
