@@ -581,4 +581,29 @@
   .markdown-renderer a.markdown-link {
     @apply text-primary-600 dark:text-primary-400 underline hover:opacity-80;
   }
+
+  /* Markdown Table Styles */
+  .markdown-renderer .markdown-table-wrap {
+    @apply overflow-x-auto my-3 rounded-lg border border-border;
+  }
+
+  .markdown-renderer .markdown-table {
+    @apply w-full text-sm border-collapse text-left;
+  }
+
+  .markdown-renderer .markdown-th {
+    @apply bg-grey-100 dark:bg-grey-900/60 font-semibold text-text-primary px-3 py-2 border-b border-border text-xs uppercase tracking-wider;
+  }
+
+  .markdown-renderer .markdown-td {
+    @apply px-3 py-2 border-b border-border text-text-secondary text-sm;
+  }
+
+  .markdown-renderer tr:last-child .markdown-td {
+    @apply border-b-0;
+  }
+
+  .markdown-renderer tr:hover .markdown-td {
+    @apply bg-grey-50/50 dark:bg-grey-800/30;
+  }
 }

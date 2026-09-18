@@ -152,6 +152,10 @@ describe('AcehomeScraperService', () => {
       expect(result[0].listingUrl).toBe('https://www.acehome.co.id/project/detail/uuid1');
       expect(result[0].sourceId).toBe('ACBBR1035');
       expect(result[0].imageUrls.length).toBe(2);
+      expect(result[0].description).toContain('Rumah Siap Huni Strategis');
+      expect(result[0].description).toContain('Selling Point');
+      expect(result[0].description).toContain('- Dekat stasiun');
+      expect(result[0].description).not.toMatch(/Lokasi\s*Batu Indah/i);
 
       axiosMock.mockRestore();
     });
@@ -179,6 +183,54 @@ describe('AcehomeScraperService', () => {
         .toEqual({ propertyType: 'rumah', region: null });
       expect(derive('https://www.acehome.co.id/'))
         .toEqual({ propertyType: 'rumah', region: null });
+    });
+  });
+
+  describe('Deskripsi parsing (full block, stop at Lokasi)', () => {
+    it('captures paragraphs and list items and excludes the Lokasi block', async () => {
+      const html = `
+<!DOCTYPE html><html><body>
+  <h4>Rumah Villa 2 Lantai Asri di Graha Puspa Parongpong</h4>
+  <h6>ACBBR1054</h6>
+  <div class="col-md-12">
+    <strong>Harga</strong><br>Rp1.800.000.000<br><br>
+    <strong>Detail</strong><br>
+    Jumlah Lantai: 2<br>
+    Luas Tanah: 375<br>
+    Luas Bangunan: 200<br>
+    Kamar Tidur: 5<br>
+    Kamar Mandi: 3<br>
+    Sertifikat: shm<br><br>
+    <strong>Deskripsi</strong>
+    <p><strong>Rumah Villa 2 Lantai Asri di Graha Puspa Parongpong</strong></p>
+    <p><strong>Note:</strong></p>
+    <ul>
+      <li>Investasi Terbaik &amp; Harga Kompetitif</li>
+      <li>Kawasan Elite, Asri &amp; Bebas Banjir</li>
+      <li>Kapasitas Besar 2 Lantai 5 KT &amp; 3 KM</li>
+    </ul>
+    <p><strong>CARA BAYAR : CASH DAN KPR</strong></p>
+    <p><strong>AKSES LOKASI : 2 MOBIL</strong></p>
+    <p><strong>SURVEY : JANJIAN SATU HARI SEBELUMNYA</strong></p>
+    <br>
+    <p><strong>Lokasi</strong><br>Graha Puspa </p>
+  </div>
+</body></html>`;
+      const axiosMock = vi.spyOn(axios, 'get').mockResolvedValue({ data: html });
+
+      const result = await service.scrapeListingDetail('https://www.acehome.co.id/project/detail/f2f9567a-d96a-4859-a362-33b78ada92a6?reg=BBR&kat=rumah');
+
+      expect(result!.description).toContain('Rumah Villa 2 Lantai Asri di Graha Puspa Parongpong');
+      expect(result!.description).toContain('Note:');
+      expect(result!.description).toContain('- Investasi Terbaik & Harga Kompetitif');
+      expect(result!.description).toContain('- Kawasan Elite, Asri & Bebas Banjir');
+      expect(result!.description).toContain('CARA BAYAR : CASH DAN KPR');
+      expect(result!.description).toContain('AKSES LOKASI : 2 MOBIL');
+      expect(result!.description).toContain('SURVEY : JANJIAN SATU HARI SEBELUMNYA');
+      expect(result!.description).not.toMatch(/Graha Puspa\s*$/);
+      expect(result!.location).toBe('Graha Puspa');
+
+      axiosMock.mockRestore();
     });
   });
 
