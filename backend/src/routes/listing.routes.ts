@@ -32,6 +32,7 @@ router.get('/:id', listingController.getListingById);
  * @access  Public (should be protected in production)
  */
 router.patch('/:id', upload.array('photos', 10), listingController.updateListing);
+router.put('/:id', upload.array('photos', 10), listingController.updateListing);
 
 /**
  * @route   DELETE /api/listings/:id

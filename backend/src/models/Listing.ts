@@ -92,7 +92,7 @@ export class ListingModel {
   }
 
   // Update listing
-  async update(id: string, data: Partial<CreateListingRequest>): Promise<Listing | null> {
+  async update(id: string, data: Partial<CreateListingRequest> & { status?: string; description?: string }): Promise<Listing | null> {
     const updateData: any = {};
     
     if (data.title !== undefined) updateData.title = data.title;
@@ -104,6 +104,8 @@ export class ListingModel {
     if (data.bathrooms !== undefined) updateData.bathrooms = data.bathrooms;
     if (data.propertyType !== undefined) updateData.propertyType = data.propertyType;
     if (data.additionalInfo !== undefined) updateData.additionalInfo = data.additionalInfo;
+    else if (data.description !== undefined) updateData.additionalInfo = data.description;
+    if (data.status !== undefined) updateData.status = data.status;
 
     const [updated] = await db
       .update(listings)

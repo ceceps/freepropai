@@ -120,10 +120,13 @@ export const getScrapingJob = async (req: Request, res: Response) => {
     // Calculate progress if job is running
     let progress = null;
     if (job.status === 'running') {
+      const currentPage = (job as any).currentPage || 0;
+      const totalPages = (job as any).totalPages || 5;
+      const percentage = totalPages > 0 ? Math.round((currentPage / totalPages) * 100) : 0;
       progress = {
-        currentPage: 0, // This would need to be tracked in real implementation
-        totalPages: 5,
-        percentage: 50,
+        currentPage,
+        totalPages,
+        percentage,
       };
     }
 

@@ -10,6 +10,36 @@ import videoScriptGenerator from '../services/videoScriptGenerator.service';
 import { listingAnalysisService } from '../services/listingAnalysis.service';
 import type { CreateListingRequest, ApiResponse, PaginatedResponse } from '../types';
 
+function cleanLocation(location: string, title: string): string {
+  if (!location) return 'Bandung';
+  if (location.trim().toLowerCase() === title.trim().toLowerCase() || location.length > 80) {
+    const knownAreas = [
+      'Parongpong', 'Padalarang', 'Ciganitri', 'Kopo', 'Ciwastra', 'Lembang',
+      'Sarijadi', 'Sariwangi', 'Pasteur', 'Gegerkalong', 'Gerlong', 'Setiabudi',
+      'Cilame', 'Sindanglaya', 'Cihanjuang', 'Kota Baru Parahyangan', 'Buahbatu',
+      'Cimahi', 'Margahayu', 'Bandung Utara', 'Bandung Barat', 'Bandung Timur',
+      'Bandung Selatan', 'Bandung Tengah', 'Karawang', 'Bekasi', 'Purwakarta'
+    ];
+    for (const area of knownAreas) {
+      if (new RegExp(`\\b${area}\\b`, 'i').test(location)) {
+        return area;
+      }
+    }
+    let cleaned = location
+      .replace(/^(Dijual|Di Jual|Jual)\s+/i, '')
+      .replace(/^Rumah\s+[^di]*\s+di\s+/i, '')
+      .replace(/^Rumah\s+/i, '');
+    if (cleaned.length > 50) {
+      const diMatch = cleaned.match(/\bdi\s+([A-Za-z0-9\s]+)/i);
+      if (diMatch && diMatch[1]) {
+        return diMatch[1].trim().slice(0, 50);
+      }
+    }
+    return cleaned.slice(0, 50).trim() || 'Bandung';
+  }
+  return location;
+}
+
 class ListingController {
   /**
    * Create a new listing
@@ -93,35 +123,46 @@ class ListingController {
 
   /**
    * Get all listings
-   * GET /api/listings?status=draft
+   * GET /api/listings?status=draft&limit=20&offset=0
    */
   getListings = asyncHandler(async (req: Request, res: Response) => {
-    const { status, q } = req.query;
+    const { status, q, limit = '20', offset = '0' } = req.query;
+    const limitNum = Math.min(Math.max(parseInt(String(limit), 10) || 20, 1), 100);
+    const offsetNum = Math.max(parseInt(String(offset), 10) || 0, 0);
 
     // If query param q is present, use search mode
-    if (q !== undefined) {
+    if (q !== undefined && q !== '') {
       const results = await ListingModel.search(q ? String(q) : undefined);
-      const response: ApiResponse = {
+      const totalCount = results.length;
+      const paginatedResults = results.slice(offsetNum, offsetNum + limitNum);
+      const response = {
         success: true,
-        data: results.map(listing => ({
+        data: paginatedResults.map(listing => ({
           id: listing.id,
           title: listing.title,
-          location: listing.location,
+          location: cleanLocation(listing.location, listing.title),
           price: listing.price,
           bedrooms: listing.bedrooms,
           bathrooms: listing.bathrooms,
           property_type: listing.property_type,
         })),
+        meta: {
+          total: totalCount,
+          limit: limitNum,
+          offset: offsetNum,
+        },
       };
       return res.json(response);
     }
 
     const filters = status ? { status: status as string } : undefined;
     const listings = await ListingModel.findAll(filters);
+    const totalCount = listings.length;
+    const paginatedListings = listings.slice(offsetNum, offsetNum + limitNum);
 
     // Get photo count for each listing
     const listingsWithMeta = await Promise.all(
-      listings.map(async (listing) => {
+      paginatedListings.map(async (listing) => {
         const photos = await ListingModel.getPhotos(listing.id);
         const descriptions = await ListingModel.getDescriptions(listing.id);
 
@@ -141,25 +182,35 @@ class ListingController {
           }
         }
 
+        const hasGenerated = descriptions.length > 0;
+        const hasAdditional = Boolean(listing.additional_info && listing.additional_info.trim());
+
         return {
           id: listing.id,
           title: listing.title,
-          location: listing.location,
+          location: cleanLocation(listing.location, listing.title),
           price: listing.price,
           bedrooms: listing.bedrooms,
           bathrooms: listing.bathrooms,
           status: listing.status,
           photoCount: photos.length,
-          hasDescriptions: descriptions.length > 0,
+          hasDescriptions: hasGenerated || hasAdditional,
+          hasGeneratedDescriptions: hasGenerated,
+          hasAdditionalInfo: hasAdditional,
           created_at: listing.created_at,
           thumbnailUrl,
         };
       })
     );
 
-    const response: PaginatedResponse<typeof listingsWithMeta[0]> = {
+    const response = {
       success: true,
       data: listingsWithMeta,
+      meta: {
+        total: totalCount,
+        limit: limitNum,
+        offset: offsetNum,
+      },
     };
 
     res.json(response);
