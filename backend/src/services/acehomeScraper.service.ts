@@ -302,128 +302,29 @@ export class AcehomeScraperService {
     const parts: string[] = [];
     const SECTION_STOP = /^(lokasi|harga|detail|share)$/i;
 
-    const walk = ($node: cheerio.Cheerio<any>): boolean => {
-      const tag = (($node.prop('tagName') as string) || '').toLowerCase();
-      if (tag === 'strong') {
-        const label = $node.text().trim();
-        if (SECTION_STOP.test(label)) return true;
-      }
+    let $start = $label.next();
+    if (!$start.length) $start = $label.parent().next();
+
+    for (let $sib = $start; $sib.length > 0; $sib = $sib.next()) {
+      const tag = (($sib.prop('tagName') as string) || '').toLowerCase();
+      if (!tag || tag === 'br') continue;
+
+      const heading = $sib.is('strong')
+        ? $sib.text().trim()
+        : $sib.children('strong').first().text().trim();
+      if (heading && SECTION_STOP.test(heading)) break;
 
       if (tag === 'ul' || tag === 'ol') {
-        $node.children('li').each((_, li) => {
-          const t = $node.constructor
-            ? cheerio.load('<div></div>')('div').text()
-            : '';
-          void t;
-          const item = $node.find.bind ? undefined : undefined;
-          void item;
-        });
-      }
-      return false;
-    };
-    void walk;
-
-    let $cursor = $label.get(0) ? $label.nextAll() : $label.nextAll();
-    $cursor.each((_, node) => {
-      const $n = $label.constructor ? $label : $label;
-      void $n;
-      void node;
-    });
-
-    $label.nextAll().each((_, node) => {
-      const $n = cheerio.load('')(node as any);
-      void $n;
-    });
-
-    const $ = $label as unknown as cheerio.CheerioAPI;
-    void $;
-
-    const root = $label.parent().parent ? $label.parent() : $label.parent();
-    void root;
-
-    $label.nextAll().each((_, el) => {
-      const $el = ($label as any).constructor === Function ? $label : ($label as any);
-      void $el;
-      void el;
-    });
-
-    // Cheerio element walking using the same loaded document via $label's siblings.
-    for (let sib = $label.next(); sib && sib.length; sib = sib.next()) {
-      const tag = ((sib.prop('tagName') as string) || '').toLowerCase();
-      if (tag === 'br') continue;
-
-      const nestedSection = sib.find('strong').filter((_, s) => {
-        return SECTION_STOP.test(sib.constructor ? String((sib as any).find) : '') ||
-          SECTION_STOP.test(cheerio.load('<x></x>')('x').text());
-      });
-      void nestedSection;
-
-      const strongs = sib.find('strong').add(sib.filter('strong'));
-      let stop = false;
-      strongs.each((__, sEl) => {
-        const txt = $label.not ? sib.find('strong').first().text() : '';
-        void txt;
-        void sEl;
-      });
-      void stop;
-      void tag;
-    }
-
-    const collectFrom = (node: any): boolean => {
-      if (!node) return false;
-      if (node.type === 'text') {
-        const t = String(node.data || '').replace(/\s+/g, ' ').trim();
-        if (t) parts.push(t);
-        return false;
-      }
-      if (node.type !== 'tag') return false;
-      const name = String(node.name || '').toLowerCase();
-      if (name === 'br') {
-        return false;
-      }
-      if (name === 'strong') {
-        const label = cheerio.load(node)('strong').text().trim() ||
-          (node.children || []).map((c: any) => (c.type === 'text' ? c.data : '')).join('').trim();
-        if (SECTION_STOP.test(label)) return true;
-      }
-      if (name === 'li') {
-        const text = cheerio.load(node).root().text().trim();
-        if (text) parts.push(`- ${text}`);
-        return false;
-      }
-      if (name === 'ul' || name === 'ol') {
-        const $list = cheerio.load(node);
-        $list('li').each((__, li) => {
-          const text = $list(li).text().replace(/\s+/g, ' ').trim();
+        const items = $sib.children('li');
+        for (let i = 0; i < items.length; i++) {
+          const text = items.eq(i).text().replace(/\s+/g, ' ').trim();
           if (text) parts.push(`- ${text}`);
-        });
-        return false;
-      }
-      if (name === 'p' || name === 'div' || name === 'h1' || name === 'h2' || name === 'h3' || name === 'h4' || name === 'h5' || name === 'h6') {
-        const $p = cheerio.load(node);
-        const innerStrong = $p('strong').first();
-        if (innerStrong.length && SECTION_STOP.test(innerStrong.text().trim()) && $p('strong').length === 1 && innerStrong.parent().is('p, div')) {
-          return true;
         }
-        if (name === 'p' || name === 'h4' || name === 'h5' || name === 'h6') {
-          const text = $p.root().text().replace(/\s+/g, ' ').trim();
-          if (text) parts.push(text);
-          return false;
-        }
+        continue;
       }
-      if (node.children) {
-        for (const child of node.children) {
-          if (collectFrom(child)) return true;
-        }
-      }
-      return false;
-    };
 
-    let sibling = $label.get(0)?.nextSibling as any;
-    // If the label is wrapped, also walk following siblings of the strong node.
-    while (sibling) {
-      if (collectFrom(sibling)) break;
-      sibling = sibling.nextSibling;
+      const text = $sib.text().replace(/\s+/g, ' ').trim();
+      if (text) parts.push(text);
     }
 
     return parts.join('\n').replace(/\n{3,}/g, '\n\n').trim();

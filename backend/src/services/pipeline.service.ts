@@ -17,6 +17,7 @@ import {
   type Platform,
 } from './calendarContentGenerator.service';
 import { db, listings, listingPhotos } from '../db';
+import { AcehomeScraperService } from './acehomeScraper.service';
 
 export interface Pagination {
   limit?: number;
@@ -131,6 +132,16 @@ async function resolveImportedListings(
     }
   }
   return imported;
+}
+
+const acehomeScraper = new AcehomeScraperService();
+
+function isTruncatedPipelineDescription(description: string | null, title: string | null): boolean {
+  const text = (description || '').trim();
+  if (!text) return true;
+  if (text.includes('\n')) return false;
+  if (title && (text === title || text.startsWith(title))) return true;
+  return text.length < 160;
 }
 
 function withImportStatus<T extends { sourceUrl: string | null }>(
@@ -305,6 +316,26 @@ export class PipelineService {
 
     if (!listing) return null;
 
+    let description = listing.description;
+    if (
+      listing.sourceUrl?.includes('acehome.co.id') &&
+      isTruncatedPipelineDescription(description, listing.title)
+    ) {
+      try {
+        const fresh = await acehomeScraper.scrapeListingDetail(listing.sourceUrl);
+        if (fresh?.description && fresh.description.trim().length > (description || '').trim().length) {
+          description = fresh.description.trim();
+          const wdb = getPipelineWriteDb();
+          await wdb
+            .update(pipelineListings)
+            .set({ description, updatedAt: new Date() })
+            .where(eq(pipelineListings.id, id));
+        }
+      } catch (error) {
+        console.warn('[pipeline] failed to refresh truncated Acehome description:', error);
+      }
+    }
+
     const [analysisRows, promoRows, calendarRows] = await Promise.all([
       db.select().from(analisaListing).where(eq(analisaListing.listingId, id)).limit(1),
       db
@@ -322,7 +353,7 @@ export class PipelineService {
     const imported = await resolveImportedListings([listing.sourceUrl]);
 
     return {
-      ...withImportStatus(listing, imported),
+      ...withImportStatus({ ...listing, description }, imported),
       analysis: analysisRows[0] ?? null,
       promoContent: promoRows.map((row) => ({
         ...row,

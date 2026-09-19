@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { pipelineApi } from '../../services/api';
 import ZoomableImage from '../common/ZoomableImage';
-import MarkdownRenderer from '../common/MarkdownRenderer';
+import PipelineListingAnalysis from './PipelineListingAnalysis';
 import { formatCompactIDR, formatDateTime } from '../../utils/format';
 import type { PipelineListingDetail } from '../../types';
 
@@ -286,27 +286,13 @@ export default function ScrapedListingDetail({ listingId, onClose, onImported }:
             )}
 
             {detail.analysis && (
-              <div className="space-y-3">
-                <h4 className="text-sm font-semibold text-text-primary">AI Listing Analysis</h4>
-                {detail.analysis.buyerPersona && (
-                  <div className="card p-4">
-                    <p className="text-xs font-semibold text-text-tertiary uppercase mb-1">Buyer Persona</p>
-                    <MarkdownRenderer content={detail.analysis.buyerPersona} className="text-sm text-text-secondary" />
-                  </div>
-                )}
-                {detail.analysis.sellingPoints && (
-                  <div className="card p-4">
-                    <p className="text-xs font-semibold text-text-tertiary uppercase mb-1">Selling Points</p>
-                    <MarkdownRenderer content={detail.analysis.sellingPoints} className="text-sm text-text-secondary" />
-                  </div>
-                )}
-                {detail.analysis.fullAnalysisMarkdown && (
-                  <div className="card p-4">
-                    <p className="text-xs font-semibold text-text-tertiary uppercase mb-1">Full Analysis</p>
-                    <MarkdownRenderer content={detail.analysis.fullAnalysisMarkdown} className="text-sm text-text-secondary" />
-                  </div>
-                )}
-              </div>
+              <PipelineListingAnalysis
+                analysis={{
+                  ...detail.analysis,
+                  listingTitle: detail.analysis.listingTitle || detail.title,
+                  listingPrice: detail.analysis.listingPrice ?? detail.price,
+                }}
+              />
             )}
 
             {/* ── AI Calendar Generator ── */}
