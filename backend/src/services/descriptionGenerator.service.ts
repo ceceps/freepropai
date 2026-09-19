@@ -193,40 +193,68 @@ class DescriptionGeneratorService {
     }
   }
 
+  private getPropertyTypeLabel(type?: string): string {
+    if (!type) return 'Properti';
+    const lower = type.toLowerCase().trim();
+    if (lower === 'house') return 'Rumah';
+    if (lower === 'apartment') return 'Apartemen';
+    if (lower === 'land') return 'Tanah';
+    if (lower === 'shophouse' || lower === 'ruko') return 'Ruko';
+    if (lower === 'villa') return 'Villa';
+    return type.charAt(0).toUpperCase() + type.slice(1);
+  }
+
+  private formatCompactPrice(price: number): string {
+    if (price >= 1_000_000_000) {
+      const b = price / 1_000_000_000;
+      const str = b % 1 === 0 ? b.toString() : b.toFixed(2).replace(/\.?0+$/, '').replace('.', ',');
+      return `Rp${str} Miliar`;
+    }
+    const m = price / 1_000_000;
+    const str = m % 1 === 0 ? m.toString() : m.toFixed(2).replace(/\.?0+$/, '').replace('.', ',');
+    return `Rp${str} Juta`;
+  }
+
   /**
-   * Build system prompt for LLM - viral content strategist persona:
-   * - formal   -> viral listing-portal copy strictly Hook -> Problem -> Solution -> CTA
-   * - casual_1 -> shareable Instagram feed post (PAS + Indo humor/kedekatan)
-   * - casual_2 -> punchy Instagram story / WhatsApp status (max virality)
+   * Build system prompt for LLM - Copywriter properti Bandung Raya persona
    */
   private buildSystemPrompt(listing: Listing): string {
-    const dpAmount = Math.round(listing.price * 0.1);
-    const dpFormatted = this.formatPrice(dpAmount);
-    const priceFormatted = this.formatPrice(listing.price);
+    const compactPrice = this.formatCompactPrice(listing.price);
 
-    return `Bertindaklah sebagai viral content strategist yang sudah membantu banyak brand di industri properti/real estate di Indonesia dapatkan jutaan views dan share organik. Tugas kamu adalah bikin ide konten viral untuk penjualan rumah berdasarkan listing ID: ${listing.id}, yang cocok untuk audience yang memiliki penghasilan cukup untuk DP 10% dari harga properti (DP sekitar Rp ${dpFormatted} dari harga Rp ${priceFormatted}). Gunakan gaya tone, dan optimalkan emosi, kedekatan, humor khas Indo, dan faktor 'shareable'-nya.
+    return `Kamu adalah copywriter properti untuk agen real estate di Bandung Raya (Bandung, Cimahi, Bandung Barat, Depok).
 
-Buat 3 variasi konten dalam Bahasa Indonesia yang natural dan viral:
+TUGAS:
+Ubah data mentah listing menjadi 3 variasi deskripsi iklan yang rapi dan siap posting.
 
-Return ONLY valid JSON format (no markdown, no explanation):
+Return ONLY valid JSON format (no markdown code fence, no explanation):
 {
-  "formal": "Deskripsi listing portal profesional (OLX, Rumah123, dll). WAJIB mengikuti urutan 4 bagian yang jelas: (1) Hook: kalimat pembuka yang memancing perhatian seperti fakta unik atau scarcity. JANGAN sebut harga di Hook. (2) Problem: nyatakan masalah yang dirasakan pencari rumah. (3) Solution: presentasikan properti ini sebagai solusi, sertakan spesifikasi dan legalitas. (4) CTA: ajakan bertindak yang jelas. Sebutkan harga HANYA SEKALI di bagian Solution. Tone: profesional dan meyakinkan. Tidak menggunakan emoji.",
-  "casual_1": "Konten Instagram feed yang super shareable. Pakai framework PAS (Problem -> Agitate -> Solution -> CTA) dengan bumbu humor khas Indo. JANGAN PERNAH gunakan kalimat pembuka klise seperti 'Capek cari rumah...'. Bikin kalimat pembuka Hook yang bervariasi, unik, dan kontekstual sesuai dengan properti ini. Sebutkan harga HANYA SEKALI. 2-3 emoji yang relevan.",
-  "casual_2": "Instagram Story / WhatsApp Status super singkat dan punchy. Sebutkan harga HANYA SEKALI. 3-5 emoji yang pas."
+  "formal": "Deskripsi formal sesuai FORMAT OUTPUT KETAT di bawah.",
+  "casual_1": "Konten Instagram feed shareable (Problem -> Agitate -> Solution -> CTA) dengan humor/kedekatan khas Indo. Sebutkan harga HANYA SEKALI. 2-3 emoji.",
+  "casual_2": "Instagram Story / WhatsApp Status super singkat dan punchy. Sebutkan harga HANYA SEKALI. 3-5 emoji."
 }
 
-Data listing yang WAJIB dipakai (jangan karang-karang fakta di luar data ini):
-- Listing ID: ${listing.id}
-- Target audience: mereka yang punya penghasilan cukup untuk DP 10% (sekitar Rp ${dpFormatted})
+ATURAN KETAT UNTUK VARIANT 'formal':
+1. Gunakan HANYA fakta yang ada di data. Jangan menambah fasilitas, jarak, atau klaim yang tidak tertulis (misalnya 'banjir bebas', 'investasi menguntungkan').
+2. Jika data tidak ada, lewati barisnya. Jangan menebak.
+3. Pertahankan istilah asli dari data (misalnya 'SHM on hand', 'sibel komplek'), jangan diubah artinya.
+4. Ubah harga jadi format singkat (contoh: 575000000 -> 'Rp575 Juta', 1800000000 -> 'Rp1,8 Miliar'). Harga properti ini: ${compactPrice}.
+5. Bahasa Indonesia, nada ramah dan profesional, tanpa emoji, tanpa kata berlebihan seperti 'termurah' atau 'dijamin'.
+6. Bagian pembuka maksimal 2 kalimat. Sebut kedekatan utama (sekolah, tol, pusat belanja) dan siapa yang cocok membeli (misalnya keluarga muda), hanya jika didukung data.
+7. Jika ada keterbatasan yang relevan bagi pembeli (misalnya akses 1 mobil), tulis apa adanya di baris 'Catatan' secara netral.
 
-ATURAN KETAT - pelanggaran akan menghasilkan deskripsi yang buruk:
-- HARGA SEKALI SAJA: Harga properti WAJIB disebutkan HANYA SEKALI di seluruh deskripsi, yaitu di bagian Solution/Solusi. JANGAN menyebut harga di Hook, di Problem, atau di CTA.
-- NO DUPLICATE: JANGAN mengulang kalimat, paragraf, atau informasi yang sudah disebutkan. Setiap kalimat harus memberikan informasi BARU.
-- NATURAL: hasil akhir harus berupa paragraf yang mengalir. JANGAN mencantumkan label "[HOOK]", "[PROBLEM]" dll sebagai teks output.
-- FORMATING & SPASI: WAJIB gunakan spasi yang benar antar kata (contoh: "72 m²", "2 Kamar Tidur").
-- HOOK: kalimat pembuka yang stop-scroll tanpa menyebut harga.
-- CTA: satu langkah jelas dan urgent ("Hubungi agen kami", "DM untuk survey")
-- HINDARI klise: jangan pakai "jangan lewatkan kesempatan emas" atau "investasi terbaik"`;
+FORMAT OUTPUT 'formal' (WAJIB ikuti struktur persis ini):
+
+**[Jenis properti] di [Nama perumahan/area], [Kota/Kecamatan] – [Harga]**
+
+[Pembuka 1-2 kalimat]
+
+**Spesifikasi:** [KT, KM, LT, LB, lebar muka, listrik, air, legalitas, dipisah koma]
+
+**Akses terdekat:** [Tempat + waktu tempuh, urut dari yang terdekat]
+
+**Pembayaran:** [Metode]. **Survey:** [Aturan survey].
+
+**Catatan:** [Opsional, hanya jika ada keterbatasan]`;
   }
 
   /**
@@ -305,14 +333,25 @@ ATURAN KETAT - pelanggaran akan menghasilkan deskripsi yang buruk:
 
     const addInfo = listing.additional_info ? normalizeText(listing.additional_info) : '';
 
-    // Variant 1: FORMAL - dynamic Hook/Problem/Solution/CTA
-    const formal = `Unit terbatas di kawasan ${listing.location} — properti premium jarang muncul di pasaran ini, peluang seperti ini tidak datang dua kali.
+    const compactPrice = this.formatCompactPrice(listing.price);
+    const typeTitle = this.getPropertyTypeLabel(listing.property_type);
 
-Mencari ${typeStr} berkualitas di ${listing.location} dengan legalitas jelas dan lokasi strategis memang tantangan tersendiri. Harga properti terus melonjak setiap tahun, sementara pilihan yang benar-benar layak huni semakin terbatas. Banyak calon pembeli yang menunda keputusan akhirnya kehilangan unit terbaik.
+    const specsList: string[] = [];
+    if (listing.bedrooms) specsList.push(`${listing.bedrooms} KT`);
+    if (listing.bathrooms) specsList.push(`${listing.bathrooms} KM`);
+    if (listing.land_area) specsList.push(`LT ${listing.land_area} m²`);
+    if (listing.building_area) specsList.push(`LB ${listing.building_area} m²`);
 
-${titleStr} hadir menjawab kebutuhan tersebut dengan ${specSentence}. Properti ini dipasarkan dengan harga penawaran Rp ${priceFormatted} (${priceInMillionsOrBillions}, nego), siap huni dan memiliki legalitas terjamin.${addInfo ? `\n\nKeunggulan:\n${addInfo}` : ''}
-
-Segera hubungi agen kami untuk jadwal survey lokasi dan negosiasi harga — unit terbatas, siapa cepat dia dapat.`;
+    const formalLines: string[] = [];
+    formalLines.push(`**${typeTitle} di ${listing.location} – ${compactPrice}**\n`);
+    formalLines.push(`${titleStr}. Hunian nyaman di lokasi strategis ${listing.location}.\n`);
+    if (specsList.length > 0) {
+      formalLines.push(`**Spesifikasi:** ${specsList.join(', ')}`);
+    }
+    if (addInfo) {
+      formalLines.push(`\n${addInfo}`);
+    }
+    const formal = formalLines.join('\n');
 
     // Variant 2: CASUAL #1 - dynamic PAS, no template hooks
     const hooks = [
