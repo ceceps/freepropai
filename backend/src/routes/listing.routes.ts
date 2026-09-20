@@ -49,6 +49,13 @@ router.delete('/:id', listingController.deleteListing);
 router.post('/:id/generate-video-script', listingController.generateVideoScript);
 
 /**
+ * @route   POST /api/listings/:id/generate-storyboard
+ * @desc    Generate AI Storyboard Plan for a listing
+ * @access  Public
+ */
+router.post('/:id/generate-storyboard', listingController.generateStoryboard);
+
+/**
  * @route   POST /api/listings/:id/video-scripts
  * @desc    Save a generated video script
  * @access  Public

@@ -7,6 +7,7 @@ import { validatePhotoUploads } from '../middleware/upload';
 import ListingModel from '../models/Listing';
 import descriptionGenerator from '../services/descriptionGenerator.service';
 import videoScriptGenerator from '../services/videoScriptGenerator.service';
+import storyboardPlanner from '../services/storyboardPlanner.service';
 import { listingAnalysisService } from '../services/listingAnalysis.service';
 import type { CreateListingRequest, ApiResponse, PaginatedResponse } from '../types';
 
@@ -399,6 +400,36 @@ class ListingController {
         listingId: id,
         ...result,
       },
+    });
+  });
+
+  /**
+   * Generate AI Storyboard Plan for a listing
+   * POST /api/listings/:id/generate-storyboard
+   */
+  generateStoryboard = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    const listing = await ListingModel.findByIdWithDetails(id);
+    if (!listing) {
+      throw new AppError('Listing not found', 404);
+    }
+
+    const body = req.body || {};
+    const result = await storyboardPlanner.planStoryboard(listing, body);
+
+    if (result.error) {
+      res.status(400).json({
+        success: false,
+        error: result.error,
+        message: result.message,
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: result,
     });
   });
 
