@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Video, Mic, Sparkles, Copy, Check, Info, Braces, Save, Trash2, Edit3, Bookmark, Eye, RefreshCw, Film, AlertCircle, Layers, UserCheck } from 'lucide-react';
 import { listingApi } from '../../services/api';
+import ZoomableImage from '../common/ZoomableImage';
 import type {
   ListingWithDetails,
   VideoScriptOptions,
@@ -807,9 +808,25 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
                                   </td>
                                   <td className="py-3 px-3">
                                     <div className="space-y-1">
-                                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-grey-100 dark:bg-grey-800 text-text-secondary block w-max">
-                                        📷 {sc.photo_id || 'no_photo'}
-                                      </span>
+                                      {(() => {
+                                        const photo = listing.photos.find(p => p.id === sc.photo_id);
+                                        return photo ? (
+                                          <ZoomableImage
+                                            src={photo.photo_url}
+                                            alt={`Photo ${sc.photo_id}`}
+                                            className="w-28 h-20 rounded-lg border border-border overflow-hidden"
+                                            downloadName={`photo-${sc.photo_id}.jpg`}
+                                          />
+                                        ) : sc.photo_id ? (
+                                          <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 block w-max">
+                                            ⚠ {sc.photo_id}
+                                          </span>
+                                        ) : (
+                                          <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-grey-100 dark:bg-grey-800 text-text-tertiary block w-max">
+                                            no_photo
+                                          </span>
+                                        );
+                                      })()}
                                       {sc.crop_hint && (
                                         <span className="text-[10px] text-text-tertiary block">
                                           Crop: <strong className="font-semibold">{sc.crop_hint}</strong>
