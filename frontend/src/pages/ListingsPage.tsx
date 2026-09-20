@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin, Download, Check, Info, Video, RefreshCw, Target } from 'lucide-react';
+import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin, Download, Check, Info, Video, RefreshCw, Target, Film } from 'lucide-react';
 import { listingApi } from '../services/api';
 import ListingForm from '../components/listings/ListingForm';
 import DescriptionVariants from '../components/listings/DescriptionVariants';
 import VideoScriptGenerator from '../components/listings/VideoScriptGenerator';
+import StoryboardPlanner from '../components/listings/StoryboardPlanner';
 import ListingImage from '../components/listings/ListingImage';
 import ListingAnalysis from '../components/listings/ListingAnalysis';
 import ZoomableImage from '../components/common/ZoomableImage';
@@ -13,7 +14,7 @@ type View = 'list' | 'create' | 'detail' | 'edit';
 
 export default function ListingsPage() {
   const [view, setView] = useState<View>('list');
-  const [activeTab, setActiveTab] = useState<'info' | 'ai' | 'video' | 'analyze'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'ai' | 'video' | 'storyboard' | 'analyze'>('info');
   const [listings, setListings] = useState<ListingSummary[]>([]);
   const [selectedListing, setSelectedListing] = useState<ListingWithDetails | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -604,6 +605,16 @@ export default function ListingsPage() {
                 >
                   <Video className="w-4 h-4" /> Video Generator
                 </button>
+                <button
+                  onClick={() => setActiveTab('storyboard')}
+                  className={`flex flex-shrink-0 items-center gap-2 px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                    activeTab === 'storyboard'
+                      ? 'bg-primary-100 text-text-primary dark:bg-primary-600 dark:text-white shadow-sm'
+                      : 'text-text-secondary hover:bg-grey-50 dark:hover:bg-grey-800/50'
+                  }`}
+                >
+                  <Film className="w-4 h-4" /> Storyboard Planner
+                </button>
               </nav>
             </div>
 
@@ -706,6 +717,10 @@ export default function ListingsPage() {
 
                {activeTab === 'video' && (
                 <VideoScriptGenerator listing={selectedListing} />
+              )}
+
+               {activeTab === 'storyboard' && (
+                <StoryboardPlanner listing={selectedListing} />
               )}
             </div>
           </div>

@@ -24,6 +24,8 @@ import type {
   VideoScriptOptions,
   VideoScriptResult,
   VideoScriptRecord,
+  StoryboardFormOptions,
+  StoryboardPlannerResult,
   DashboardStats,
   ListingAnalysis,
   PipelineOverview,
@@ -225,6 +227,15 @@ export const listingApi = {
   async generateVideoScript(id: string, options?: VideoScriptOptions): Promise<ApiResponse<VideoScriptResult>> {
     const response = await api.post<ApiResponse<VideoScriptResult>>(
       `/listings/${id}/generate-video-script`,
+      options || {}
+    );
+    return response.data;
+  },
+
+  // Generate Storyboard Plan
+  async generateStoryboard(id: string, options?: StoryboardFormOptions): Promise<ApiResponse<StoryboardPlannerResult>> {
+    const response = await api.post<ApiResponse<StoryboardPlannerResult>>(
+      `/listings/${id}/generate-storyboard`,
       options || {}
     );
     return response.data;

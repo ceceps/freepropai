@@ -179,6 +179,62 @@ export interface VideoScriptResult {
   scriptJson: VideoScriptJson;
 }
 
+export interface StoryboardFormOptions {
+  video_style?: string;
+  ai_video_model?: string;
+  aspect_ratio?: string;
+  resolution?: string;
+  voice_over?: boolean;
+  gender?: string;
+  language?: string;
+  age_range?: string;
+  model_reference_available?: boolean;
+  video_json?: any;
+}
+
+export interface StoryboardSceneOutput {
+  scene_no: number;
+  photo_id: string | null;
+  crop_hint: 'wide' | 'close-up' | 'left' | 'right' | 'top-down' | null;
+  needs_aerial_simulation: boolean;
+  model_present: boolean;
+  model_action: string | null;
+  model_position: string | null;
+  vo_text: string | null;
+  overlay_text: string | null;
+  camera_motion: string;
+  duration_sec: number;
+  visual_note: string;
+  frame_prompt: string;
+  warning: string | null;
+}
+
+export interface StoryboardSheetOutput {
+  sheet_no: number;
+  scenes: StoryboardSceneOutput[];
+}
+
+export interface StoryboardPlannerResult {
+  meta: {
+    listing_title: string;
+    location: string;
+    video_style: string;
+    aspect_ratio: string;
+    resolution: string;
+    voice_over: boolean;
+    gender: string;
+    age_range: string;
+    language: string;
+    total_duration_sec: number;
+    total_scenes: number;
+    columns: string[];
+  };
+  sheets: StoryboardSheetOutput[];
+  warnings: string[];
+  error?: string;
+  message?: string;
+}
+
 export interface CreateListingData {
   title: string;
   landArea?: number;
