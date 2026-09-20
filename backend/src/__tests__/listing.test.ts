@@ -425,7 +425,19 @@ describe('Listing API Endpoints', () => {
 
       const formal = variants.find(v => v.variant_type === 'formal');
       expect(formal?.description_text).toContain('BSD City');
-      expect(formal?.description_text).toContain('hubungi agen kami');
+      // Formal is the portal format (title, spesifikasi, pembayaran/survey) and
+      // carries no CTA by design — the CTA lives in the casual variants.
+      expect(formal?.description_text).toContain('Spesifikasi:');
+      expect(formal?.description_text).toContain('Pembayaran:');
+      expect(formal?.description_text).not.toMatch(/hubungi agen kami/i);
+
+      const casual1 = variants.find(v => v.variant_type === 'casual_1');
+      expect(casual1?.description_text).toContain('BSD City');
+      expect(casual1?.description_text).toMatch(/hubungi kami/i);
+
+      const casual2 = variants.find(v => v.variant_type === 'casual_2');
+      expect(casual2?.description_text).toContain('BSD City');
+      expect(casual2?.description_text).toMatch(/hubungi kami/i);
       vi.restoreAllMocks();
     });
   });

@@ -232,6 +232,31 @@ describe('AcehomeScraperService', () => {
 
       axiosMock.mockRestore();
     });
+
+    it('walks from the wrapping parent when Deskripsi has no next sibling', async () => {
+      const html = `
+<!DOCTYPE html><html><body>
+  <h4>Rumah Test Wrap</h4>
+  <h6>ACBBR0001</h6>
+  <div class="col-md-12">
+    <p><strong>Deskripsi</strong></p>
+    <p>Paragraf pertama listing.</p>
+    <ul><li>Poin A</li><li>Poin B</li></ul>
+    <p><strong>Lokasi</strong><br>Dago</p>
+  </div>
+</body></html>`;
+      const axiosMock = vi.spyOn(axios, 'get').mockResolvedValue({ data: html });
+
+      const result = await service.scrapeListingDetail('https://www.acehome.co.id/project/detail/wrap?reg=BBR&kat=rumah');
+
+      expect(result!.description).toContain('Paragraf pertama listing.');
+      expect(result!.description).toContain('- Poin A');
+      expect(result!.description).toContain('- Poin B');
+      expect(result!.description).not.toContain('Dago');
+      expect(result!.location).toBe('Dago');
+
+      axiosMock.mockRestore();
+    });
   });
 
   describe('Lokasi parsing (exact label, not description sentences)', () => {
