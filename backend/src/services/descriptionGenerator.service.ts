@@ -264,42 +264,79 @@ FORMAT OUTPUT 'formal' (WAJIB ikuti struktur persis ini):
    * Build user prompt with listing details
    */
   private buildUserPrompt(listing: Listing): string {
-    const dpAmount = Math.round(listing.price * 0.1);
-    const dpFormatted = this.formatPrice(dpAmount);
     const priceFormatted = this.formatPrice(listing.price);
-    const parts: string[] = [];
+    const compactPrice = this.formatCompactPrice(listing.price);
+    const kontakWa = (listing as any).agentPhone || (listing as any).agent_phone || 'Hubungi Agen';
+    const linkListing = listing.source_url || '-';
 
-    parts.push(`Buatkan konten viral untuk listing properti berikut:`);
-    parts.push(`Listing ID: ${listing.id}`);
-    parts.push(`Judul: ${normalizeText(listing.title || 'Properti')}`);
-    parts.push(`Tipe Properti: ${listing.property_type || 'Properti'}`);
-    parts.push(`Lokasi: ${listing.location}`);
+    return `Buat 3 deskripsi dari data listing berikut, dengan struktur berbeda.
 
-    if (listing.land_area) {
-      parts.push(`Luas Tanah: ${listing.land_area} m²`);
-    }
+=== DATA LISTING ===
+Judul: ${normalizeText(listing.title || 'Properti')}
+Harga: Rp ${priceFormatted} (${compactPrice})
+Kamar tidur: ${listing.bedrooms ?? '-'}
+Kamar mandi: ${listing.bathrooms ?? '-'}
+Luas tanah: ${listing.land_area ? `${listing.land_area} m²` : '-'}
+Luas bangunan: ${listing.building_area ? `${listing.building_area} m²` : '-'}
+Info tambahan: ${listing.additional_info ? normalizeText(listing.additional_info) : '-'}
+Kontak: ${kontakWa}
+Link: ${linkListing}
 
-    if (listing.building_area) {
-      parts.push(`Luas Bangunan: ${listing.building_area} m²`);
-    }
+=== OUTPUT ===
+Tulis persis dengan penanda di bawah (atau sebagai nilai key JSON: formal, casual_1, casual_2).
 
-    if (listing.bedrooms) {
-      parts.push(`Kamar Tidur: ${listing.bedrooms}`);
-    }
+[[FORMAL]]
+Nada: ramah dan profesional, tanpa emoji. Untuk portal dan website.
+Format:
+**[Jenis properti] di [Nama perumahan/area], [Kota/Kecamatan] – [Harga]**
 
-    if (listing.bathrooms) {
-      parts.push(`Kamar Mandi: ${listing.bathrooms}`);
-    }
+[Pembuka 1-2 kalimat: kedekatan utama dan siapa yang cocok membeli, hanya jika didukung data]
 
-    parts.push(`Harga: Rp ${priceFormatted}`);
-    parts.push(`Target DP (10%): Rp ${dpFormatted}`);
-    parts.push(`Target Audience: calon pembeli dengan penghasilan cukup untuk DP Rp ${dpFormatted}`);
+**Spesifikasi:** [KT, KM, LT, LB, lebar muka, listrik, air, legalitas, dipisah koma]
 
-    if (listing.additional_info) {
-      parts.push(`Info Tambahan / Keunggulan Properti:\n${normalizeText(listing.additional_info)}`);
-    }
+**Akses terdekat:** [Tempat + waktu tempuh]
 
-    return parts.join('\n');
+**Pembayaran:** [Metode]. **Survey:** [Aturan survey].
+
+**Catatan:** [Opsional, keterbatasan relevan]
+[[/FORMAL]]
+
+[[PAS]]
+Nada: hangat dan percaya diri. Emoji maksimal 3, hanya di bagian Solution. Untuk Instagram, Facebook, WhatsApp broadcast.
+Struktur Problem, Agitate, Solution:
+- Pilih SATU masalah pembeli yang paling cocok dengan keunggulan terkuat listing. Jangan menumpuk masalah.
+- Problem dan Agitate boleh bersifat umum, tapi tidak boleh berisi klaim faktual palsu tentang pasar, kompetitor, atau properti lain.
+Format:
+[Hook satu baris berupa pertanyaan atau pernyataan tentang masalah]
+
+[Problem + Agitate, 3-4 kalimat berisi situasi sehari-hari]
+
+[Kalimat transisi ke solusi, satu baris]
+
+**[Jenis properti] di [Perumahan/Area] – [Harga]**
+- Spesifikasi: [KT, KM, LT, LB, lebar muka, listrik, air, legalitas]
+- Akses terdekat: [Tempat + waktu tempuh]
+- Pembayaran: [Metode]
+
+**Survey:** [Aturan survey]. [CTA satu kalimat ajak chat untuk survey]
+
+**Catatan:** [Opsional]
+[[/PAS]]
+
+[[SHORT]]
+Nada: santai tapi sopan. Untuk caption Instagram, mengajak klik dan menghubungi. Batas: maksimal 600 karakter tidak termasuk hashtag, emoji maksimal 4 sebagai penanda baris. Hook maksimal 100 karakter dan wajib memuat harga atau area. Pilih 3-4 fakta terkuat saja.
+Format:
+[Hook]
+
+[Emoji] [Harga] | [KT] KT, [KM] KM | LT [x] m² / LB [x] m²
+[Emoji] [Akses terdekat 1 + waktu]
+[Emoji] [Akses terdekat 2 + waktu]
+[Emoji] [Legalitas + cara bayar]
+
+[CTA 1-2 kalimat: ajak klik link di bio untuk foto dan detail lengkap, DAN chat/DM/WhatsApp untuk jadwalkan survey. Sebut aturan survey jika ada. Keterbatasan relevan cukup disebut singkat di sini.]
+
+[5-8 hashtag: 2 area, 2 jenis/segmen properti, 2 umum]
+[[/SHORT]]`;
   }
 
   /**
