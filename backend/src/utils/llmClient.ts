@@ -43,18 +43,23 @@ class LLMClient {
         })),
       });
 
-      if (!response.content || !Array.isArray(response.content) || response.content.length === 0) {
-        console.error('[LLM] Empty or malformed response content:', JSON.stringify(response).slice(0, 500));
-        throw new Error('No text response from Claude — empty content array');
+      let text = '';
+      if (Array.isArray(response.content) && response.content.length > 0) {
+        const textContent = response.content.find(block => block.type === 'text');
+        if (textContent && textContent.type === 'text') {
+          text = textContent.text;
+        }
+      } else if ((response as any).choices?.[0]?.message?.content) {
+        text = (response as any).choices[0].message.content;
       }
 
-      const textContent = response.content.find(block => block.type === 'text');
-      if (!textContent || textContent.type !== 'text') {
-        throw new Error('No text response from Claude');
+      if (!text) {
+        console.error('[LLM] Empty or malformed response content:', JSON.stringify(response).slice(0, 500));
+        throw new Error('No text response from LLM');
       }
 
       return {
-        content: textContent.text,
+        content: text,
         usage: {
           input_tokens: response.usage?.input_tokens ?? 0,
           output_tokens: response.usage?.output_tokens ?? 0,

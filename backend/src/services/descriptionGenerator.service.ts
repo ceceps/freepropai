@@ -171,7 +171,7 @@ class DescriptionGeneratorService {
         userPrompt,
         {
           temperature: 0.7,
-          maxTokens: 2000,
+          maxTokens: 3000,
         }
       );
 
