@@ -311,11 +311,9 @@ export class AcehomeScraperService {
 
       if (tag === 'ul' || tag === 'ol') {
         $node.children('li').each((_, li) => {
-          const t = $node.constructor
-            ? cheerio.load('<div></div>')('div').text()
-            : '';
+          const t = cheerio.load('<div></div>')('div').text();
           void t;
-          const item = $node.find.bind ? undefined : undefined;
+          const item = undefined;
           void item;
         });
       }
@@ -323,9 +321,9 @@ export class AcehomeScraperService {
     };
     void walk;
 
-    let $cursor = $label.get(0) ? $label.nextAll() : $label.nextAll();
+    let $cursor = $label.nextAll();
     $cursor.each((_, node) => {
-      const $n = $label.constructor ? $label : $label;
+      const $n = $label;
       void $n;
       void node;
     });
@@ -338,11 +336,11 @@ export class AcehomeScraperService {
     const $ = $label as unknown as cheerio.CheerioAPI;
     void $;
 
-    const root = $label.parent().parent ? $label.parent() : $label.parent();
+    const root = $label.parent();
     void root;
 
     $label.nextAll().each((_, el) => {
-      const $el = ($label as any).constructor === Function ? $label : ($label as any);
+      const $el = $label;
       void $el;
       void el;
     });
@@ -353,15 +351,14 @@ export class AcehomeScraperService {
       if (tag === 'br') continue;
 
       const nestedSection = sib.find('strong').filter((_, s) => {
-        return SECTION_STOP.test(sib.constructor ? String((sib as any).find) : '') ||
-          SECTION_STOP.test(cheerio.load('<x></x>')('x').text());
+        return SECTION_STOP.test(cheerio.load('<x></x>')('x').text());
       });
       void nestedSection;
 
       const strongs = sib.find('strong').add(sib.filter('strong'));
       let stop = false;
       strongs.each((__, sEl) => {
-        const txt = $label.not ? sib.find('strong').first().text() : '';
+        const txt = sib.find('strong').first().text();
         void txt;
         void sEl;
       });
