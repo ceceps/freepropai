@@ -30,17 +30,17 @@ describe('DescriptionGeneratorService Unit Tests', () => {
 
     // Check Formal variant rules
     expect(result.formal).toContain('Rumah di Ngamprah Bandung Barat');
-    expect(result.formal).toContain('Rp 975 Juta');
+    expect(result.formal).toContain('Rp975 Juta');
     expect(result.formal).toContain('Spesifikasi:');
     expect(result.formal).not.toMatch(/\p{Extended_Pictographic}/u); // No emojis in formal
 
     // Check Casual 1 (PAS) variant rules
     expect(result.casual_1).toContain('Ngamprah Bandung Barat');
-    expect(result.casual_1).toContain('Rp 975 Juta');
+    expect(result.casual_1).toContain('Rp975 Juta');
 
     // Check Casual 2 (SHORT) variant rules
     expect(result.casual_2).toContain('Ngamprah Bandung Barat');
-    expect(result.casual_2).toContain('Rp 975 Juta');
+    expect(result.casual_2).toContain('Rp975 Juta');
   });
 
   it('should correctly format compact price for millions and billions', () => {

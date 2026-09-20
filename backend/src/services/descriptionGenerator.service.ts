@@ -15,18 +15,16 @@ function normalizeText(text: string): string {
   return text
     // Insert space between lowercase letter and uppercase letter
     .replace(/([a-z])([A-Z])/g, '$1 $2')
-    // Insert space between letter and digit
+    // Insert space between letter and digit (avoiding decimal numbers like 72.00)
     .replace(/([a-zA-Z])(\d)/g, '$1 $2')
     // Insert space between digit and letter
     .replace(/(\d)([a-zA-Z])/g, '$1 $2')
-    // Insert space between ) and letter (e.g., "m²)Kamar" -> "m²) Kamar")
+    // Insert space between ) and letter
     .replace(/(\))([a-zA-Z])/g, '$1 $2')
-    // Insert space between letter and ( (e.g., "Kamar(Closet" -> "Kamar (Closet")
+    // Insert space between letter and (
     .replace(/([a-zA-Z])(\()/g, '$1 $2')
     // Insert space after : if followed by letter/number
     .replace(/(:)([a-zA-Z0-9])/g, '$1 $2')
-    // Insert space after . if followed by uppercase (end of sentence)
-    .replace(/(\.)([A-Z])/g, '$1 $2')
     // Fix multiple newlines
     .replace(/\n{3,}/g, '\n\n')
     // Fix multiple spaces
@@ -126,14 +124,8 @@ function postProcessDescription(text: string): string {
     .replace(/^\s*\*{0,2}(?:Hook|Problem|Agitate|Solution|CTA)\*{0,2}\s*:?\s*$/gim, '')
     .replace(/^\s*\{(?:HOOK|PROBLEM|AGITATE|SOLUTION|CTA)\}\s*:?\s*$/gim, '')
     .replace(/\{(?:HOOK|PROBLEM|AGITATE|SOLUTION|CTA)\}/gi, '')
-    // Fix concatenated words
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/([a-zA-Z])(\d)/g, '$1 $2')
-    .replace(/(\d)([a-zA-Z])/g, '$1 $2')
-    .replace(/(\.)([A-Z])/g, '$1 $2')
-    // Fix spacing around punctuation
-    .replace(/\s+([.,;:])/g, '$1')
-    .replace(/([.,;:])\s*/g, '$1 ')
+    // Fix markdown bold label trailing spaces, e.g. "**Spesifikasi: **" -> "**Spesifikasi:** "
+    .replace(/\*\*\s*([^*:]+):\s*\*\*\s*/g, '**$1:** ')
     // Fix multiple spaces/newlines
     .replace(/ {2,}/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
@@ -142,14 +134,6 @@ function postProcessDescription(text: string): string {
   cleaned = removeDuplicateParagraphs(cleaned);
   cleaned = removeDuplicatePrices(cleaned);
 
-  // Clean up orphaned labels and repetitive sections from raw scraped additional_info
-  cleaned = cleaned
-    .replace(/Keunggulan:\s*(?:Detail:|Luas)/gi, '\n\nDetail:')
-    .replace(/Detail:\s*\n\s*Detail:/gi, 'Detail:')
-    .replace(/Lokasi([a-z])/gi, 'Lokasi: $1')
-    .replace(/(Lokasi:\s*[^\n]+)\s*\n\s*Lokasi:\s*[^\n]+/gi, '$1')
-    .trim();
-  
   return cleaned;
 }
 
