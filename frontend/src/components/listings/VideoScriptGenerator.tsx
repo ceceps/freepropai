@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Video, Mic, Sparkles, Copy, Check, Info, Braces, Save, Trash2, Edit3, Bookmark, Eye, RefreshCw } from 'lucide-react';
+import { Video, Mic, Sparkles, Copy, Check, Info, Braces, Save, Trash2, Edit3, Bookmark, Eye, RefreshCw, Film, AlertCircle, Layers, UserCheck } from 'lucide-react';
 import { listingApi } from '../../services/api';
 import type {
   ListingWithDetails,
@@ -13,6 +13,9 @@ import type {
   VOLanguage,
   VOAgeRange,
   VoiceOverConfig,
+  StoryboardPlannerResult,
+  StoryboardSheetOutput,
+  StoryboardSceneOutput,
 } from '../../types';
 
 interface VideoScriptGeneratorProps {
@@ -28,28 +31,24 @@ const STYLE_OPTIONS: { value: VideoStyle; label: string; hint: string }[] = [
 
 const MODEL_OPTIONS: { value: VideoModel; label: string }[] = [
   { value: 'runway', label: 'Runway (Gen-3/4)' },
-  { value: 'veo', label: 'Google Veo 3 / Omni Flash' },
   { value: 'pika', label: 'Pika 2.0' },
-  { value: 'kling', label: 'Kling AI 2.0' },
-  { value: 'sora', label: 'Sora (OpenAI)' },
+  { value: 'veo', label: 'Google Veo 3 / Omni Flash' },
 ];
 
-const FORMAT_OPTIONS: { value: AspectRatio; label: string; resolution: string }[] = [
-  { value: '16:9', label: '16:9 Landscape', resolution: '1920x1080' },
-  { value: '9:16', label: '9:16 Portrait', resolution: '1080x1920' },
-  { value: '4:5', label: '4:5 Social', resolution: '1080x1350' },
+const ASPECT_OPTIONS: { value: AspectRatio; label: string; icon: string }[] = [
+  { value: '16:9', label: '16:9 Landscape', icon: '📺' },
+  { value: '9:16', label: '9:16 Vertical (Reels/TikTok)', icon: '📱' },
+  { value: '4:5', label: '4:5 Portrait Feed', icon: '🖼️' },
 ];
 
-type VOOption = 'tanpa' | 'custom';
-
-const VO_PRESET_OPTIONS: { value: VOOption; label: string }[] = [
-  { value: 'tanpa', label: 'Tanpa VO (Silent video)' },
-  { value: 'custom', label: 'Dengan Voice Over...' },
+const VO_OPTIONS: { value: VOOption; label: string }[] = [
+  { value: 'tanpa', label: 'Tanpa Voice Over (Visual & Music saja)' },
+  { value: 'custom', label: 'Voice Over Terpisah (Generate Script VO)' },
 ];
 
 const GENDER_OPTIONS: { value: VOGender; label: string }[] = [
-  { value: 'pria', label: 'Pria' },
   { value: 'wanita', label: 'Wanita' },
+  { value: 'pria', label: 'Pria' },
 ];
 
 const LANGUAGE_OPTIONS: { value: VOLanguage; label: string }[] = [
@@ -58,14 +57,14 @@ const LANGUAGE_OPTIONS: { value: VOLanguage; label: string }[] = [
 ];
 
 const AGE_RANGE_OPTIONS: { value: VOAgeRange; label: string }[] = [
-  { value: 'anak', label: 'Anak-anak' },
-  { value: 'remaja', label: 'Remaja (13-17 thn)' },
-  { value: 'dewasa_muda', label: 'Dewasa Muda (20-30 thn)' },
-  { value: 'dewasa', label: 'Dewasa (30-45 thn)' },
+  { value: 'dewasa_muda', label: 'Muda (20 - 30 thn)' },
+  { value: 'dewasa', label: 'Dewasa (30 - 45 thn)' },
   { value: 'senior', label: 'Senior (> 50 thn)' },
 ];
 
-type OutputFormat = 'prompt' | 'json';
+type VOOption = 'tanpa' | 'custom';
+
+type OutputFormat = 'prompt' | 'json' | 'storyboard';
 
 export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorProps) {
   const [style, setStyle] = useState<VideoStyle>('cinematic');
@@ -76,12 +75,18 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
   const [voLanguage, setVoLanguage] = useState<VOLanguage>('indonesia');
   const [voAgeRange, setVoAgeRange] = useState<VOAgeRange>('dewasa');
   const [customInstructions, setCustomInstructions] = useState('');
+  const [modelRefAvailable, setModelRefAvailable] = useState(false);
   
   const [result, setResult] = useState<VideoScriptResult | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState<'prompt' | 'voiceover' | 'json' | null>(null);
+  const [copied, setCopied] = useState<'prompt' | 'voiceover' | 'json' | 'storyboard' | null>(null);
   const [format, setFormat] = useState<OutputFormat>('prompt');
+
+  // Storyboard state
+  const [storyboardResult, setStoryboardResult] = useState<StoryboardPlannerResult | null>(null);
+  const [isGeneratingStoryboard, setIsGeneratingStoryboard] = useState(false);
+  const [storyboardError, setStoryboardError] = useState<string | null>(null);
 
   // Saved scripts state
   const [savedScripts, setSavedScripts] = useState<VideoScriptRecord[]>([]);
@@ -108,6 +113,11 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
     [result]
   );
 
+  const storyboardJsonText = useMemo(
+    () => (storyboardResult ? JSON.stringify(storyboardResult, null, 2) : ''),
+    [storyboardResult]
+  );
+
   // Load saved scripts for this listing
   const fetchSavedScripts = async () => {
     try {
@@ -117,33 +127,61 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
         setSavedScripts(res.data);
       }
     } catch (err) {
-      console.error('Failed to load saved video scripts:', err);
+      console.error('Failed to load saved scripts:', err);
     } finally {
       setIsLoadingSaved(false);
     }
   };
 
   useEffect(() => {
-    setStyle('cinematic');
-    setModel('runway');
-    setAspectRatio('16:9');
-    setVoPreset('tanpa');
-    setVoGender('wanita');
-    setVoLanguage('indonesia');
-    setVoAgeRange('dewasa');
-    setCustomInstructions('');
-    setResult(null);
-    setError(null);
-    setFormat('prompt');
-    setActiveSavedScript(null);
     fetchSavedScripts();
   }, [listing.id]);
+
+  const handleGenerateStoryboard = async (scriptJsonOverride?: any) => {
+    try {
+      setIsGeneratingStoryboard(true);
+      setStoryboardError(null);
+      const jsonToUse = scriptJsonOverride || result?.scriptJson;
+
+      const styleMap: Record<string, string> = {
+        aerial: 'Aerial / Drone',
+        cinematic: 'Cinematic',
+        walkthrough: 'VO + Walkthrough',
+        lifestyle: 'Lifestyle',
+      };
+
+      const response = await listingApi.generateStoryboard(listing.id, {
+        video_style: styleMap[style] || style,
+        ai_video_model: model === 'veo' ? 'Google Veo 3 / Omni Flash' : model === 'pika' ? 'Pika 2.0' : 'Runway Gen-3/4',
+        aspect_ratio: aspectRatio,
+        resolution: aspectRatio === '9:16' ? '1080x1920' : aspectRatio === '4:5' ? '1080x1350' : '1920x1080',
+        voice_over: includeVoiceOver,
+        gender: voGender === 'wanita' ? 'Wanita' : 'Pria',
+        language: voLanguage === 'indonesia' ? 'Bahasa Indonesia' : 'English',
+        age_range: voAgeRange === 'dewasa_muda' ? '20-30' : voAgeRange === 'dewasa' ? '30-45' : '45+',
+        model_reference_available: modelRefAvailable,
+        video_json: jsonToUse,
+      });
+
+      if (response.success && response.data) {
+        setStoryboardResult(response.data);
+      } else if (response.error) {
+        setStoryboardError(response.error);
+      }
+    } catch (err: any) {
+      console.error('Failed to generate storyboard:', err);
+      setStoryboardError(err.response?.data?.error || 'Gagal merencanakan storyboard');
+    } finally {
+      setIsGeneratingStoryboard(false);
+    }
+  };
 
   const handleGenerate = async () => {
     try {
       setIsGenerating(true);
       setError(null);
       setActiveSavedScript(null);
+      setStoryboardResult(null);
 
       const voiceOver: VoiceOverConfig = includeVoiceOver
         ? { enabled: true, gender: voGender, language: voLanguage, ageRange: voAgeRange }
@@ -160,6 +198,9 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
       const response = await listingApi.generateVideoScript(listing.id, options);
       if (response.success && response.data) {
         setResult(response.data);
+        if (format === 'storyboard') {
+          await handleGenerateStoryboard(response.data.scriptJson);
+        }
       }
     } catch (err: any) {
       console.error('Failed to generate video prompt:', err);
@@ -177,102 +218,91 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
         ? { enabled: true, gender: voGender, language: voLanguage, ageRange: voAgeRange }
         : { enabled: false };
 
-      const res = await listingApi.saveVideoScript(listing.id, {
+      const response = await listingApi.saveVideoScript(listing.id, {
         name: savingName.trim(),
         style,
         model,
         aspectRatio,
-        customInstructions,
         voiceOver,
+        customInstructions: customInstructions.trim() || undefined,
         script: result.script,
         voiceOverScript: result.voiceOverScript,
         scriptJson: result.scriptJson,
       });
 
-      if (res.success && res.data) {
+      if (response.success && response.data) {
+        setSavedScripts([response.data, ...savedScripts]);
+        setActiveSavedScript(response.data);
         setShowSaveModal(false);
         setSavingName('');
-        setActiveSavedScript(res.data);
-        await fetchSavedScripts();
       }
-    } catch (err: any) {
-      console.error('Failed to save video script:', err);
-      setError(err.response?.data?.error || 'Failed to save video script');
+    } catch (err) {
+      console.error('Failed to save script version:', err);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleLoadSaved = (script: VideoScriptRecord) => {
-    setActiveSavedScript(script);
-    setStyle(script.style as VideoStyle);
-    setModel(script.model as VideoModel);
-    setAspectRatio(script.aspect_ratio as AspectRatio);
-    if (script.include_voice_over) {
+  const handleLoadSaved = (saved: VideoScriptRecord) => {
+    setStyle(saved.style as VideoStyle);
+    setModel(saved.model as VideoModel);
+    setAspectRatio(saved.aspect_ratio as AspectRatio);
+    if (saved.include_voice_over) {
       setVoPreset('custom');
-      if (script.voice_gender) setVoGender(script.voice_gender as VOGender);
-      if (script.voice_language) setVoLanguage(script.voice_language as VOLanguage);
-      if (script.voice_age) setVoAgeRange(script.voice_age as VOAgeRange);
+      setVoGender((saved.voice_gender as VOGender) || 'wanita');
+      setVoLanguage((saved.voice_language as VOLanguage) || 'indonesia');
+      setVoAgeRange((saved.voice_age as VOAgeRange) || 'dewasa');
     } else {
       setVoPreset('tanpa');
     }
-    setCustomInstructions(script.custom_instructions || '');
+    setCustomInstructions(saved.custom_instructions || '');
+
     setResult({
       listingId: listing.id,
-      style: script.style as VideoStyle,
-      model: script.model as VideoModel,
-      aspectRatio: script.aspect_ratio as AspectRatio,
-      script: script.script,
-      voiceOverScript: script.voice_over_script,
-      scriptJson: script.script_json,
+      style: saved.style as VideoStyle,
+      model: saved.model as VideoModel,
+      aspectRatio: saved.aspect_ratio as AspectRatio,
+      script: saved.script,
+      voiceOverScript: saved.voice_over_script,
+      scriptJson: saved.script_json,
     });
-    // Scroll to top of generator
-    window.scrollTo({ top: 300, behavior: 'smooth' });
+    setActiveSavedScript(saved);
   };
 
-  const handleDeleteSaved = async (scriptId: string) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus skrip video yang tersimpan ini?')) return;
+  const handleDeleteSaved = async (id: string) => {
+    if (!confirm('Hapus versi skrip video ini?')) return;
     try {
-      const res = await listingApi.deleteVideoScript(scriptId);
-      if (res.success) {
-        if (activeSavedScript?.id === scriptId) {
-          setActiveSavedScript(null);
-        }
-        await fetchSavedScripts();
+      await listingApi.deleteVideoScript(id);
+      setSavedScripts(savedScripts.filter((s) => s.id !== id));
+      if (activeSavedScript?.id === id) {
+        setActiveSavedScript(null);
       }
     } catch (err) {
-      console.error('Failed to delete video script:', err);
+      console.error('Failed to delete script:', err);
     }
   };
 
-  const handleStartEditing = (script: VideoScriptRecord) => {
-    setEditingScriptId(script.id);
-    setEditingScriptText(script.script);
-    setEditingVoText(script.voice_over_script || '');
+  const handleStartEditing = (saved: VideoScriptRecord) => {
+    setEditingScriptId(saved.id);
+    setEditingScriptText(saved.script);
+    setEditingVoText(saved.voice_over_script || '');
   };
 
-  const handleSaveEditedScript = async (scriptId: string) => {
+  const handleSaveEditedScript = async (id: string) => {
     try {
       setIsUpdatingScript(true);
-      const res = await listingApi.updateVideoScript(scriptId, {
+      const res = await listingApi.updateVideoScript(id, {
         script: editingScriptText,
-        voiceOverScript: editingVoText || null,
+        voiceOverScript: editingVoText || undefined,
       });
+
       if (res.success && res.data) {
-        setEditingScriptId(null);
-        if (activeSavedScript?.id === scriptId) {
+        setSavedScripts(savedScripts.map((s) => (s.id === id ? res.data! : s)));
+        if (activeSavedScript?.id === id) {
           setActiveSavedScript(res.data);
-          setResult({
-            listingId: listing.id,
-            style: res.data.style as VideoStyle,
-            model: res.data.model as VideoModel,
-            aspectRatio: res.data.aspect_ratio as AspectRatio,
-            script: res.data.script,
-            voiceOverScript: res.data.voice_over_script,
-            scriptJson: res.data.script_json,
-          });
+          setResult((prev) => (prev ? { ...prev, script: editingScriptText, voiceOverScript: editingVoText } : null));
         }
-        await fetchSavedScripts();
+        setEditingScriptId(null);
       }
     } catch (err) {
       console.error('Failed to update script:', err);
@@ -281,499 +311,626 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
     }
   };
 
+  const handleCopy = (text: string, target: 'prompt' | 'voiceover' | 'json' | 'storyboard') => {
+    navigator.clipboard.writeText(text);
+    setCopied(target);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
   const handleClear = () => {
     setResult(null);
-    setCustomInstructions('');
-    setError(null);
     setActiveSavedScript(null);
+    setStoryboardResult(null);
   };
 
-  const handleCopy = async (text: string, key: 'prompt' | 'voiceover' | 'json') => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(key);
-      setTimeout(() => setCopied(null), 2000);
-    } catch (copyError) {
-      console.error('Failed to copy:', copyError);
-    }
-  };
-
-  const hasResult = result !== null;
-  const noPhotos = listing.photos.length === 0;
-
-  // Keyboard shortcuts: Cmd/Ctrl+Enter to generate, Esc to close modals
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd+Enter or Ctrl+Enter to generate video script
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        if (!isGenerating && !noPhotos && !showSaveModal && !editingScriptId) {
-          e.preventDefault();
-          handleGenerate();
-        }
-      }
-
-      // Esc to close save modal or exit edit mode
-      if (e.key === 'Escape') {
-        if (showSaveModal) {
-          e.preventDefault();
-          setShowSaveModal(false);
-        } else if (editingScriptId) {
-          e.preventDefault();
-          setEditingScriptId(null);
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isGenerating, noPhotos, showSaveModal, editingScriptId, handleGenerate]);
+  const hasResult = Boolean(result);
 
   return (
-    <div className="space-y-8">
-      {/* Top Header */}
-      <div className="flex flex-wrap justify-between items-center gap-3">
-        <div>
-          <h4 className="text-large font-semibold text-text-primary dark:text-text-primary flex items-center gap-2">
-            <Video className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-            AI Video Generator
-          </h4>
-          <p className="text-sm text-text-tertiary mt-0.5">
-            Buat ide visual video & skrip voice over per-scene, disesuaikan untuk {MODEL_OPTIONS.find(m => m.value === model)?.label || 'AI video tools'}.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {hasResult && (
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating || noPhotos}
-              className="btn btn-secondary flex items-center gap-2"
-            >
-              <RefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
-              <span>{isGenerating ? 'Regenerating...' : 'Regenerate'}</span>
-            </button>
-          )}
-          {!hasResult && (
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating || noPhotos}
-              className="btn btn-primary flex items-center gap-2"
-            >
-              <Sparkles className="w-5 h-5" />
-              <span>{isGenerating ? 'Generating...' : 'Generate Video Prompt'}</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {noPhotos && (
-        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 p-4 rounded-lg flex items-start gap-3">
-          <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
-          <p className="text-sm">Video prompt creation requires at least one property photo for visual reference.</p>
-        </div>
-      )}
-
-      {/* Generator Controls Grid */}
-      <div className="grid gap-5 md:grid-cols-2">
-        {/* Video style */}
-        <div className="space-y-2">
-          <label htmlFor="video-style" className="block text-sm font-medium text-text-secondary">
-            Video style
-          </label>
-          <select
-            id="video-style"
-            value={style}
-            onChange={(e) => setStyle(e.target.value as VideoStyle)}
+    <div className="space-y-6">
+      {/* Configuration Form Card */}
+      <div className="card p-6 space-y-6">
+        <div className="flex items-center justify-between border-b border-border pb-4">
+          <div>
+            <h4 className="text-base font-semibold text-text-primary flex items-center gap-2">
+              <Video className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+              AI Video Marketing Generator & Storyboard
+            </h4>
+            <p className="text-xs text-text-tertiary mt-0.5">
+              Hasilkan skrip video promo & rencana tabel storyboard terstruktur untuk TikTok, Instagram Reels, dan YouTube Shorts.
+            </p>
+          </div>
+          <button
+            onClick={handleGenerate}
             disabled={isGenerating}
-            className="w-full"
+            className="btn btn-primary flex items-center gap-2 px-5 py-2.5 shadow-md hover:shadow-lg transition-all"
           >
+            <Sparkles className="w-4 h-4 animate-spin-slow" />
+            {isGenerating ? 'Generating...' : 'Generate Video Script & Storyboard'}
+          </button>
+        </div>
+
+        {/* Video Style Selection */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-text-secondary">Gaya Video (Video Style)</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {STYLE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          <p className="text-xs text-text-tertiary">
-            {STYLE_OPTIONS.find(s => s.value === style)?.hint}
-          </p>
-        </div>
-
-        {/* AI model */}
-        <div className="space-y-2">
-          <label htmlFor="video-model" className="block text-sm font-medium text-text-secondary">
-            AI video model
-          </label>
-          <select
-            id="video-model"
-            value={model}
-            onChange={(e) => setModel(e.target.value as VideoModel)}
-            disabled={isGenerating}
-            className="w-full"
-          >
-            {MODEL_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          <p className="text-xs text-text-tertiary">
-            {isVeo
-              ? 'Veo/Omni prompt uses structured [Visual] + VO blocks with native audio.'
-              : 'The prompt is optimized for the selected model.'}
-          </p>
-        </div>
-
-        {/* Format video */}
-        <div className="space-y-2">
-          <label htmlFor="video-format" className="block text-sm font-medium text-text-secondary">
-            Format video
-          </label>
-          <select
-            id="video-format"
-            value={aspectRatio}
-            onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
-            disabled={isGenerating}
-            className="w-full"
-          >
-            {FORMAT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label} ({opt.resolution})</option>
-            ))}
-          </select>
-          <p className="text-xs text-text-tertiary">Controls the output resolution and orientation.</p>
-        </div>
-
-        {/* Voice Over Select */}
-        <div className="space-y-2">
-          <label htmlFor="video-vo" className="block text-sm font-medium text-text-secondary">
-            Voice Over (Voice Over)
-          </label>
-          <select
-            id="video-vo"
-            value={voPreset}
-            onChange={(e) => setVoPreset(e.target.value as VOOption)}
-            disabled={isGenerating}
-            className="w-full"
-          >
-            {VO_PRESET_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          <p className="text-xs text-text-tertiary">
-            {includeVoiceOver
-              ? 'Narration script will be generated per scene.'
-              : 'Silent video without narration.'}
-          </p>
-        </div>
-      </div>
-
-      {/* Voice Over Sub-options */}
-      {includeVoiceOver && (
-        <div className="grid gap-4 md:grid-cols-3 p-4 rounded-xl border border-border bg-grey-50 dark:bg-grey-800/40">
-          <div className="space-y-2">
-            <label htmlFor="vo-gender" className="block text-sm font-medium text-text-secondary">Gender</label>
-            <select
-              id="vo-gender"
-              value={voGender}
-              onChange={(e) => setVoGender(e.target.value as VOGender)}
-              disabled={isGenerating}
-              className="w-full"
-            >
-              {GENDER_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="vo-language" className="block text-sm font-medium text-text-secondary">Bahasa</label>
-            <select
-              id="vo-language"
-              value={voLanguage}
-              onChange={(e) => setVoLanguage(e.target.value as VOLanguage)}
-              disabled={isGenerating}
-              className="w-full"
-            >
-              {LANGUAGE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="vo-age" className="block text-sm font-medium text-text-secondary">Range Usia</label>
-            <select
-              id="vo-age"
-              value={voAgeRange}
-              onChange={(e) => setVoAgeRange(e.target.value as VOAgeRange)}
-              disabled={isGenerating}
-              className="w-full"
-            >
-              {AGE_RANGE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
-
-      {/* Custom Instructions */}
-      <div className="space-y-2">
-        <label htmlFor="video-custom-instructions" className="block text-sm font-medium text-text-secondary">
-          Custom Instructions (optional)
-        </label>
-        <textarea
-          id="video-custom-instructions"
-          value={customInstructions}
-          onChange={(e) => setCustomInstructions(e.target.value)}
-          disabled={isGenerating}
-          placeholder="e.g. Focus on the living room and garden, make it feel cozy and warm, target young families..."
-          rows={2}
-          className="w-full"
-        />
-      </div>
-
-      {/* Error display */}
-      {error && (
-        <div className="card border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 p-4">
-          {error}
-        </div>
-      )}
-
-      {/* Generating State */}
-      {isGenerating ? (
-        <div className="p-12 text-center border-2 border-dashed border-border rounded-xl animate-pulse">
-          <Sparkles className="w-10 h-10 text-primary-500 mx-auto mb-3" />
-          <p className="text-text-secondary font-medium">
-            Creating cinematic video prompt{includeVoiceOver ? ' & voice-over script' : ''}...
-          </p>
-          <p className="text-sm text-text-tertiary mt-1">This can take a few seconds.</p>
-        </div>
-      ) : hasResult && result ? (
-        <div className="space-y-4">
-          {/* Active Banner if loaded from saved */}
-          {activeSavedScript && (
-            <div className="flex items-center justify-between p-3 bg-primary-50 dark:bg-primary-950/30 border border-primary-200 dark:border-primary-800 rounded-lg">
-              <span className="text-sm font-medium text-primary-700 dark:text-primary-300 flex items-center gap-2">
-                <Bookmark className="w-4 h-4" />
-                Melihat versi tersimpan: <strong className="font-semibold">{activeSavedScript.name}</strong>
-              </span>
               <button
-                onClick={() => handleStartEditing(activeSavedScript)}
-                className="btn btn-ghost btn-sm flex items-center gap-1 text-primary-600 dark:text-primary-400"
+                key={opt.value}
+                type="button"
+                onClick={() => setStyle(opt.value)}
+                disabled={isGenerating}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  style === opt.value
+                    ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/20 text-primary-700 dark:text-primary-300 shadow-sm'
+                    : 'border-border bg-grey-50/50 dark:bg-grey-900/20 text-text-secondary hover:border-grey-300'
+                }`}
               >
-                <Edit3 className="w-4 h-4" /> Edit Skrip Ini
+                <div className="font-semibold text-sm">{opt.label}</div>
+                <div className="text-xs text-text-tertiary mt-1">{opt.hint}</div>
               </button>
-            </div>
-          )}
+            ))}
+          </div>
+        </div>
 
-          {/* Action Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div
-              role="tablist"
-              aria-label="Output format"
-              className="inline-flex rounded-lg border border-border bg-grey-100 dark:bg-grey-900 p-1"
+        {/* Model AI & Aspect Ratio Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Model Generator */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-text-secondary">Model AI Generator</label>
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value as VideoModel)}
+              disabled={isGenerating}
+              className="w-full"
             >
-              {(['prompt', 'json'] as OutputFormat[]).map((fmt) => (
+              {MODEL_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Aspect Ratio */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-text-secondary">Rasio Layar (Aspect Ratio)</label>
+            <div className="grid grid-cols-3 gap-2">
+              {ASPECT_OPTIONS.map((opt) => (
                 <button
-                  key={fmt}
-                  role="tab"
-                  aria-selected={format === fmt}
-                  aria-label={fmt === 'prompt' ? 'Prompt format' : 'JSON format'}
-                  onClick={() => setFormat(fmt)}
-                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    format === fmt
-                      ? 'bg-white dark:bg-grey-800 text-text-primary shadow-sm'
-                      : 'text-text-tertiary hover:text-text-secondary'
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setAspectRatio(opt.value)}
+                  disabled={isGenerating}
+                  className={`px-3 py-2 rounded-lg border text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                    aspectRatio === opt.value
+                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-950/30 text-primary-600 dark:text-primary-400 font-semibold'
+                      : 'border-border bg-grey-50 dark:bg-grey-900/20 text-text-secondary hover:border-grey-300'
                   }`}
                 >
-                  {fmt === 'prompt' ? 'Prompt' : 'JSON'}
+                  <span>{opt.icon}</span>
+                  <span>{opt.value}</span>
                 </button>
               ))}
             </div>
+          </div>
+        </div>
 
-            <div className="flex items-center gap-2">
+        {/* Voice Over Options */}
+        <div className="space-y-3 pt-2 border-t border-border">
+          <label className="block text-sm font-medium text-text-secondary">Pengaturan Voice Over (VO)</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {VO_OPTIONS.map((opt) => (
               <button
-                onClick={() => {
-                  setSavingName(`${STYLE_OPTIONS.find(s => s.value === style)?.label || 'Cinematic'} - ${aspectRatio}`);
-                  setShowSaveModal(true);
-                }}
-                className="btn btn-primary btn-sm flex items-center gap-1.5"
+                key={opt.value}
+                type="button"
+                onClick={() => setVoPreset(opt.value)}
+                disabled={isGenerating}
+                className={`p-3 rounded-xl border text-left text-xs font-medium transition-all ${
+                  voPreset === opt.value
+                    ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/20 text-primary-700 dark:text-primary-300 font-semibold'
+                    : 'border-border bg-grey-50/50 dark:bg-grey-900/20 text-text-secondary'
+                }`}
               >
-                <Save className="w-4 h-4" />
-                Simpan Versi
+                {opt.label}
               </button>
+            ))}
+          </div>
+        </div>
 
-              <button onClick={handleClear} className="btn btn-secondary btn-sm flex items-center gap-1.5">
-                Clear
-              </button>
+        {/* Detailed VO Config when active */}
+        {includeVoiceOver && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-grey-50 dark:bg-grey-900/30 rounded-xl border border-border">
+            <div>
+              <label htmlFor="vo-gender" className="block text-xs font-medium text-text-secondary mb-1">
+                Gender Model
+              </label>
+              <select
+                id="vo-gender"
+                value={voGender}
+                onChange={(e) => setVoGender(e.target.value as VOGender)}
+                disabled={isGenerating}
+                className="w-full text-xs"
+              >
+                {GENDER_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="vo-lang" className="block text-xs font-medium text-text-secondary mb-1">
+                Bahasa Narasi
+              </label>
+              <select
+                id="vo-lang"
+                value={voLanguage}
+                onChange={(e) => setVoLanguage(e.target.value as VOLanguage)}
+                disabled={isGenerating}
+                className="w-full text-xs"
+              >
+                {LANGUAGE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="vo-age" className="block text-xs font-medium text-text-secondary mb-1">
+                Usia Model Narator
+              </label>
+              <select
+                id="vo-age"
+                value={voAgeRange}
+                onChange={(e) => setVoAgeRange(e.target.value as VOAgeRange)}
+                disabled={isGenerating}
+                className="w-full text-xs"
+              >
+                {AGE_RANGE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
             </div>
           </div>
+        )}
 
-          {/* Save Modal */}
-          {showSaveModal && (
-            <div className="p-4 border border-border bg-white dark:bg-grey-900 rounded-xl shadow-lg space-y-3 text-text-secondary">
-              <h5 className="font-semibold text-sm text-text-primary dark:text-text-secondary">
-                Simpan Versi Skrip Video
-              </h5>
-              <p className="text-xs text-text-tertiary">
-                Beri nama versi ini untuk mempermudah pencarian di daftar versi tersimpan.
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={savingName}
-                  onChange={(e) => setSavingName(e.target.value)}
-                  placeholder="e.g. Versi 1 - TikTok 9:16 Cinematic"
-                  className="flex-1 text-sm px-3 py-2 rounded-lg bg-white dark:bg-grey-800 text-grey-900 dark:text-grey-100 border border-grey-300 dark:border-grey-600 placeholder-grey-400 dark:placeholder-grey-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                  autoFocus
-                />
+        {/* Custom Instructions */}
+        <div className="space-y-2">
+          <label htmlFor="video-custom-instructions" className="block text-sm font-medium text-text-secondary">
+            Instruksi Khusus / Tambahan (Opsional)
+          </label>
+          <textarea
+            id="video-custom-instructions"
+            value={customInstructions}
+            onChange={(e) => setCustomInstructions(e.target.value)}
+            disabled={isGenerating}
+            placeholder="Contoh: Fokus ke area rooftop dan taman belakang, gaya bahasa santai anak muda..."
+            rows={2}
+            className="w-full text-xs"
+          />
+        </div>
+
+        {/* Model Reference Availability Checkbox */}
+        <div className="flex items-center gap-2 pt-2 border-t border-border">
+          <input
+            type="checkbox"
+            id="modelRefAvailable"
+            checked={modelRefAvailable}
+            onChange={(e) => setModelRefAvailable(e.target.checked)}
+            disabled={isGenerating}
+            className="w-4 h-4 rounded border-border text-primary-600 focus:ring-primary-500"
+          />
+          <label htmlFor="modelRefAvailable" className="text-xs text-text-secondary cursor-pointer flex items-center gap-1.5">
+            <UserCheck className="w-3.5 h-3.5 text-primary-600" />
+            <span>Foto Referensi Model Tersedia (Tampilkan agen/host pada scene darat di Storyboard Planner)</span>
+          </label>
+        </div>
+
+        {/* Error display */}
+        {error && (
+          <div className="card border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 p-4 text-xs">
+            {error}
+          </div>
+        )}
+
+        {/* Generating State */}
+        {isGenerating ? (
+          <div className="p-12 text-center border-2 border-dashed border-border rounded-xl animate-pulse">
+            <Sparkles className="w-10 h-10 text-primary-500 mx-auto mb-3 animate-spin" />
+            <p className="text-text-secondary font-medium text-sm">
+              Memproses skrip video promo{includeVoiceOver ? ' & narasi voice-over' : ''}...
+            </p>
+            <p className="text-xs text-text-tertiary mt-1">Harap tunggu beberapa detik.</p>
+          </div>
+        ) : hasResult && result ? (
+          <div className="space-y-4">
+            {/* Active Banner if loaded from saved */}
+            {activeSavedScript && (
+              <div className="flex items-center justify-between p-3 bg-primary-50 dark:bg-primary-950/30 border border-primary-200 dark:border-primary-800 rounded-lg">
+                <span className="text-xs font-medium text-primary-700 dark:text-primary-300 flex items-center gap-2">
+                  <Bookmark className="w-4 h-4" />
+                  Melihat versi tersimpan: <strong className="font-semibold">{activeSavedScript.name}</strong>
+                </span>
                 <button
-                  onClick={handleSave}
-                  disabled={isSaving || !savingName.trim()}
-                  className="btn btn-primary btn-sm"
+                  onClick={() => handleStartEditing(activeSavedScript)}
+                  className="btn btn-ghost btn-sm flex items-center gap-1 text-primary-600 dark:text-primary-400 text-xs"
                 >
-                  {isSaving ? 'Menyimpan...' : 'Simpan'}
-                </button>
-                <button
-                  onClick={() => setShowSaveModal(false)}
-                  className="btn btn-secondary btn-sm"
-                >
-                  Batal
+                  <Edit3 className="w-3.5 h-3.5" /> Edit Skrip Ini
                 </button>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* JSON or PROMPT VIEW */}
-          {format === 'json' ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h5 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                  <Braces className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-                  Multi-Scene JSON
-                  <span className="text-text-tertiary font-normal">(structured)</span>
-                </h5>
-                <button
-                  onClick={() => handleCopy(jsonText, 'json')}
-                  className="p-2 rounded-lg text-text-tertiary hover:text-primary-600 dark:hover:text-primary-400 hover:bg-grey-100 dark:hover:bg-grey-800 transition-colors"
-                  title="Copy JSON"
-                >
-                  {copied === 'json' ? <Check className="w-5 h-5 text-green-600 dark:text-green-400" /> : <Copy className="w-5 h-5" />}
-                </button>
-              </div>
-              <pre className="bg-grey-50 dark:bg-grey-900/40 border border-border p-5 rounded-xl font-mono text-xs leading-relaxed max-h-96 overflow-y-auto">
-                {jsonText}
-              </pre>
-            </div>
-          ) : (
-            <>
-              {isVeo && (
-                <div className="bg-primary-50 dark:bg-primary-950/30 border border-primary-200 dark:border-primary-800 text-primary-700 dark:text-primary-300 p-3 rounded-lg flex items-start gap-2">
-                  <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs">
-                    Veo/Omni format: each scene pairs a <code>[Visual: ...]</code> block with a <code>VO: ...</code> line
-                    {includeVoiceOver ? ' so the native voice over is generated in the same pass.' : ' (visual only, no narration).'}
-                  </p>
-                </div>
-              )}
-
-              {/* Video prompt */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h5 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                    <Video className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-                    Video Prompt <span className="text-text-tertiary font-normal">({promptLanguageLabel})</span>
-                  </h5>
+            {/* Action Header & Output Format Tabs */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+              <div
+                role="tablist"
+                aria-label="Output format"
+                className="inline-flex rounded-lg border border-border bg-grey-100 dark:bg-grey-900 p-1"
+              >
+                {(['prompt', 'json', 'storyboard'] as OutputFormat[]).map((fmt) => (
                   <button
-                    onClick={() => handleCopy(result.script, 'prompt')}
-                    className="p-2 rounded-lg text-text-tertiary hover:text-primary-600 dark:hover:text-primary-400 hover:bg-grey-100 dark:hover:bg-grey-800 transition-colors"
-                    title="Copy prompt"
+                    key={fmt}
+                    role="tab"
+                    aria-selected={format === fmt}
+                    onClick={() => {
+                      setFormat(fmt);
+                      if (fmt === 'storyboard' && !storyboardResult && !isGeneratingStoryboard) {
+                        handleGenerateStoryboard();
+                      }
+                    }}
+                    className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      format === fmt
+                        ? 'bg-white dark:bg-grey-800 text-primary-600 dark:text-primary-400 shadow-sm'
+                        : 'text-text-tertiary hover:text-text-secondary'
+                    }`}
                   >
-                    {copied === 'prompt' ? <Check className="w-5 h-5 text-green-600 dark:text-green-400" /> : <Copy className="w-5 h-5" />}
+                    {fmt === 'prompt' && <Video className="w-3.5 h-3.5" />}
+                    {fmt === 'json' && <Braces className="w-3.5 h-3.5" />}
+                    {fmt === 'storyboard' && <Film className="w-3.5 h-3.5 text-primary-500" />}
+                    <span>{fmt === 'prompt' ? 'Prompt' : fmt === 'json' ? 'JSON' : 'Generate Storyboard'}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setSavingName(`${STYLE_OPTIONS.find(s => s.value === style)?.label || 'Cinematic'} - ${aspectRatio}`);
+                    setShowSaveModal(true);
+                  }}
+                  className="btn btn-primary btn-sm flex items-center gap-1.5 text-xs"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  Simpan Versi
+                </button>
+
+                <button onClick={handleClear} className="btn btn-secondary btn-sm flex items-center gap-1.5 text-xs">
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            {/* Save Modal */}
+            {showSaveModal && (
+              <div className="p-4 border border-border bg-white dark:bg-grey-900 rounded-xl shadow-lg space-y-3 text-text-secondary">
+                <h5 className="font-semibold text-xs text-text-primary">Simpan Versi Skrip Video</h5>
+                <p className="text-xs text-text-tertiary">
+                  Beri nama versi ini untuk mempermudah pencarian di daftar versi tersimpan.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={savingName}
+                    onChange={(e) => setSavingName(e.target.value)}
+                    placeholder="Nama versi skrip..."
+                    className="flex-1 text-xs"
+                  />
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving || !savingName.trim()}
+                    className="btn btn-primary btn-sm text-xs"
+                  >
+                    {isSaving ? 'Simpan...' : 'Simpan'}
+                  </button>
+                  <button onClick={() => setShowSaveModal(false)} className="btn btn-secondary btn-sm text-xs">
+                    Batal
                   </button>
                 </div>
-                <div className="relative bg-grey-50 dark:bg-grey-900/40 border border-border p-5 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
-                  {result.script}
-                </div>
               </div>
+            )}
 
-              {/* Voice over */}
-              {includeVoiceOver && result.voiceOverScript && (
+            {/* SUB TAB: JSON VIEW */}
+            {format === 'json' && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-xs font-semibold text-text-primary flex items-center gap-2">
+                    <Braces className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                    Multi-Scene JSON <span className="text-text-tertiary font-normal">(structured)</span>
+                  </h5>
+                  <button
+                    onClick={() => handleCopy(jsonText, 'json')}
+                    className="p-2 rounded-lg text-text-tertiary hover:text-primary-600 transition-colors"
+                    title="Copy JSON"
+                  >
+                    {copied === 'json' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+                <pre className="bg-grey-50 dark:bg-grey-900/40 border border-border p-4 rounded-xl font-mono text-xs leading-relaxed max-h-96 overflow-y-auto">
+                  {jsonText}
+                </pre>
+              </div>
+            )}
+
+            {/* SUB TAB: PROMPT VIEW */}
+            {format === 'prompt' && (
+              <>
+                {isVeo && (
+                  <div className="bg-primary-50 dark:bg-primary-950/30 border border-primary-200 dark:border-primary-800 text-primary-700 dark:text-primary-300 p-3 rounded-lg flex items-start gap-2 text-xs">
+                    <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <p>
+                      Format Veo/Omni: Setiap scene memasangkan blok <code>[Visual: ...]</code> dengan baris <code>VO: ...</code>
+                      {includeVoiceOver ? ' untuk generate audio bawaan model AI.' : ' (hanya visual).'}
+                    </p>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <h5 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                      <Mic className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-                      Voice Over Script{' '}
-                      <span className="text-text-tertiary font-normal">
-                        ({voLanguage === 'indonesia' ? 'Bahasa Indonesia' : 'English'} - {voGender === 'pria' ? 'Pria' : 'Wanita'} - {AGE_RANGE_OPTIONS.find(a => a.value === voAgeRange)?.label || 'Dewasa'})
-                      </span>
+                    <h5 className="text-xs font-semibold text-text-primary flex items-center gap-2">
+                      <Video className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                      Video Prompt <span className="text-text-tertiary font-normal">({promptLanguageLabel})</span>
                     </h5>
                     <button
-                      onClick={() => handleCopy(result.voiceOverScript!, 'voiceover')}
-                      className="p-2 rounded-lg text-text-tertiary hover:text-primary-600 dark:hover:text-primary-400 hover:bg-grey-100 dark:hover:bg-grey-800 transition-colors"
-                      title="Copy voice over script"
+                      onClick={() => handleCopy(result.script, 'prompt')}
+                      className="p-2 rounded-lg text-text-tertiary hover:text-primary-600 transition-colors"
+                      title="Copy prompt"
                     >
-                      {copied === 'voiceover' ? <Check className="w-5 h-5 text-green-600 dark:text-green-400" /> : <Copy className="w-5 h-5" />}
+                      {copied === 'prompt' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                     </button>
                   </div>
-                  <div className="relative bg-grey-50 dark:bg-grey-900/40 border border-border p-5 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
-                    {result.voiceOverScript}
+                  <div className="relative bg-grey-50 dark:bg-grey-900/40 border border-border p-4 rounded-xl font-mono text-xs leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
+                    {result.script}
                   </div>
                 </div>
-              )}
-            </>
-          )}
 
-          <p className="text-xs text-text-tertiary">
-            *The prompt uses {result.scriptJson.scenes.length} scenes ({result.scriptJson.settings.total_duration_seconds}s total), optimized for{' '}
-            {MODEL_OPTIONS.find(m => m.value === model)?.label}. Format: {result.scriptJson.settings.resolution} ({result.scriptJson.settings.aspect_ratio}).
-          </p>
-        </div>
-      ) : (
-        <div className="p-12 text-center border-2 border-dashed border-border rounded-xl">
-          <Video className="w-12 h-12 text-text-tertiary mx-auto mb-4 opacity-50" />
-          <p className="text-text-secondary mb-2">No prompt generated yet.</p>
-          <p className="text-sm text-text-tertiary">
-            Pilih style, format video, AI video model{includeVoiceOver ? ' dan konfigurasi voice-over' : ''}, lalu klik "Generate Video Prompt".
-          </p>
-        </div>
-      )}
+                {includeVoiceOver && result.voiceOverScript && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-xs font-semibold text-text-primary flex items-center gap-2">
+                        <Mic className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                        Voice Over Script{' '}
+                        <span className="text-text-tertiary font-normal">
+                          ({voLanguage === 'indonesia' ? 'Bahasa Indonesia' : 'English'} - {voGender === 'pria' ? 'Pria' : 'Wanita'})
+                        </span>
+                      </h5>
+                      <button
+                        onClick={() => handleCopy(result.voiceOverScript!, 'voiceover')}
+                        className="p-2 rounded-lg text-text-tertiary hover:text-primary-600 transition-colors"
+                        title="Copy VO script"
+                      >
+                        {copied === 'voiceover' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <div className="relative bg-grey-50 dark:bg-grey-900/40 border border-border p-4 rounded-xl font-mono text-xs leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
+                      {result.voiceOverScript}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
 
-      {/* ============================================================ */}
-      {/* SAVED VIDEO SCRIPTS LIST SECTION                             */}
-      {/* ============================================================ */}
-      <div className="pt-6 border-t border-border space-y-4">
-        <div className="flex items-center justify-between">
-          <h4 className="text-md font-semibold text-text-primary dark:text-text-primary flex items-center gap-2">
-            <Bookmark className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-            Daftar Skrip Video Tersimpan ({savedScripts.length})
+            {/* SUB TAB: STORYBOARD PLANNER VIEW */}
+            {format === 'storyboard' && (
+              <div className="space-y-4 pt-2">
+                {isGeneratingStoryboard ? (
+                  <div className="p-10 text-center border border-dashed border-border rounded-xl animate-pulse">
+                    <Film className="w-8 h-8 text-primary-500 mx-auto mb-2 animate-bounce" />
+                    <p className="text-xs font-medium text-text-secondary">Merencanakan Storyboard Terstruktur...</p>
+                    <p className="text-[11px] text-text-tertiary mt-1">Memetakan foto listing ke setiap scene & shot motion.</p>
+                  </div>
+                ) : storyboardError ? (
+                  <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-xl text-red-700 dark:text-red-300 text-xs space-y-2">
+                    <div className="flex items-center gap-2 font-semibold">
+                      <AlertCircle className="w-4 h-4 text-red-500" />
+                      <span>{storyboardError}</span>
+                    </div>
+                    <button
+                      onClick={() => handleGenerateStoryboard()}
+                      className="btn btn-secondary btn-sm text-xs flex items-center gap-1"
+                    >
+                      <RefreshCw className="w-3 h-3" /> Coba Lagi
+                    </button>
+                  </div>
+                ) : storyboardResult ? (
+                  <div className="space-y-6">
+                    {/* Meta Bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-primary-50/50 dark:bg-primary-950/20 border border-primary-100 dark:border-primary-900/30 rounded-xl">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-primary-700 dark:text-primary-300">
+                            {storyboardResult.meta.listing_title}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200">
+                            {storyboardResult.meta.video_style}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-text-tertiary flex items-center gap-3">
+                          <span>📍 {storyboardResult.meta.location}</span>
+                          <span>📐 {storyboardResult.meta.aspect_ratio} ({storyboardResult.meta.resolution})</span>
+                          <span>⏱️ Total {storyboardResult.meta.total_duration_sec} dtk ({storyboardResult.meta.total_scenes} scene)</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleCopy(storyboardJsonText, 'storyboard')}
+                          className="btn btn-secondary btn-sm text-xs flex items-center gap-1"
+                        >
+                          {copied === 'storyboard' ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>Copy Storyboard JSON</span>
+                        </button>
+                        <button
+                          onClick={() => handleGenerateStoryboard()}
+                          className="btn btn-ghost btn-sm text-xs flex items-center gap-1 text-primary-600"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" /> Regenerate
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Storyboard Sheets */}
+                    {storyboardResult.sheets.map((sheet: StoryboardSheetOutput) => (
+                      <div key={sheet.sheet_no} className="border border-border rounded-xl overflow-hidden shadow-sm bg-white dark:bg-grey-900">
+                        <div className="bg-grey-100 dark:bg-grey-800/80 px-4 py-2.5 border-b border-border flex items-center justify-between">
+                          <span className="text-xs font-bold text-text-primary flex items-center gap-1.5">
+                            <Layers className="w-4 h-4 text-primary-600" />
+                            Sheet #{sheet.sheet_no} ({sheet.scenes.length} Scene)
+                          </span>
+                          <span className="text-[10px] text-text-tertiary">Maksimal 6 Scene / Tabel Render</span>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-grey-50 dark:bg-grey-800/40 border-b border-border text-text-tertiary uppercase text-[10px] tracking-wider">
+                                <th className="py-2.5 px-3 w-12 text-center">#</th>
+                                <th className="py-2.5 px-3 w-40">Foto Reference</th>
+                                <th className="py-2.5 px-3">Visual Note & Camera</th>
+                                <th className="py-2.5 px-3 w-36">Model Action</th>
+                                <th className="py-2.5 px-3 w-48">Voice Over / Overlay</th>
+                                <th className="py-2.5 px-3 w-16 text-center">Durasi</th>
+                                <th className="py-2.5 px-3 w-48">AI Frame Prompt</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                              {sheet.scenes.map((sc: StoryboardSceneOutput) => (
+                                <tr key={sc.scene_no} className="hover:bg-grey-50/50 dark:hover:bg-grey-800/20">
+                                  <td className="py-3 px-3 font-bold text-center text-primary-600">
+                                    {sc.scene_no}
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    <div className="space-y-1">
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-grey-100 dark:bg-grey-800 text-text-secondary block w-max">
+                                        📷 {sc.photo_id || 'no_photo'}
+                                      </span>
+                                      {sc.crop_hint && (
+                                        <span className="text-[10px] text-text-tertiary block">
+                                          Crop: <strong className="font-semibold">{sc.crop_hint}</strong>
+                                        </span>
+                                      )}
+                                      {sc.needs_aerial_simulation && (
+                                        <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300 block w-max font-medium">
+                                          Simulasi Aerial
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    <p className="font-medium text-text-primary text-xs leading-snug">{sc.visual_note}</p>
+                                    <span className="text-[10px] text-primary-600 dark:text-primary-400 block mt-1">
+                                      🎥 Motion: {sc.camera_motion}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3 text-text-secondary">
+                                    {sc.model_present ? (
+                                      <div className="space-y-0.5 text-[11px]">
+                                        <div className="font-semibold text-green-700 dark:text-green-400">✓ Present</div>
+                                        <div>{sc.model_action}</div>
+                                        <div className="text-[10px] text-text-tertiary">Posisi: {sc.model_position}</div>
+                                      </div>
+                                    ) : (
+                                      <span className="text-text-tertiary text-[11px] font-normal">-</span>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-3 space-y-1">
+                                    {sc.vo_text && (
+                                      <div className="text-[11px] text-text-secondary">
+                                        <strong className="text-primary-600">VO:</strong> "{sc.vo_text}"
+                                      </div>
+                                    )}
+                                    {sc.overlay_text && (
+                                      <div className="text-[10px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-900/30 w-max">
+                                        Text: {sc.overlay_text}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-3 text-center font-semibold text-text-secondary">
+                                    {sc.duration_sec}s
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    <p className="text-[10px] font-mono text-text-tertiary leading-tight bg-grey-50 dark:bg-grey-800/40 p-1.5 rounded border border-border">
+                                      {sc.frame_prompt}
+                                    </p>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center border border-dashed border-border rounded-xl space-y-3">
+                    <Film className="w-8 h-8 text-text-tertiary mx-auto" />
+                    <p className="text-xs text-text-secondary">
+                      Klik tombol di bawah untuk menyusun tabel storyboard berdasarkan skrip video di atas.
+                    </p>
+                    <button
+                      onClick={() => handleGenerateStoryboard()}
+                      className="btn btn-primary btn-sm text-xs"
+                    >
+                      Generate Storyboard Rencana
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Saved Scripts List Card */}
+      <div className="card p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <h4 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+            <Save className="w-4 h-4 text-primary-600" /> Versi Skrip Video Tersimpan ({savedScripts.length})
           </h4>
-          {isLoadingSaved && <span className="text-xs text-text-tertiary animate-pulse">Loading...</span>}
+          <button
+            onClick={fetchSavedScripts}
+            disabled={isLoadingSaved}
+            className="p-1.5 rounded-lg text-text-tertiary hover:text-primary-600 transition-colors"
+            title="Refresh versi"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoadingSaved ? 'animate-spin' : ''}`} />
+          </button>
         </div>
 
         {savedScripts.length === 0 ? (
-          <div className="p-6 border border-dashed border-border rounded-xl text-center text-text-tertiary text-sm">
-            Belum ada skrip video yang disimpan untuk properti ini. Klik "Simpan Versi" setelah membuat prompt di atas.
-          </div>
+          <p className="text-xs text-text-tertiary text-center py-4">Belum ada versi skrip tersimpan untuk listing ini.</p>
         ) : (
           <div className="space-y-3">
             {savedScripts.map((saved) => {
               const isEditingThis = editingScriptId === saved.id;
-              const isLoadedActive = activeSavedScript?.id === saved.id;
+              const isActive = activeSavedScript?.id === saved.id;
 
               return (
                 <div
                   key={saved.id}
-                  className={`card p-4 transition-all border ${
-                    isLoadedActive
-                      ? 'border-primary-500 ring-2 ring-primary-300/40 dark:ring-primary-900/40'
-                      : 'border-border hover:border-grey-300 dark:hover:border-grey-700'
+                  className={`p-4 rounded-xl border transition-all ${
+                    isActive
+                      ? 'border-primary-500 bg-primary-50/30 dark:bg-primary-950/20'
+                      : 'border-border bg-grey-50/50 dark:bg-grey-900/20 hover:border-grey-300'
                   }`}
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
-                    <div>
-                      <h5 className="font-semibold text-sm text-text-primary flex items-center gap-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <h5 className="font-semibold text-xs text-text-primary flex items-center gap-2">
                         {saved.name}
-                        {isLoadedActive && (
-                          <span className="badge badge-success text-xs">Active View</span>
+                        {isActive && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 font-bold">
+                            Aktif
+                          </span>
                         )}
                       </h5>
-                      <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-text-tertiary">
+                      <div className="flex flex-wrap items-center gap-2 text-[10px] text-text-tertiary">
                         <span className="px-2 py-0.5 rounded bg-grey-100 dark:bg-grey-800 text-text-secondary font-medium">
                           {saved.style}
                         </span>
@@ -784,23 +941,21 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
                           {saved.aspect_ratio}
                         </span>
                         {saved.include_voice_over ? (
-                          <span className="px-2 py-0.5 rounded bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 font-medium">
-                            VO: {saved.voice_language === 'inggris' ? 'EN' : 'ID'} ({saved.voice_gender || 'wanita'}, {saved.voice_age || 'dewasa'})
+                          <span className="px-2 py-0.5 rounded bg-primary-50 dark:bg-primary-950/40 text-primary-600 font-medium">
+                            VO: {saved.voice_language === 'inggris' ? 'EN' : 'ID'} ({saved.voice_gender || 'wanita'})
                           </span>
                         ) : (
                           <span className="px-2 py-0.5 rounded bg-grey-100 dark:bg-grey-800 text-text-tertiary">
                             Tanpa VO
                           </span>
                         )}
-                        <span>• {new Date(saved.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleLoadSaved(saved)}
-                        className="btn btn-secondary btn-sm flex items-center gap-1"
-                        title="Buka / Tampilkan di generator"
+                        className="btn btn-secondary btn-sm flex items-center gap-1 text-xs"
                       >
                         <Eye className="w-3.5 h-3.5" /> Tampilkan
                       </button>
@@ -808,7 +963,6 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
                       <button
                         onClick={() => handleStartEditing(saved)}
                         className="btn btn-ghost btn-sm p-1.5 text-text-tertiary hover:text-primary-600"
-                        title="Edit Teks Skrip"
                       >
                         <Edit3 className="w-4 h-4" />
                       </button>
@@ -816,38 +970,32 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
                       <button
                         onClick={() => handleDeleteSaved(saved.id)}
                         className="btn btn-ghost btn-sm p-1.5 text-text-tertiary hover:text-red-600"
-                        title="Hapus Versi"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
 
-                  {/* Editing inline form */}
                   {isEditingThis ? (
-                    <div className="mt-3 p-3 bg-grey-50 dark:bg-grey-800/60 rounded-lg space-y-3">
+                    <div className="mt-3 p-3 bg-grey-50 dark:bg-grey-800/60 rounded-lg space-y-3 text-xs">
                       <div>
-                        <label className="block text-xs font-semibold text-text-secondary mb-1">
-                          Edit Video Prompt ({saved.model === 'veo' && saved.include_voice_over && saved.voice_language === 'inggris' ? 'English' : saved.model === 'veo' ? 'Bahasa Indonesia' : 'English'})
-                        </label>
+                        <label className="block text-xs font-semibold text-text-secondary mb-1">Edit Video Prompt</label>
                         <textarea
                           value={editingScriptText}
                           onChange={(e) => setEditingScriptText(e.target.value)}
                           rows={4}
-                          className="w-full text-xs font-mono px-3 py-2 rounded-lg bg-white dark:bg-grey-800 text-grey-900 dark:text-grey-100 border border-grey-300 dark:border-grey-600 placeholder-grey-400 dark:placeholder-grey-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                          className="w-full text-xs font-mono"
                         />
                       </div>
 
                       {saved.include_voice_over && (
                         <div>
-                          <label className="block text-xs font-semibold text-text-secondary mb-1">
-                            Edit Voice Over Script
-                          </label>
+                          <label className="block text-xs font-semibold text-text-secondary mb-1">Edit Voice Over Script</label>
                           <textarea
                             value={editingVoText}
                             onChange={(e) => setEditingVoText(e.target.value)}
                             rows={4}
-                            className="w-full text-xs font-mono px-3 py-2 rounded-lg bg-white dark:bg-grey-800 text-grey-900 dark:text-grey-100 border border-grey-300 dark:border-grey-600 placeholder-grey-400 dark:placeholder-grey-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                            className="w-full text-xs font-mono"
                           />
                         </div>
                       )}
@@ -856,14 +1004,11 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
                         <button
                           onClick={() => handleSaveEditedScript(saved.id)}
                           disabled={isUpdatingScript}
-                          className="btn btn-primary btn-sm"
+                          className="btn btn-primary btn-sm text-xs"
                         >
-                          {isUpdatingScript ? 'Menyimpan...' : 'Simpan Perubahan'}
+                          {isUpdatingScript ? 'Menyimpan...' : 'Simpan'}
                         </button>
-                        <button
-                          onClick={() => setEditingScriptId(null)}
-                          className="btn btn-secondary btn-sm"
-                        >
+                        <button onClick={() => setEditingScriptId(null)} className="btn btn-secondary btn-sm text-xs">
                           Batal
                         </button>
                       </div>
