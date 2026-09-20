@@ -145,6 +145,23 @@ class StoryboardPlannerService {
   /**
    * Generate PNG images for storyboard scenes using Gemini Image Generation model
    */
+  /** Read a local /uploads/... path from disk and return data:image/...;base64,... */
+  private fileToDataUrl(localUrl: string): string | null {
+    try {
+      const uploadsRoot = path.join(__dirname, '..', '..', process.env.UPLOAD_DIR || './uploads');
+      // localUrl is like "/uploads/foo.jpg" — strip leading /uploads/
+      const relative = localUrl.replace(/^\/uploads\/?/, '');
+      const filePath = path.join(uploadsRoot, relative);
+      if (!fs.existsSync(filePath)) return null;
+      const buf = fs.readFileSync(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+      const mime = ext === '.png' ? 'image/png' : ext === '.jpeg' ? 'image/jpeg' : 'image/jpeg';
+      return `data:${mime};base64,${buf.toString('base64')}`;
+    } catch {
+      return null;
+    }
+  }
+
   private async generateStoryboardImages(
     result: StoryboardPlannerResult,
     listing: ListingWithDetails,
@@ -155,66 +172,132 @@ class StoryboardPlannerService {
     const fullbodyUrl = options.fullbody_photo_url;
     if (!portraitUrl || !fullbodyUrl) return;
 
-    console.log('🎨 Generating PNG frame images for storyboard using model reference photos & Gemini Flash Image...');
+    console.log('🎨 Generating PNG frame images for storyboard (multimodal with local photo base64)...');
 
     const uploadDir = path.join(__dirname, '..', '..', process.env.UPLOAD_DIR || './uploads', 'storyboards');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
 
+    // Pre-load model reference photos as base64 data URLs
+    const portraitDataUrl = this.fileToDataUrl(portraitUrl);
+    const fullbodyDataUrl = this.fileToDataUrl(fullbodyUrl);
+
+    // Chat/completions endpoint (multimodal)
+    const chatEndpoint = llmConfig.imageBaseURL.replace('/images/generations', '/chat/completions');
+
     for (const sheet of result.sheets) {
       for (const sc of sheet.scenes) {
         try {
           const photoMatch = photos.find(p => p.photo_id === sc.photo_id);
 
+          // Build text prompt
           const promptParts: string[] = [
-            `Photorealistic property video scene frame for real estate listing "${listing.title}" in ${listing.location || 'Bandung'}.`,
+            `Generate a photorealistic property video scene frame for real estate listing "${listing.title}" in ${listing.location || 'Bandung'}.`,
             `Scene visual: ${sc.visual_note}. Camera motion: ${sc.camera_motion}.`,
           ];
-
           if (sc.frame_prompt) {
             promptParts.push(`Composition details: ${sc.frame_prompt}.`);
           }
-
           if (photoMatch?.url) {
-            promptParts.push(`Property environment background reference image: ${photoMatch.url}`);
+            promptParts.push(`Use the attached property photo as environment/background reference.`);
           }
-
           if (sc.model_present) {
-            promptParts.push(`Real estate agent model appearance reference: Portrait/Face=${portraitUrl}, Fullbody Outfit=${fullbodyUrl}.`);
+            promptParts.push(`Place the real estate agent model (use attached portrait and fullbody reference photos for appearance) in the scene.`);
             if (sc.model_action) promptParts.push(`Model pose and action: ${sc.model_action}.`);
             if (sc.model_position) promptParts.push(`Model position: ${sc.model_position}.`);
           }
+          promptParts.push(`Aspect ratio: ${options.aspect_ratio || '9:16'}. Ultra-high quality photorealistic image. Output ONLY the generated image.`);
 
-          promptParts.push(`Aspect ratio: ${options.aspect_ratio || '9:16'}. Ultra-high resolution photorealistic image.`);
+          // Build multimodal content parts
+          const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+            { type: 'text', text: promptParts.join(' ') },
+          ];
+
+          // Attach property listing photo as base64
+          if (photoMatch?.url) {
+            const photoDataUrl = this.fileToDataUrl(photoMatch.url);
+            if (photoDataUrl) {
+              contentParts.push({ type: 'image_url', image_url: { url: photoDataUrl } });
+            }
+          }
+
+          // Attach model reference photos as base64
+          if (sc.model_present) {
+            if (portraitDataUrl) {
+              contentParts.push({ type: 'image_url', image_url: { url: portraitDataUrl } });
+            }
+            if (fullbodyDataUrl) {
+              contentParts.push({ type: 'image_url', image_url: { url: fullbodyDataUrl } });
+            }
+          }
 
           const response = await axios.post(
-            llmConfig.imageBaseURL,
+            chatEndpoint,
             {
               model: llmConfig.imageModel,
-              prompt: promptParts.join(' '),
-              n: 1,
-              size: options.aspect_ratio === '9:16' ? '1024x1792' : '1024x1024',
+              messages: [{ role: 'user', content: contentParts }],
+              max_tokens: 4096,
             },
             {
               headers: {
                 Authorization: `Bearer ${llmConfig.imageToken}`,
                 'Content-Type': 'application/json',
               },
-              timeout: 60000,
+              timeout: 120000,
             }
           );
 
-          const b64 = response.data?.data?.[0]?.b64_json;
-          if (b64) {
+          // Extract generated image from response
+          const choice = response.data?.choices?.[0];
+          let imageB64: string | null = null;
+
+          if (choice?.message?.content) {
+            const content = choice.message.content;
+            if (typeof content === 'string') {
+              // Check if content is base64 image data or contains inline_data
+              const b64Match = content.match(/data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)/);
+              if (b64Match) {
+                imageB64 = b64Match[1];
+              }
+            } else if (Array.isArray(content)) {
+              // Look for image parts in multimodal response
+              for (const part of content) {
+                if (part.type === 'image' && part.data) {
+                  imageB64 = part.data;
+                  break;
+                }
+                if (part.type === 'image_url' && part.image_url?.url?.startsWith('data:')) {
+                  const m = part.image_url.url.match(/base64,(.+)/);
+                  if (m) { imageB64 = m[1]; break; }
+                }
+                // Gemini inline_data format
+                if (part.inline_data?.data) {
+                  imageB64 = part.inline_data.data;
+                  break;
+                }
+              }
+            }
+          }
+
+          // Fallback: check data[0].b64_json (OpenAI images format)
+          if (!imageB64 && response.data?.data?.[0]?.b64_json) {
+            imageB64 = response.data.data[0].b64_json;
+          }
+
+          if (imageB64) {
             const filename = `scene_${listing.id.slice(0, 8)}_${sc.scene_no}_${Date.now()}.png`;
             const filePath = path.join(uploadDir, filename);
-            fs.writeFileSync(filePath, Buffer.from(b64, 'base64'));
+            fs.writeFileSync(filePath, Buffer.from(imageB64, 'base64'));
             sc.generated_image_url = `/uploads/storyboards/${filename}`;
-            console.log(`✅ Saved scene ${sc.scene_no} PNG image to ${sc.generated_image_url}`);
+            console.log(`✅ Saved scene ${sc.scene_no} PNG → ${sc.generated_image_url}`);
+          } else {
+            console.warn(`⚠️ Scene ${sc.scene_no}: no image data in response`);
           }
         } catch (err: any) {
-          console.error(`❌ Failed to generate PNG image for scene ${sc.scene_no}:`, err.message || err);
+          const status = err.response?.status;
+          const msg = err.response?.data?.error?.message || err.message;
+          console.error(`❌ Scene ${sc.scene_no} image gen failed (${status || 'network'}): ${msg}`);
         }
       }
     }
