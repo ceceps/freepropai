@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { scrapingJobs, scrapedListings, listings, listingPhotos } from '../db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import { AcehomeScraperService } from './acehomeScraper.service';
 import { ProlovScraperService } from './prolovScraper.service';
 import descriptionGenerator from './descriptionGenerator.service';
@@ -113,9 +113,13 @@ export class ScrapingOrchestratorService {
             scrapedData = [detail];
           }
         } else {
+          // Tell the scraper which listings are already stored so it can skip
+          // their (slow) detail fetch and keep walking the pages.
+          const known = await this.loadKnownSourceIds();
           scrapedData = await this.acehomeScraper.scrapeListings({
             url: job.sourceUrl,
             maxPages: 3, // Default to 3 pages for testing
+            skipSourceIds: known,
           });
         }
       } else if (job.sourceName === 'prolov') {
@@ -128,6 +132,18 @@ export class ScrapingOrchestratorService {
       }
 
       console.log(`[ScrapingOrchestrator] Scraped ${scrapedData.length} listings`);
+
+      // Drop anything already stored: a scraped row that already exists (same
+      // source id, or same source url for sources without ids) is skipped, never
+      // re-inserted. Applies to the single-detail path too, so re-running one
+      // detail URL cannot create a duplicate.
+      const { fresh, skipped: skippedExisting } = await this.filterExisting(scrapedData);
+      scrapedData = fresh;
+      if (skippedExisting > 0) {
+        console.log(
+          `[ScrapingOrchestrator] Skipped ${skippedExisting} already-scraped listing(s)`
+        );
+      }
 
       // Store scraped listings
       if (scrapedData.length > 0) {
@@ -494,6 +510,105 @@ export class ScrapingOrchestratorService {
         updatedAt: new Date(),
       })
       .where(eq(scrapedListings.id, scrapedListingId));
+  }
+
+  /**
+   * Source ids already stored (scraped_listings) or already imported
+   * (listings.source_url). Handed to the scraper so it skips their cards.
+   */
+  private async loadKnownSourceIds(): Promise<Set<string>> {
+    const ids = new Set<string>();
+
+    const scraped = await db
+      .select({ sourceId: scrapedListings.sourceId })
+      .from(scrapedListings);
+    for (const row of scraped) {
+      if (row.sourceId) ids.add(row.sourceId);
+    }
+
+    // listings has no source_id column, so derive the id from the stored URL
+    // (acehome detail URLs end in the id, same as scraped_listings.source_id).
+    const imported = await db
+      .select({ sourceUrl: listings.sourceUrl })
+      .from(listings);
+    for (const row of imported) {
+      const id = this.idFromUrl(row.sourceUrl);
+      if (id) ids.add(id);
+    }
+
+    return ids;
+  }
+
+  /** Last path segment of a detail URL — the source id (acehome/prolov). */
+  private idFromUrl(url: string | null): string | null {
+    if (!url) return null;
+    try {
+      const parts = new URL(url).pathname.split('/').filter(Boolean);
+      return parts[parts.length - 1] || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Split scraped rows into new vs already stored. Matches on source id first,
+   * then source URL (prolov has no usable id). Duplicates are dropped, not
+   * stored — and duplicates *within* one batch are dropped too, since a page can
+   * repeat a card.
+   */
+  private async filterExisting(
+    scrapedData: any[]
+  ): Promise<{ fresh: any[]; skipped: number }> {
+    if (scrapedData.length === 0) return { fresh: [], skipped: 0 };
+
+    const ids = scrapedData.map(i => i.sourceId).filter(Boolean) as string[];
+    const urls = scrapedData.map(i => i.listingUrl).filter(Boolean) as string[];
+
+    const knownIds = new Set<string>();
+    const knownUrls = new Set<string>();
+
+    if (ids.length > 0) {
+      const rows = await db
+        .select({ sourceId: scrapedListings.sourceId })
+        .from(scrapedListings)
+        .where(inArray(scrapedListings.sourceId, ids));
+      rows.forEach(r => r.sourceId && knownIds.add(r.sourceId));
+    }
+    if (urls.length > 0) {
+      const rows = await db
+        .select({ sourceUrl: scrapedListings.sourceUrl })
+        .from(scrapedListings)
+        .where(inArray(scrapedListings.sourceUrl, urls));
+      rows.forEach(r => knownUrls.add(r.sourceUrl));
+
+      const imported = await db
+        .select({ sourceUrl: listings.sourceUrl })
+        .from(listings)
+        .where(inArray(listings.sourceUrl, urls));
+      imported.forEach(r => r.sourceUrl && knownUrls.add(r.sourceUrl));
+    }
+
+    const seenInBatch = new Set<string>();
+    const fresh: any[] = [];
+    let skipped = 0;
+
+    for (const item of scrapedData) {
+      const id = item.sourceId || '';
+      const url = item.listingUrl || '';
+      const dupInBatch = (id && seenInBatch.has(`id:${id}`)) || (url && seenInBatch.has(`url:${url}`));
+      const dupInDb = (id && knownIds.has(id)) || (url && knownUrls.has(url));
+
+      if (dupInBatch || dupInDb) {
+        skipped++;
+        continue;
+      }
+
+      if (id) seenInBatch.add(`id:${id}`);
+      if (url) seenInBatch.add(`url:${url}`);
+      fresh.push(item);
+    }
+
+    return { fresh, skipped };
   }
 
   /**

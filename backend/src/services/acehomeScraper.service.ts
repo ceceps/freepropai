@@ -29,9 +29,20 @@ const KAT_MAP: Record<string, string> = {
   komersil: 'komersil',
 };
 
+/** Per-page counters written back by scrapePage (cards seen vs cards skipped). */
+interface PageStats {
+  skipped: number;
+  cardsSeen: number;
+}
+
 interface AcehomeScrapeOptions {
   url: string;
   maxPages?: number;
+  /**
+   * Source ids already stored in the DB. Their cards are skipped without a
+   * detail fetch, and paging continues to the next page instead of stopping.
+   */
+  skipSourceIds?: Set<string>;
   filters?: {
     location?: string;
     propertyType?: string;
@@ -76,13 +87,20 @@ export class AcehomeScraperService {
     // Derive category + region once from the source URL; stamp on every row.
     const meta = this.deriveMeta(url);
 
-    console.log(`[AcehomeScraperService] Starting scrape for ${url}, max pages: ${maxPages} (type=${meta.propertyType}, region=${meta.region})`);
+    // Copy: ids found in this run are added below so one listing can't be stored
+    // twice when pages reorder between fetches.
+    const skipSourceIds = new Set(options.skipSourceIds ?? []);
+    const knownCount = skipSourceIds.size;
+
+    console.log(`[AcehomeScraperService] Starting scrape for ${url}, max pages: ${maxPages} (type=${meta.propertyType}, region=${meta.region}, skipping ${knownCount} known id(s))`);
 
     try {
       // Scrape first page
-      const firstPageListings = await this.scrapePage(url, meta);
-      allListings.push(...firstPageListings);
-      console.log(`[AcehomeScraperService] Page 1: Found ${firstPageListings.length} listings`);
+      const stats1: PageStats = { skipped: 0, cardsSeen: 0 };
+      const first = await this.scrapePage(url, meta, skipSourceIds, stats1);
+      allListings.push(...first);
+      first.forEach(l => l.sourceId && skipSourceIds.add(l.sourceId));
+      console.log(`[AcehomeScraperService] Page 1: ${first.length} new, ${stats1.skipped} already stored`);
 
       // Scrape additional pages if maxPages > 1
       if (maxPages > 1) {
@@ -90,19 +108,23 @@ export class AcehomeScraperService {
           await this.delay(2000);
 
           const pageUrl = this.buildPageUrl(url, page);
-          const pageListings = await this.scrapePage(pageUrl, meta);
+          const stats: PageStats = { skipped: 0, cardsSeen: 0 };
+          const result = await this.scrapePage(pageUrl, meta, skipSourceIds, stats);
 
-          if (pageListings.length === 0) {
-            console.log(`[AcehomeScraperService] Page ${page}: No more listings found, stopping`);
+          // Stop only when the page held no cards at all. A page whose cards were
+          // all already stored must NOT end the run — walk on to the next page.
+          if (stats.cardsSeen === 0) {
+            console.log(`[AcehomeScraperService] Page ${page}: No cards found, stopping`);
             break;
           }
 
-          allListings.push(...pageListings);
-          console.log(`[AcehomeScraperService] Page ${page}: Found ${pageListings.length} listings`);
+          allListings.push(...result);
+          result.forEach(l => l.sourceId && skipSourceIds.add(l.sourceId));
+          console.log(`[AcehomeScraperService] Page ${page}: ${result.length} new, ${stats.skipped} already stored`);
         }
       }
 
-      console.log(`[AcehomeScraperService] Scraping completed. Total listings: ${allListings.length}`);
+      console.log(`[AcehomeScraperService] Scraping completed. New listings: ${allListings.length}`);
       return allListings;
 
     } catch (error: any) {
@@ -112,10 +134,20 @@ export class AcehomeScraperService {
   }
 
   /**
-   * Scrape a single page using cheerio (no LLM needed)
+   * Scrape a single page using cheerio (no LLM needed).
+   *
+   * `cardsSeen` counts listing cards on the page regardless of whether they were
+   * skipped, so the caller can tell "no more pages" from "this page was all
+   * duplicates" — the two need opposite behaviour.
    */
-  private async scrapePage(url: string, meta?: ScrapeMeta): Promise<ScrapedProperty[]> {
+  private async scrapePage(
+    url: string,
+    meta?: ScrapeMeta,
+    skipSourceIds?: Set<string>,
+    stats?: PageStats
+  ): Promise<ScrapedProperty[]> {
     const resolvedMeta = meta ?? this.deriveMeta(url);
+    if (stats) { stats.skipped = 0; stats.cardsSeen = 0; }
     try {
       console.log(`[AcehomeScraperService] Fetching page: ${url}`);
 
@@ -130,6 +162,8 @@ export class AcehomeScraperService {
 
       const $ = cheerio.load(response.data);
       const listings: ScrapedProperty[] = [];
+      let skipped = 0;
+      let cardsSeen = 0;
 
       // Each listing is in div.col-6.mb-3 > div.card.h-100
       $('div.col-6.mb-3').each((_, element) => {
@@ -142,6 +176,17 @@ export class AcehomeScraperService {
           const detailUrl = $titleLink.attr('href') || '';
 
           if (!title || !detailUrl) return;
+          cardsSeen++;
+
+          // Extract property ID from URL
+          const sourceId = this.extractIdFromUrl(detailUrl);
+
+          // Already stored -> skip this card entirely, no detail fetch. The
+          // caller keeps paging, so the job advances instead of stopping.
+          if (sourceId && skipSourceIds?.has(sourceId)) {
+            skipped++;
+            return;
+          }
 
           // Image URL
           const imageUrl = $card.find('img.card-img-top').attr('src') || '';
@@ -152,9 +197,6 @@ export class AcehomeScraperService {
 
           // Location
           const locationText = $card.find('span.card-text[style*="font-size:10px"]').text().trim();
-
-          // Extract property ID from URL
-          const sourceId = this.extractIdFromUrl(detailUrl);
 
           listings.push({
             title: this.clamp(title, 255),
@@ -177,9 +219,9 @@ export class AcehomeScraperService {
         }
       });
 
-      console.log(`[AcehomeScraperService] Parsed ${listings.length} listings from page`);
+      console.log(`[AcehomeScraperService] Page: ${cardsSeen} cards, ${skipped} already stored, ${listings.length} new`);
 
-      // Enrich with detail page data
+      // Enrich with detail page data — only the new ones; skipped cards cost no fetch.
       const enrichedListings: ScrapedProperty[] = [];
       for (const listing of listings) {
         await this.delay(1500);
@@ -191,6 +233,7 @@ export class AcehomeScraperService {
         }
       }
 
+      if (stats) { stats.skipped = skipped; stats.cardsSeen = cardsSeen; }
       return enrichedListings;
 
     } catch (error: any) {
@@ -268,7 +311,7 @@ export class AcehomeScraperService {
       $('strong').each((_, el) => {
         if (description) return;
         if ($(el).text().trim().toLowerCase() !== 'deskripsi') return;
-        description = this.extractDescriptionAfter($(el));
+        description = this.extractDescriptionAfter($(el), $);
       });
 
       return {
@@ -297,74 +340,17 @@ export class AcehomeScraperService {
   /**
    * Collect description text after the Deskripsi label until the next section
    * heading (Lokasi / Harga / Detail / Share). List items become "- " lines.
+   *
+   * Walks raw DOM siblings and wraps each with $(node): re-parsing a node via
+   * cheerio.load(node) detaches it from the tree (nextSibling becomes null),
+   * which silently ended the walk after the first element.
    */
-  private extractDescriptionAfter($label: cheerio.Cheerio<any>): string {
+  private extractDescriptionAfter(
+    $label: cheerio.Cheerio<any>,
+    $: cheerio.CheerioAPI
+  ): string {
     const parts: string[] = [];
     const SECTION_STOP = /^(lokasi|harga|detail|share)$/i;
-
-    const walk = ($node: cheerio.Cheerio<any>): boolean => {
-      const tag = (($node.prop('tagName') as string) || '').toLowerCase();
-      if (tag === 'strong') {
-        const label = $node.text().trim();
-        if (SECTION_STOP.test(label)) return true;
-      }
-
-      if (tag === 'ul' || tag === 'ol') {
-        $node.children('li').each((_, li) => {
-          const t = cheerio.load('<div></div>')('div').text();
-          void t;
-          const item = undefined;
-          void item;
-        });
-      }
-      return false;
-    };
-    void walk;
-
-    let $cursor = $label.nextAll();
-    $cursor.each((_, node) => {
-      const $n = $label;
-      void $n;
-      void node;
-    });
-
-    $label.nextAll().each((_, node) => {
-      const $n = cheerio.load('')(node as any);
-      void $n;
-    });
-
-    const $ = $label as unknown as cheerio.CheerioAPI;
-    void $;
-
-    const root = $label.parent();
-    void root;
-
-    $label.nextAll().each((_, el) => {
-      const $el = $label;
-      void $el;
-      void el;
-    });
-
-    // Cheerio element walking using the same loaded document via $label's siblings.
-    for (let sib = $label.next(); sib && sib.length; sib = sib.next()) {
-      const tag = ((sib.prop('tagName') as string) || '').toLowerCase();
-      if (tag === 'br') continue;
-
-      const nestedSection = sib.find('strong').filter((_, s) => {
-        return SECTION_STOP.test(cheerio.load('<x></x>')('x').text());
-      });
-      void nestedSection;
-
-      const strongs = sib.find('strong').add(sib.filter('strong'));
-      let stop = false;
-      strongs.each((__, sEl) => {
-        const txt = sib.find('strong').first().text();
-        void txt;
-        void sEl;
-      });
-      void stop;
-      void tag;
-    }
 
     const collectFrom = (node: any): boolean => {
       if (!node) return false;
@@ -374,36 +360,39 @@ export class AcehomeScraperService {
         return false;
       }
       if (node.type !== 'tag') return false;
+
       const name = String(node.name || '').toLowerCase();
-      if (name === 'br') {
-        return false;
-      }
-      if (name === 'strong') {
-        const label = cheerio.load(node)('strong').text().trim() ||
-          (node.children || []).map((c: any) => (c.type === 'text' ? c.data : '')).join('').trim();
-        if (SECTION_STOP.test(label)) return true;
+      if (name === 'br') return false;
+
+      if (name === 'strong' && SECTION_STOP.test($(node).text().trim())) {
+        return true;
       }
       if (name === 'li') {
-        const text = cheerio.load(node).root().text().trim();
+        const text = $(node).text().replace(/\s+/g, ' ').trim();
         if (text) parts.push(`- ${text}`);
         return false;
       }
       if (name === 'ul' || name === 'ol') {
-        const $list = cheerio.load(node);
-        $list('li').each((__, li) => {
-          const text = $list(li).text().replace(/\s+/g, ' ').trim();
-          if (text) parts.push(`- ${text}`);
-        });
+        $(node)
+          .children('li')
+          .each((_, li) => {
+            const text = $(li).text().replace(/\s+/g, ' ').trim();
+            if (text) parts.push(`- ${text}`);
+          });
         return false;
       }
-      if (name === 'p' || name === 'div' || name === 'h1' || name === 'h2' || name === 'h3' || name === 'h4' || name === 'h5' || name === 'h6') {
-        const $p = cheerio.load(node);
-        const innerStrong = $p('strong').first();
-        if (innerStrong.length && SECTION_STOP.test(innerStrong.text().trim()) && $p('strong').length === 1 && innerStrong.parent().is('p, div')) {
+      if (/^(p|div|h[1-6])$/.test(name)) {
+        const innerStrong = $(node).find('strong').first();
+        if (
+          innerStrong.length &&
+          SECTION_STOP.test(innerStrong.text().trim()) &&
+          $(node).find('strong').length === 1 &&
+          innerStrong.parent().is('p, div')
+        ) {
           return true;
         }
-        if (name === 'p' || name === 'h4' || name === 'h5' || name === 'h6') {
-          const text = $p.root().text().replace(/\s+/g, ' ').trim();
+        if (/^(p|h[4-6])$/.test(name)) {
+          const text = $(node).text().replace(/\s+/g, ' ').trim();
           if (text) parts.push(text);
           return false;
         }
@@ -416,8 +405,11 @@ export class AcehomeScraperService {
       return false;
     };
 
-    let sibling = $label.get(0)?.nextSibling as any;
-    // If the label is wrapped, also walk following siblings of the strong node.
+    // A wrapped <strong>Deskripsi</strong> has no sibling of its own, so fall
+    // back to the parent's next sibling to reach the description text.
+    const labelNode: any = $label.get(0);
+    let sibling: any = labelNode?.nextSibling ?? labelNode?.parent?.nextSibling ?? null;
+
     while (sibling) {
       if (collectFrom(sibling)) break;
       sibling = sibling.nextSibling;
