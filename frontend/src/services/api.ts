@@ -68,6 +68,17 @@ export const authApi = {
   async refresh(): Promise<ApiResponse<{ accessToken: string }>> {
     const response = await api.post<ApiResponse<{ accessToken: string }>>('/auth/refresh');
     return response.data;
+  },
+
+  async uploadPhoto(file: File): Promise<ApiResponse<{ url: string }>> {
+    const formData = new FormData();
+    formData.append('photo', file);
+    const response = await api.post<ApiResponse<{ url: string }>>('/auth/profile/photo', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
   }
 };
 

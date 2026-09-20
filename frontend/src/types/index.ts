@@ -8,6 +8,8 @@ export interface User {
   role: 'solo_agent' | 'team_owner' | 'team_agent';
   regionScope?: string;
   avatarUrl?: string;
+  portraitPhotoUrl?: string;
+  fullbodyPhotoUrl?: string;
   lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;

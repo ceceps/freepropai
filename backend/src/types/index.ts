@@ -10,6 +10,8 @@ export interface User {
   role: UserRole;
   regionScope?: string | null;
   avatarUrl?: string | null;
+  portraitPhotoUrl?: string | null;
+  fullbodyPhotoUrl?: string | null;
   lastLoginAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;

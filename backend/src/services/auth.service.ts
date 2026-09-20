@@ -50,6 +50,8 @@ const mapUserRow = (row: typeof users.$inferSelect): User => ({
   role: row.role as UserRole,
   regionScope: row.regionScope,
   avatarUrl: row.avatarUrl,
+  portraitPhotoUrl: row.portraitPhotoUrl,
+  fullbodyPhotoUrl: row.fullbodyPhotoUrl,
   lastLoginAt: row.lastLoginAt,
   createdAt: row.createdAt!,
   updatedAt: row.updatedAt!,
@@ -99,6 +101,8 @@ export interface UpdateProfileData {
   phone?: string | null;
   location?: string | null;
   avatarUrl?: string | null;
+  portraitPhotoUrl?: string | null;
+  fullbodyPhotoUrl?: string | null;
 }
 
 export const updateUserProfile = async (userId: string, data: UpdateProfileData): Promise<User> => {
@@ -107,6 +111,8 @@ export const updateUserProfile = async (userId: string, data: UpdateProfileData)
   if (data.phone !== undefined) patch.phone = data.phone?.trim() || null;
   if (data.location !== undefined) patch.location = data.location?.trim() || null;
   if (data.avatarUrl !== undefined) patch.avatarUrl = data.avatarUrl || null;
+  if (data.portraitPhotoUrl !== undefined) patch.portraitPhotoUrl = data.portraitPhotoUrl || null;
+  if (data.fullbodyPhotoUrl !== undefined) patch.fullbodyPhotoUrl = data.fullbodyPhotoUrl || null;
 
   const [row] = await db.update(users)
     .set(patch)

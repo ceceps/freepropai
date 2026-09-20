@@ -12,6 +12,8 @@ export const users = pgTable('users', {
   role: varchar('role', { length: 50 }).notNull().default('solo_agent'),
   regionScope: varchar('region_scope', { length: 255 }),
   avatarUrl: varchar('avatar_url', { length: 500 }),
+  portraitPhotoUrl: varchar('portrait_photo_url', { length: 500 }),
+  fullbodyPhotoUrl: varchar('fullbody_photo_url', { length: 500 }),
   refreshTokenHash: varchar('refresh_token_hash', { length: 255 }),
   lastLoginAt: timestamp('last_login_at'),
   isActive: boolean('is_active').notNull().default(true),

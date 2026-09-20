@@ -128,21 +128,57 @@ export const updateProfile = asyncHandler(async (req: Request, res: Response) =>
     throw new AppError('Not authenticated', 401);
   }
 
-  const { name, phone, location, avatarUrl } = req.body as {
+  const { name, phone, location, avatarUrl, portraitPhotoUrl, fullbodyPhotoUrl } = req.body as {
     name?: string;
     phone?: string | null;
     location?: string | null;
     avatarUrl?: string | null;
+    portraitPhotoUrl?: string | null;
+    fullbodyPhotoUrl?: string | null;
   };
 
   if (name !== undefined && (!name || !name.trim())) {
     throw new AppError('Name cannot be empty', 400);
   }
 
-  const user = await authService.updateUserProfile(req.user.id, { name, phone, location, avatarUrl });
+  const user = await authService.updateUserProfile(req.user.id, {
+    name,
+    phone,
+    location,
+    avatarUrl,
+    portraitPhotoUrl,
+    fullbodyPhotoUrl,
+  });
 
   res.json({
     success: true,
     data: { user }
+  });
+});
+
+export const uploadProfilePhoto = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) {
+    throw new AppError('Not authenticated', 401);
+  }
+
+  if (!req.file) {
+    throw new AppError('File foto tidak ditemukan', 400);
+  }
+
+  // Validate format (png & jpg/jpeg only) and size max 5MB
+  const allowedMimetypes = ['image/jpeg', 'image/png', 'image/jpg'];
+  if (!allowedMimetypes.includes(req.file.mimetype)) {
+    throw new AppError('Hanya format PNG dan JPG/JPEG yang diperbolehkan', 400);
+  }
+
+  if (req.file.size > 5 * 1024 * 1024) {
+    throw new AppError('Ukuran file maksimal 5MB', 400);
+  }
+
+  const photoUrl = `/uploads/${req.file.filename}`;
+
+  res.json({
+    success: true,
+    data: { url: photoUrl }
   });
 });

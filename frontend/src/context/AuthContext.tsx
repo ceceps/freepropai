@@ -8,7 +8,7 @@ interface AuthContextType extends AuthState {
   logout: () => Promise<void>;
   refreshAccessToken: () => Promise<string | null>;
   loadUser: () => Promise<void>;
-  updateProfile: (data: { name: string; email: string; phone?: string; location?: string; avatarUrl?: string }) => Promise<void>;
+  updateProfile: (data: { name: string; email: string; phone?: string; location?: string; avatarUrl?: string; portraitPhotoUrl?: string; fullbodyPhotoUrl?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -121,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return null;
   };
 
-  const updateProfile = async (data: { name: string; email: string; phone?: string; location?: string; avatarUrl?: string }) => {
+  const updateProfile = async (data: { name: string; email: string; phone?: string; location?: string; avatarUrl?: string; portraitPhotoUrl?: string; fullbodyPhotoUrl?: string }) => {
     const token = localStorage.getItem(STORAGE_KEY);
     if (!token) throw new Error('Not authenticated');
     
