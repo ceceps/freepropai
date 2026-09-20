@@ -8,6 +8,9 @@ export const llmConfig = {
   model: (process.env.LLM_MODEL || 'claude-opus-4-8') as string,
   maxTokens: 4096,
   temperature: 0.7,
+  imageModel: process.env.LLM_MODEL_IMAGE || 'ag/gemini-3.1-flash-image',
+  imageBaseURL: process.env.LLM_BASE_URL_IMAGE || 'https://20128-27a8ef7bf11dfea7.monkeycode-ai.live/v1/images/generations',
+  imageToken: process.env.LLM_TOKEN_IMAGE || 'sk-d1920e34163e39a4-pou0yy-26f44618',
 };
 
 export const validateLLMConfig = () => {

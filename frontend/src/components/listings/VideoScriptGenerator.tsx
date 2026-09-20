@@ -797,7 +797,7 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
                                 <th className="py-2.5 px-3 w-36">Model Action</th>
                                 <th className="py-2.5 px-3 w-48">Voice Over / Overlay</th>
                                 <th className="py-2.5 px-3 w-16 text-center">Durasi</th>
-                                <th className="py-2.5 px-3 w-48">AI Frame Prompt</th>
+                                <th className="py-2.5 px-3 w-48">AI Frame Prompt / Rendered PNG</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
@@ -872,9 +872,23 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
                                     {sc.duration_sec}s
                                   </td>
                                   <td className="py-3 px-3">
-                                    <p className="text-[10px] font-mono text-text-tertiary leading-tight bg-grey-50 dark:bg-grey-800/40 p-1.5 rounded border border-border">
-                                      {sc.frame_prompt}
-                                    </p>
+                                    {sc.generated_image_url ? (
+                                      <div className="space-y-1">
+                                        <ZoomableImage
+                                          src={sc.generated_image_url}
+                                          alt={`Scene ${sc.scene_no} PNG Frame`}
+                                          className="w-32 h-24 rounded-lg border-2 border-primary-500 shadow-md overflow-hidden"
+                                          downloadName={`storyboard-scene-${sc.scene_no}.png`}
+                                        />
+                                        <span className="px-1.5 py-0.5 rounded text-[9px] bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300 block w-max font-semibold">
+                                          ✨ Rendered PNG (Model Ref)
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <p className="text-[10px] font-mono text-text-tertiary leading-tight bg-grey-50 dark:bg-grey-800/40 p-1.5 rounded border border-border">
+                                        {sc.frame_prompt}
+                                      </p>
+                                    )}
                                   </td>
                                 </tr>
                               ))}

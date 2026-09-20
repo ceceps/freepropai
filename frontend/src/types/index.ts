@@ -209,6 +209,7 @@ export interface StoryboardSceneOutput {
   visual_note: string;
   frame_prompt: string;
   warning: string | null;
+  generated_image_url?: string | null;
 }
 
 export interface StoryboardSheetOutput {

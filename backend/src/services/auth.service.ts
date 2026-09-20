@@ -84,6 +84,11 @@ export const findUserById = async (id: string): Promise<User | null> => {
   return row ? mapUserRow(row) : null;
 };
 
+export const getFirstUser = async (): Promise<User | null> => {
+  const [row] = await db.select().from(users).limit(1);
+  return row ? mapUserRow(row) : null;
+};
+
 export const updateUserRefreshToken = async (userId: string, tokenHash: string | null): Promise<void> => {
   await db.update(users)
     .set({ refreshTokenHash: tokenHash, updatedAt: new Date() })

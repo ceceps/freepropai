@@ -8,6 +8,7 @@ import ListingModel from '../models/Listing';
 import descriptionGenerator from '../services/descriptionGenerator.service';
 import videoScriptGenerator from '../services/videoScriptGenerator.service';
 import storyboardPlanner from '../services/storyboardPlanner.service';
+import { getFirstUser } from '../services/auth.service';
 import { listingAnalysisService } from '../services/listingAnalysis.service';
 import type { CreateListingRequest, ApiResponse, PaginatedResponse } from '../types';
 
@@ -416,6 +417,15 @@ class ListingController {
     }
 
     const body = req.body || {};
+
+    // Get user profile to check for complete model reference photos (portrait & full body)
+    const currentUser = req.user || (await getFirstUser());
+    if (currentUser?.portraitPhotoUrl && currentUser?.fullbodyPhotoUrl) {
+      body.model_reference_available = true;
+      body.portrait_photo_url = body.portrait_photo_url || currentUser.portraitPhotoUrl;
+      body.fullbody_photo_url = body.fullbody_photo_url || currentUser.fullbodyPhotoUrl;
+    }
+
     const result = await storyboardPlanner.planStoryboard(listing, body);
 
     if (result.error) {

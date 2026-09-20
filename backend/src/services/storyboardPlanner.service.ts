@@ -1,4 +1,8 @@
+import fs from 'fs';
+import path from 'path';
+import axios from 'axios';
 import llmClient from '../utils/llmClient';
+import { llmConfig } from '../config/llm';
 import type { ListingWithDetails } from '../types';
 
 export interface StoryboardFormOptions {
@@ -12,6 +16,9 @@ export interface StoryboardFormOptions {
   age_range?: string;
   model_reference_available?: boolean;
   video_json?: any;
+  portrait_photo_url?: string | null;
+  fullbody_photo_url?: string | null;
+  generate_images?: boolean;
 }
 
 export interface StoryboardSceneOutput {
@@ -29,6 +36,7 @@ export interface StoryboardSceneOutput {
   visual_note: string;
   frame_prompt: string;
   warning: string | null;
+  generated_image_url?: string | null;
 }
 
 export interface StoryboardSheetOutput {
@@ -103,6 +111,8 @@ class StoryboardPlannerService {
       video_json: JSON.stringify(videoJson, null, 2),
     });
 
+    let finalResult: StoryboardPlannerResult;
+
     try {
       console.log('🤖 Generating Storyboard Plan via LLM...');
       const result = await llmClient.generateJSON<StoryboardPlannerResult>(
@@ -118,10 +128,95 @@ class StoryboardPlannerService {
         throw new Error('LLM response does not match StoryboardPlannerResult schema');
       }
 
-      return result;
+      finalResult = result;
     } catch (error) {
       console.warn('⚠️ LLM Storyboard Planning failed, using deterministic fallback generator:', error instanceof Error ? error.message : error);
-      return this.generateFallbackStoryboard(listing, options, photos, videoJson);
+      finalResult = this.generateFallbackStoryboard(listing, options, photos, videoJson);
+    }
+
+    // If model reference photos (portrait & full body) are present, generate PNG images for each scene
+    if (options.portrait_photo_url && options.fullbody_photo_url) {
+      await this.generateStoryboardImages(finalResult, listing, photos, options);
+    }
+
+    return finalResult;
+  }
+
+  /**
+   * Generate PNG images for storyboard scenes using Gemini Image Generation model
+   */
+  private async generateStoryboardImages(
+    result: StoryboardPlannerResult,
+    listing: ListingWithDetails,
+    photos: Array<{ photo_id: string; room_type: string; url: string }>,
+    options: StoryboardFormOptions
+  ): Promise<void> {
+    const portraitUrl = options.portrait_photo_url;
+    const fullbodyUrl = options.fullbody_photo_url;
+    if (!portraitUrl || !fullbodyUrl) return;
+
+    console.log('🎨 Generating PNG frame images for storyboard using model reference photos & Gemini Flash Image...');
+
+    const uploadDir = path.join(__dirname, '..', '..', process.env.UPLOAD_DIR || './uploads', 'storyboards');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    for (const sheet of result.sheets) {
+      for (const sc of sheet.scenes) {
+        try {
+          const photoMatch = photos.find(p => p.photo_id === sc.photo_id);
+
+          const promptParts: string[] = [
+            `Photorealistic property video scene frame for real estate listing "${listing.title}" in ${listing.location || 'Bandung'}.`,
+            `Scene visual: ${sc.visual_note}. Camera motion: ${sc.camera_motion}.`,
+          ];
+
+          if (sc.frame_prompt) {
+            promptParts.push(`Composition details: ${sc.frame_prompt}.`);
+          }
+
+          if (photoMatch?.url) {
+            promptParts.push(`Property environment background reference image: ${photoMatch.url}`);
+          }
+
+          if (sc.model_present) {
+            promptParts.push(`Real estate agent model appearance reference: Portrait/Face=${portraitUrl}, Fullbody Outfit=${fullbodyUrl}.`);
+            if (sc.model_action) promptParts.push(`Model pose and action: ${sc.model_action}.`);
+            if (sc.model_position) promptParts.push(`Model position: ${sc.model_position}.`);
+          }
+
+          promptParts.push(`Aspect ratio: ${options.aspect_ratio || '9:16'}. Ultra-high resolution photorealistic image.`);
+
+          const response = await axios.post(
+            llmConfig.imageBaseURL,
+            {
+              model: llmConfig.imageModel,
+              prompt: promptParts.join(' '),
+              n: 1,
+              size: options.aspect_ratio === '9:16' ? '1024x1792' : '1024x1024',
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${llmConfig.imageToken}`,
+                'Content-Type': 'application/json',
+              },
+              timeout: 60000,
+            }
+          );
+
+          const b64 = response.data?.data?.[0]?.b64_json;
+          if (b64) {
+            const filename = `scene_${listing.id.slice(0, 8)}_${sc.scene_no}_${Date.now()}.png`;
+            const filePath = path.join(uploadDir, filename);
+            fs.writeFileSync(filePath, Buffer.from(b64, 'base64'));
+            sc.generated_image_url = `/uploads/storyboards/${filename}`;
+            console.log(`✅ Saved scene ${sc.scene_no} PNG image to ${sc.generated_image_url}`);
+          }
+        } catch (err: any) {
+          console.error(`❌ Failed to generate PNG image for scene ${sc.scene_no}:`, err.message || err);
+        }
+      }
     }
   }
 
