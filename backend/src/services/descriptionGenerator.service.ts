@@ -347,85 +347,82 @@ Format:
   }
 
   /**
-   * Fallback generator when LLM API call fails - dynamic, no hardcoded templates
+   * Fallback generator when LLM API call fails - dynamic, structured to exact templates
    */
   private generateFallbackDescriptions(listing: Listing): GeneratedDescriptions {
-    const typeStr = listing.property_type || 'Properti';
-    const titleStr = listing.title || `${typeStr} di ${listing.location}`;
-    const priceFormatted = this.formatPrice(listing.price);
-    const priceInMillionsOrBillions = listing.price >= 1000000000
-      ? `${(listing.price / 1000000000).toLocaleString('id-ID', { maximumFractionDigits: 2 })} Milyar`
-      : `${(listing.price / 1000000).toLocaleString('id-ID', { maximumFractionDigits: 0 })} Juta`;
-
-    const specParts: string[] = [];
-    if (listing.land_area) specParts.push(`tanah ${listing.land_area} m²`);
-    if (listing.building_area) specParts.push(`bangunan ${listing.building_area} m²`);
-    if (listing.bedrooms) specParts.push(`${listing.bedrooms} kamar tidur`);
-    if (listing.bathrooms) specParts.push(`${listing.bathrooms} kamar mandi`);
-    const specSentence = specParts.join(', ');
-
-    const specSummary = [
-      listing.land_area ? `LT ${listing.land_area}m²` : '',
-      listing.building_area ? `LB ${listing.building_area}m²` : '',
-      listing.bedrooms ? `${listing.bedrooms} KT` : '',
-      listing.bathrooms ? `${listing.bathrooms} KM` : '',
-    ].filter(Boolean).join(' | ');
-
+    const typeTitle = this.getPropertyTypeLabel(listing.property_type);
+    const compactPrice = this.formatCompactPrice(listing.price);
+    const loc = listing.location || 'Bandung';
+    const titleStr = listing.title || `${typeTitle} di ${loc}`;
     const addInfo = listing.additional_info ? normalizeText(listing.additional_info) : '';
 
-    const compactPrice = this.formatCompactPrice(listing.price);
-    const typeTitle = this.getPropertyTypeLabel(listing.property_type);
+    // Extract structured info from raw additional_info if present
+    let sellingPoints = '';
+    let caraBayar = 'Cash & KPR';
+    let surveyRules = 'Janjian satu hari sebelumnya';
+    let catatan = '';
+
+    if (addInfo) {
+      const spMatch = addInfo.match(/Selling Point:\s*([\s\S]*?)(?=(CARA BAYAR|AKSES LOKASI|SURVEY|$))/i);
+      if (spMatch && spMatch[1]) {
+        sellingPoints = spMatch[1].replace(/[-•]\s*/g, '').split('\n').map(s => s.trim()).filter(Boolean).join(', ');
+      }
+      const cbMatch = addInfo.match(/CARA BAYAR\s*:\s*([^\n]+)/i);
+      if (cbMatch && cbMatch[1]) caraBayar = cbMatch[1].trim();
+
+      const surMatch = addInfo.match(/SURVEY\s*:\s*([^\n]+)/i);
+      if (surMatch && surMatch[1]) surveyRules = surMatch[1].trim();
+
+      const aksMatch = addInfo.match(/AKSES LOKASI\s*:\s*([^\n]+)/i);
+      if (aksMatch && aksMatch[1]) catatan = `Akses lokasi: ${aksMatch[1].trim()}`;
+    }
 
     const specsList: string[] = [];
     if (listing.bedrooms) specsList.push(`${listing.bedrooms} KT`);
     if (listing.bathrooms) specsList.push(`${listing.bathrooms} KM`);
     if (listing.land_area) specsList.push(`LT ${listing.land_area} m²`);
     if (listing.building_area) specsList.push(`LB ${listing.building_area} m²`);
+    const specsStr = specsList.join(', ');
 
+    // 1. FORMAL
     const formalLines: string[] = [];
-    formalLines.push(`**${typeTitle} di ${listing.location} – ${compactPrice}**\n`);
-    formalLines.push(`${titleStr}. Hunian nyaman di lokasi strategis ${listing.location}.\n`);
-    if (specsList.length > 0) {
-      formalLines.push(`**Spesifikasi:** ${specsList.join(', ')}`);
-    }
-    if (addInfo) {
-      formalLines.push(`\n${addInfo}`);
-    }
+    formalLines.push(`**${typeTitle} di ${loc} – ${compactPrice}**\n`);
+    formalLines.push(`${titleStr}. Hunian nyaman di lokasi strategis ${loc}.\n`);
+    if (specsStr) formalLines.push(`**Spesifikasi:** ${specsStr}`);
+    if (sellingPoints) formalLines.push(`**Akses terdekat:** ${sellingPoints}`);
+    formalLines.push(`**Pembayaran:** ${caraBayar}. **Survey:** ${surveyRules}.`);
+    if (catatan) formalLines.push(`\n**Catatan:** ${catatan}`);
     const formal = formalLines.join('\n');
 
-    // Variant 2: CASUAL #1 - dynamic PAS, no template hooks
-    const hooks = [
-      `Mencari ${typeStr.toLowerCase()} di ${listing.location} tapi selalu kelewat?`,
-      `Lagi cari hunian di ${listing.location}? Yang bagus cepat laku.`,
-      `Butuh ${typeStr.toLowerCase()} strategis? Ini dia.`,
-    ];
-    const hook = hooks[Math.floor(Math.random() * hooks.length)];
+    // 2. PAS (CASUAL 1)
+    const pasLines: string[] = [];
+    pasLines.push(`Lagi cari hunian strategis di ${loc} yang dekat akses transportasi?\n`);
+    pasLines.push(`Mencari properti dengan spesifikasi lengkap dan lokasi berkembang memang butuh kecermatan. Unit berkualitas di area ini selalu diminati pembeli gercep.\n`);
+    pasLines.push(`Solusinya ${titleStr}! ✨\n`);
+    pasLines.push(`**${typeTitle} di ${loc} – ${compactPrice}**`);
+    if (specsStr) pasLines.push(`- Spesifikasi: ${specsStr}`);
+    if (sellingPoints) pasLines.push(`- Akses terdekat: ${sellingPoints}`);
+    pasLines.push(`- Pembayaran: ${caraBayar}`);
+    pasLines.push(`\n**Survey:** ${surveyRules}. Hubungi kami sekarang untuk jadwal survey! 🔑`);
+    if (catatan) pasLines.push(`\n**Catatan:** ${catatan}`);
+    const casual_1 = pasLines.join('\n');
 
-    const agitates = [
-      `Harga makin naik, unit bagus makin jarang. Kalo nggak gercep, nanti laku sama orang lain.`,
-      `Pasar properti ${listing.location} memang nggak nungguin siapa pun. Unit premium kayak gini laku cepet banget.`,
-      `Lokasi incaran banyak orang — kalo terlalu lama mikir, peluangnya ilang.`,
-    ];
-    const agitate = agitates[Math.floor(Math.random() * agitates.length)];
-
-    const solutions = [
-      `${titleStr} jawabannya! Lokasi premium, spesifikasi lengkap, harga wajar.`,
-      `Tenang, ${titleStr} cocok banget buat kamu. ${specSummary} — siap huni.`,
-      `Solusinya ${titleStr}. Strategis, legal, dan ${specSummary}.`,
-    ];
-    const solution = solutions[Math.floor(Math.random() * solutions.length)];
-
-    const ctas = [
-      'DM atau WA sekarang buat survey lokasi!',
-      'Langsung hubungi agen kami untuk jadwal viewing!',
-      'Klik tombol kontak di bawah untuk informasi detail!',
-    ];
-    const cta = ctas[Math.floor(Math.random() * ctas.length)];
-
-    const casual_1 = `${hook} 😩\n\n${agitate} ⏳\n\n${solution} ✨\n\n📍 ${listing.location}\n💰 Rp ${priceInMillionsOrBillions}\n✨ ${specSummary}\n${addInfo ? `📌 ${addInfo}\n\n` : ''}${cta} 📲`;
-
-    // Variant 3: CASUAL #2 - short punchy story/status
-    const casual_2 = `🔥 ${titleStr} — unit strategis di ${listing.location}!\n\n${specSummary}\n💰 Rp ${priceInMillionsOrBillions}\n\n${addInfo ? `${addInfo.slice(0, 150)}...\n\n` : ''}Lokasi begini cepat laku — jangan sampai kehabisan. ${cta} 📲⚡`;
+    // 3. SHORT (CASUAL 2)
+    const locClean = loc.replace(/\s+Bandung\s+Barat/i, '');
+    const shortLines: string[] = [];
+    shortLines.push(`🔥 ${titleStr} – ${loc}!`);
+    shortLines.push(`\n🏠 ${compactPrice} | ${specsStr.replace(/,/g, ' |')}`);
+    if (sellingPoints) {
+      const spParts = sellingPoints.split(',');
+      if (spParts[0]) shortLines.push(`📍 ${spParts[0].trim()}`);
+      if (spParts[1]) shortLines.push(`📍 ${spParts[1].trim()}`);
+    } else {
+      shortLines.push(`📍 Lokasi strategis ${loc}`);
+    }
+    shortLines.push(`💳 ${caraBayar}`);
+    shortLines.push(`\nKlik link di bio & hubungi kami untuk survey (${surveyRules}). 📲`);
+    shortLines.push(`\n#rumah${locClean.toLowerCase().replace(/\s+/g, '')} #propertibandung #rumahdijual #rumahsiaphuni #investasiproperti`);
+    const casual_2 = shortLines.join('\n');
 
     return {
       formal: postProcessDescription(formal),
