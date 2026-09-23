@@ -175,9 +175,13 @@ export const listingApi = {
     return response.data;
   },
 
-  // Get all listings
-  async getAll(status?: string): Promise<PaginatedResponse<ListingSummary>> {
-    const params = status ? { status } : {};
+  // Get listings (paginated, optional status/search filters)
+  async getAll(params?: {
+    status?: string;
+    q?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<PaginatedResponse<ListingSummary>> {
     const response = await api.get<PaginatedResponse<ListingSummary>>('/listings', { params });
     return response.data;
   },

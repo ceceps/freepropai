@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin, Download, Check, Info, Video, RefreshCw, Target } from 'lucide-react';
 import { listingApi } from '../services/api';
 import ListingForm from '../components/listings/ListingForm';
@@ -7,9 +7,12 @@ import VideoScriptGenerator from '../components/listings/VideoScriptGenerator';
 import ListingImage from '../components/listings/ListingImage';
 import ListingAnalysis from '../components/listings/ListingAnalysis';
 import ZoomableImage from '../components/common/ZoomableImage';
+import Pagination from '../components/common/Pagination';
 import type { ListingSummary, ListingWithDetails, CreateListingData } from '../types';
 
 type View = 'list' | 'create' | 'detail' | 'edit';
+
+const PAGE_SIZE = 12;
 
 export default function ListingsPage() {
   const [view, setView] = useState<View>('list');
@@ -19,8 +22,11 @@ export default function ListingsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
 
   // Reset to info tab when selectedListing changes
@@ -28,19 +34,33 @@ export default function ListingsPage() {
     setActiveTab('info');
   }, [selectedListing?.id]);
 
-  // Load listings on mount
+  // Debounce the search box so typing does not fire a request per keystroke
   useEffect(() => {
-    if (view === 'list') {
-      loadListings();
-    }
-  }, [view]);
+    const timer = setTimeout(() => {
+      setSearchTerm(searchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
-  const loadListings = async () => {
+  // A status change always restarts from the first page
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter]);
+
+  const loadListings = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await listingApi.getAll();
+      setError(null);
+      const response = await listingApi.getAll({
+        status: statusFilter !== 'All' ? statusFilter : undefined,
+        q: searchTerm || undefined,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+      });
       if (response.success && response.data) {
         setListings(response.data);
+        setTotal(response.meta?.total ?? response.data.length);
       }
     } catch (err) {
       console.error('Failed to load listings:', err);
@@ -48,7 +68,14 @@ export default function ListingsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [statusFilter, searchTerm, page]);
+
+  // Load listings whenever the list view, page, or filters change
+  useEffect(() => {
+    if (view === 'list') {
+      loadListings();
+    }
+  }, [view, loadListings]);
 
   const handleCreateListing = async (data: CreateListingData, photos: File[]) => {
     try {
@@ -228,7 +255,12 @@ export default function ListingsPage() {
       if (response.success) {
         setView('list');
         setSelectedListing(null);
-        await loadListings();
+        // Step back a page when the last row of the current page was removed
+        if (listings.length === 1 && page > 1) {
+          setPage(page - 1);
+        } else {
+          await loadListings();
+        }
       }
     } catch (err: any) {
       console.error('Failed to delete listing:', err);
@@ -245,13 +277,6 @@ export default function ListingsPage() {
       minimumFractionDigits: 0,
     }).format(price);
   };
-
-  const filteredListings = listings.filter(listing => {
-    const matchesSearch = listing.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      listing.location.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'All' || listing.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
 
   const getStatusConfig = (status: string) => {
     switch (status) {
@@ -314,8 +339,8 @@ export default function ListingsPage() {
                 <input
                   type="search"
                   placeholder="Search listings by title or location..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   className="input pl-10"
                 />
               </div>
@@ -343,13 +368,15 @@ export default function ListingsPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent mx-auto mb-4" />
               <p className="text-text-secondary dark:text-text-secondary-dark">Loading listings...</p>
             </div>
-          ) : filteredListings.length === 0 ? (
+          ) : listings.length === 0 ? (
             <div className="card p-12 text-center">
               <Home className="w-16 h-16 text-text-tertiary dark:text-text-tertiary-dark mx-auto mb-4" />
               <p className="text-text-secondary dark:text-text-secondary-dark mb-4">
-                {listings.length === 0 ? 'No listings yet. Create your first listing to get started!' : 'No listings match your filters.'}
+                {total === 0 && !searchTerm && statusFilter === 'All'
+                  ? 'No listings yet. Create your first listing to get started!'
+                  : 'No listings match your filters.'}
               </p>
-              {listings.length === 0 && (
+              {total === 0 && !searchTerm && statusFilter === 'All' && (
                 <button
                   onClick={() => setView('create')}
                   className="btn btn-primary"
@@ -360,8 +387,9 @@ export default function ListingsPage() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredListings.map((listing) => {
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {listings.map((listing) => {
                 const statusConfig = getStatusConfig(listing.status);
                 return (
                   <div key={listing.id} className="card card-hover overflow-hidden">
@@ -439,7 +467,18 @@ export default function ListingsPage() {
                   </div>
                 );
               })}
-            </div>
+              </div>
+
+              <Pagination
+                page={page}
+                pageSize={PAGE_SIZE}
+                total={total}
+                onPageChange={(next) => {
+                  setPage(next);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
+            </>
           )}
         </div>
       )}

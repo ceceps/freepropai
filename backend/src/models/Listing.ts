@@ -1,5 +1,5 @@
 import { db, listings, listingPhotos, listingDescriptions, listingVideoPrompts, listingAnalyses } from '../db';
-import { eq, desc, isNull, and, or, ilike } from 'drizzle-orm';
+import { eq, desc, isNull, and, or, ilike, count } from 'drizzle-orm';
 import type {
   Listing,
   ListingPhoto,
@@ -55,20 +55,55 @@ export class ListingModel {
     };
   }
 
-  // Get all listings (excluding soft-deleted)
-  async findAll(filters?: { status?: string }): Promise<Listing[]> {
-    let query = db.select().from(listings)
-      .where(isNull(listings.deletedAt))
-      .$dynamic();
+  // Build the shared WHERE conditions for listing list/count queries
+  private buildListConditions(filters?: { status?: string; q?: string }) {
+    const conditions = [isNull(listings.deletedAt)];
 
     if (filters?.status) {
-      query = query.where(and(isNull(listings.deletedAt), eq(listings.status, filters.status)));
-    } else {
-      query = query.orderBy(desc(listings.createdAt));
+      conditions.push(eq(listings.status, filters.status));
+    }
+
+    if (filters?.q) {
+      conditions.push(or(
+        ilike(listings.title, `%${filters.q}%`),
+        ilike(listings.location, `%${filters.q}%`)
+      )!);
+    }
+
+    return and(...conditions);
+  }
+
+  // Get all listings (excluding soft-deleted), newest first, with optional paging
+  async findAll(filters?: {
+    status?: string;
+    q?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Listing[]> {
+    let query = db.select().from(listings)
+      .where(this.buildListConditions(filters))
+      .orderBy(desc(listings.createdAt))
+      .$dynamic();
+
+    if (filters?.limit !== undefined) {
+      query = query.limit(filters.limit);
+    }
+    if (filters?.offset) {
+      query = query.offset(filters.offset);
     }
 
     const results = await query;
     return results.map(this.mapToListing);
+  }
+
+  // Count listings matching the same filters as findAll
+  async countListings(filters?: { status?: string; q?: string }): Promise<number> {
+    const [row] = await db
+      .select({ value: count() })
+      .from(listings)
+      .where(this.buildListConditions(filters));
+
+    return Number(row?.value ?? 0);
   }
 
   // Search listings by title/location (for autocomplete)

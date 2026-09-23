@@ -149,6 +149,57 @@ describe('Listing API Endpoints', () => {
       expect(response.body.data).toBeInstanceOf(Array);
       expect(response.body.data.length).toBe(0);
     });
+
+    it('should paginate with limit and offset and report total', async () => {
+      await db.insert(listings).values([
+        { title: 'Listing 4', location: 'Bogor', price: '900000000', status: 'draft' },
+        { title: 'Listing 5', location: 'Bekasi', price: '950000000', status: 'draft' },
+      ]);
+
+      const firstPage = await request(app)
+        .get('/api/listings?limit=2&offset=0')
+        .expect(200);
+
+      expect(firstPage.body.data).toHaveLength(2);
+      expect(firstPage.body.meta).toEqual({ total: 5, limit: 2, offset: 0 });
+
+      const secondPage = await request(app)
+        .get('/api/listings?limit=2&offset=2')
+        .expect(200);
+
+      const lastPage = await request(app)
+        .get('/api/listings?limit=2&offset=4')
+        .expect(200);
+
+      expect(secondPage.body.data).toHaveLength(2);
+      expect(lastPage.body.data).toHaveLength(1);
+      expect(lastPage.body.meta.total).toBe(5);
+
+      // Pages must not overlap — a stable ORDER BY is required for correct paging
+      const firstIds = firstPage.body.data.map((l: any) => l.id);
+      const secondIds = secondPage.body.data.map((l: any) => l.id);
+      expect(firstIds.some((id: string) => secondIds.includes(id))).toBe(false);
+    });
+
+    it('should search listings by title or location', async () => {
+      const response = await request(app)
+        .get('/api/listings?q=bandung')
+        .expect(200);
+
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].title).toBe('Listing 2');
+      expect(response.body.meta.total).toBe(1);
+    });
+
+    it('should combine status filter and search', async () => {
+      const response = await request(app)
+        .get('/api/listings?status=draft&q=jakarta')
+        .expect(200);
+
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].title).toBe('Listing 1');
+      expect(response.body.meta.total).toBe(1);
+    });
   });
 
   describe('GET /api/listings/:id', () => {

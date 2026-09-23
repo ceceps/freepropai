@@ -124,47 +124,28 @@ class ListingController {
   });
 
   /**
-   * Get all listings
-   * GET /api/listings?status=draft&limit=20&offset=0
+   * Get all listings (paginated)
+   * GET /api/listings?status=draft&q=bandung&limit=20&offset=0
    */
   getListings = asyncHandler(async (req: Request, res: Response) => {
     const { status, q, limit = '20', offset = '0' } = req.query;
     const limitNum = Math.min(Math.max(parseInt(String(limit), 10) || 20, 1), 100);
     const offsetNum = Math.max(parseInt(String(offset), 10) || 0, 0);
 
-    // If query param q is present, use search mode
-    if (q !== undefined && q !== '') {
-      const results = await ListingModel.search(q ? String(q) : undefined);
-      const totalCount = results.length;
-      const paginatedResults = results.slice(offsetNum, offsetNum + limitNum);
-      const response = {
-        success: true,
-        data: paginatedResults.map(listing => ({
-          id: listing.id,
-          title: listing.title,
-          location: cleanLocation(listing.location, listing.title),
-          price: listing.price,
-          bedrooms: listing.bedrooms,
-          bathrooms: listing.bathrooms,
-          property_type: listing.property_type,
-        })),
-        meta: {
-          total: totalCount,
-          limit: limitNum,
-          offset: offsetNum,
-        },
-      };
-      return res.json(response);
-    }
+    const filters: { status?: string; q?: string } = {};
+    if (status && status !== 'all') filters.status = String(status);
+    const searchTerm = q !== undefined ? String(q).trim() : '';
+    if (searchTerm) filters.q = searchTerm;
 
-    const filters = status ? { status: status as string } : undefined;
-    const listings = await ListingModel.findAll(filters);
-    const totalCount = listings.length;
-    const paginatedListings = listings.slice(offsetNum, offsetNum + limitNum);
+    // Count and page at the SQL level so memory stays bounded regardless of table size
+    const [totalCount, listings] = await Promise.all([
+      ListingModel.countListings(filters),
+      ListingModel.findAll({ ...filters, limit: limitNum, offset: offsetNum }),
+    ]);
 
     // Get photo count for each listing
     const listingsWithMeta = await Promise.all(
-      paginatedListings.map(async (listing) => {
+      listings.map(async (listing) => {
         const photos = await ListingModel.getPhotos(listing.id);
         const descriptions = await ListingModel.getDescriptions(listing.id);
 
