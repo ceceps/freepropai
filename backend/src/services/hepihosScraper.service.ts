@@ -161,8 +161,9 @@ export class HepihosScraperService {
         try {
           const $card = $(element);
 
-          // Find the parent link
-          const $link = $card.closest('a[href*="/project/detail/"]');
+          // Find detail link: inside the card or wrapping parent
+          const $foundLink = $card.find('a[href*="/project/detail/"]').first();
+          const $link = $foundLink.length ? $foundLink : $card.closest('a[href*="/project/detail/"]');
           const detailUrl = $link.attr('href') || '';
 
           if (!detailUrl) return;
@@ -232,7 +233,11 @@ export class HepihosScraperService {
       for (const listing of listings) {
         await this.delay(1500);
         try {
-          const detail = await this.scrapeListingDetail(listing.listingUrl, { propertyType: 'rumah', region: resolvedAgentHandle });
+          const detail = await this.scrapeListingDetail(listing.listingUrl, {
+            propertyType: 'rumah',
+            region: resolvedAgentHandle,
+            agentHandle: resolvedAgentHandle,
+          });
           enrichedListings.push(detail || listing);
         } catch {
           enrichedListings.push(listing);
