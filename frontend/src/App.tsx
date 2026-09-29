@@ -28,6 +28,7 @@ function AppRoutes() {
         <Route path="/leads" element={<LeadsPage />} />
         <Route path="/followups" element={<FollowUpsPage />} />
         <Route path="/listings" element={<ListingsPage />} />
+        <Route path="/listings/:id" element={<ListingsPage />} />
         <Route path="/scraping" element={<ScrapingPage />} />
         <Route path="/pipeline" element={<PipelinePage />} />
         <Route path="/profile" element={<ProfilePage />} />
