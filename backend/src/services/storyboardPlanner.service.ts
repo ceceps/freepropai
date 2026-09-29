@@ -172,6 +172,12 @@ class StoryboardPlannerService {
     const fullbodyUrl = options.fullbody_photo_url;
     if (!portraitUrl || !fullbodyUrl) return;
 
+    if (!llmConfig.imageToken) {
+      console.warn('⚠️ LLM_TOKEN_IMAGE is not set; skipping storyboard image generation');
+      result.warnings.push('storyboard image generation skipped: LLM_TOKEN_IMAGE is not configured');
+      return;
+    }
+
     console.log('🎨 Generating PNG frame images for storyboard (multimodal with local photo base64)...');
 
     const uploadDir = path.join(__dirname, '..', '..', process.env.UPLOAD_DIR || './uploads', 'storyboards');
@@ -188,6 +194,23 @@ class StoryboardPlannerService {
 
     for (const sheet of result.sheets) {
       for (const sc of sheet.scenes) {
+        // A previously rendered PNG for this listing+scene, used only as a
+        // fallback when a fresh render fails (e.g. image model quota exhausted).
+        // Always prefer a fresh render so an edited storyboard is not served
+        // stale frames.
+        const prefix = `scene_${listing.id.slice(0, 8)}_${sc.scene_no}_`;
+        const reuseExisting = (): boolean => {
+          const existing = fs.readdirSync(uploadDir)
+            .filter(f => f.startsWith(prefix) && f.endsWith('.png'))
+            .sort()
+            .pop();
+          if (!existing) return false;
+          sc.generated_image_url = `/uploads/storyboards/${existing}`;
+          console.log(`♻️ Reusing scene ${sc.scene_no} PNG → ${sc.generated_image_url}`);
+          result.warnings.push(`scene ${sc.scene_no}: reused previously rendered PNG (fresh render unavailable)`);
+          return true;
+        };
+
         try {
           const photoMatch = photos.find(p => p.photo_id === sc.photo_id);
 
@@ -293,11 +316,22 @@ class StoryboardPlannerService {
             console.log(`✅ Saved scene ${sc.scene_no} PNG → ${sc.generated_image_url}`);
           } else {
             console.warn(`⚠️ Scene ${sc.scene_no}: no image data in response`);
+            if (!reuseExisting()) {
+              result.warnings.push(`scene ${sc.scene_no}: image model returned no image data`);
+            }
           }
         } catch (err: any) {
           const status = err.response?.status;
           const msg = err.response?.data?.error?.message || err.message;
           console.error(`❌ Scene ${sc.scene_no} image gen failed (${status || 'network'}): ${msg}`);
+          // Surface the failure: otherwise the API answers success:true with an
+          // empty warnings list and the caller cannot tell why no frame rendered.
+          if (reuseExisting()) continue;
+          const quota = /quota|RESOURCE_EXHAUSTED|429|503/i.test(String(msg));
+          result.warnings.push(
+            `scene ${sc.scene_no}: image generation failed (${status || 'network'})` +
+            (quota ? ' — model quota exhausted' : `: ${String(msg).slice(0, 200)}`)
+          );
         }
       }
     }
@@ -333,7 +367,7 @@ Kamu adalah Storyboard Planner untuk video marketing properti (rumah dan tanah) 
 - Gaya lain yang tidak dikenal: ikuti camera_motion dari JSON apa adanya.
 
 ### ai_video_model
-- Jika "Google Veo 3 / Omni Flash": JSON memakai blok [Visual] + VO. Ambil deskripsi visual dari [Visual] sebagai visual_note (ringkas, maksimal 20 kata) dan VO dari blok VO.
+- Jika "Google Veo 3 / Omni Flash": JSON memakai struktur Omni Flash per scene. Ambil visual_note dari field "action" (ringkas, maksimal 20 kata), camera_motion dari "shot_framing_and_motion", overlay_text dari "text_rendering.content", dan VO dari "audio.dialogue.text".
 
 ### aspect_ratio & resolution
 - Semua frame_prompt harus menyebut rasio ini. Jangan campur rasio.
@@ -492,11 +526,14 @@ Ikuti aturan di system prompt. Balas hanya dengan JSON sesuai skema.`;
       const cropHint: 'wide' | 'close-up' | 'left' | 'right' | 'top-down' | null =
         idx % 4 === 0 ? 'wide' : idx % 4 === 1 ? 'close-up' : idx % 4 === 2 ? 'left' : 'right';
 
-      const isAerial = videoStyle.toLowerCase().includes('aerial') || (s.camera_motion || '').toLowerCase().includes('drone');
+      const cameraMotion = s.shot_framing_and_motion || s.camera_motion || 'Slow push-in';
+      const isAerial = videoStyle.toLowerCase().includes('aerial') || cameraMotion.toLowerCase().includes('drone');
       const needsAerialSimulation = isAerial && Boolean(matchedPhoto);
 
-      const voText = voiceOver ? (s.vo || s.vo_text || `Scene ${sceneNo}`) : null;
-      const overlayText = s.overlay || s.overlay_text || (idx === 0 ? listing.title : null);
+      const voText = voiceOver
+        ? (s.audio?.dialogue?.text || s.vo || s.vo_text || `Scene ${sceneNo}`)
+        : null;
+      const overlayText = s.text_rendering?.content || s.overlay || s.overlay_text || (idx === 0 ? listing.title : null);
 
       const framePrompt = `Use this listing photo as the frame. Crop/compose: ${cropHint}. Aspect ratio ${aspectRatio}. Do not add, remove, or alter any property element. No people.`;
 
@@ -510,9 +547,9 @@ Ikuti aturan di system prompt. Balas hanya dengan JSON sesuai skema.`;
         model_position: null,
         vo_text: voText,
         overlay_text: overlayText,
-        camera_motion: s.camera_motion || 'Slow push-in',
-        duration_sec: s.duration_sec || 5,
-        visual_note: (s.visual || s.visual_note || 'Properti').slice(0, 100),
+        camera_motion: cameraMotion,
+        duration_sec: s.duration_sec || s.duration_seconds || 5,
+        visual_note: (s.action || s.visual || s.visual_note || 'Properti').slice(0, 100),
         frame_prompt: framePrompt,
         warning: photoId ? null : 'no_matching_photo',
       };

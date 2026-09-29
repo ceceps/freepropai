@@ -765,10 +765,13 @@ describe('Listing API Endpoints', () => {
 
       const json = response.body.data.scriptJson;
       expect(json.project).toContain('video_campaign');
-      expect(json.settings).toEqual({
+      expect(json.model).toBe('gemini-omni-flash');
+      expect(json.settings).toMatchObject({
+        video_style: 'Cinematic',
         total_duration_seconds: 22,
         resolution: '1920x1080',
         aspect_ratio: '16:9',
+        voice_over: { enabled: false, gender: null },
       });
       expect(Array.isArray(json.scenes)).toBe(true);
       expect(json.scenes).toHaveLength(5);
@@ -776,14 +779,17 @@ describe('Listing API Endpoints', () => {
       json.scenes.forEach((scene, index) => {
         expect(scene.scene_number).toBe(index + 1);
         expect(scene.duration_seconds).toEqual(expect.any(Number));
-        expect(scene.transition).toBeDefined();
-        expect(scene.transition.in).toEqual(expect.any(String));
-        expect(scene.transition.out).toEqual(expect.any(String));
-        expect(scene.visuals.description).toEqual(expect.any(String));
-        expect(scene.visuals.camera).toEqual(expect.any(String));
+        expect(scene.shot_framing_and_motion).toEqual(expect.any(String));
+        expect(scene.style).toEqual(expect.any(String));
+        expect(scene.lighting).toEqual(expect.any(String));
+        expect(scene.location).toEqual(expect.any(String));
+        expect(scene.action).toEqual(expect.any(String));
         expect(scene.audio.ambient).toEqual(expect.any(String));
-        expect(scene.audio.effects).toEqual(expect.any(String));
-        expect(scene.audio.voice_over).toBeUndefined();
+        expect(scene.audio.music).toEqual(expect.any(String));
+        expect(scene.audio.dialogue).toBeNull();
+        expect(scene.preservation).toEqual(expect.any(String));
+        expect(scene.negative).toEqual(expect.any(String));
+        expect(scene.prompt).toContain('In a single continuous shot');
       });
       vi.restoreAllMocks();
     });
@@ -802,12 +808,13 @@ describe('Listing API Endpoints', () => {
 
       const scenes = response.body.data.scriptJson.scenes;
       expect(scenes).toHaveLength(5);
-      expect(scenes[0].audio.voice_over.text).toContain('Selamat datang di properti nyaman ini');
-      expect(scenes[1].audio.voice_over.text).toContain('Ruangannya luas dan terang');
-      expect(scenes[0].audio.voice_over.style).toEqual(expect.any(String));
+      expect(scenes[0].audio.dialogue.text).toContain('Selamat datang di properti nyaman ini');
+      expect(scenes[1].audio.dialogue.text).toContain('Ruangannya luas dan terang');
+      expect(scenes[0].audio.dialogue.speaker).toEqual(expect.any(String));
+      expect(scenes[0].audio.dialogue.delivery).toEqual(expect.any(String));
 
       for (const scene of scenes.slice(2)) {
-        expect(scene.audio.voice_over.text).toEqual(expect.any(String));
+        expect(scene.audio.dialogue.text).toEqual(expect.any(String));
       }
       vi.restoreAllMocks();
     });
@@ -871,8 +878,8 @@ describe('Listing API Endpoints', () => {
 
       const scenes = response.body.data.scriptJson.scenes;
       expect(scenes).toHaveLength(5);
-      expect(scenes[0].audio.voice_over.text).toContain('Listing With Photos');
-      expect(scenes[4].audio.voice_over.text).toContain('hubungi agen kami');
+      expect(scenes[0].audio.dialogue.text).toContain('Listing With Photos');
+      expect(scenes[4].audio.dialogue.text).toContain('hubungi agen kami');
       vi.restoreAllMocks();
     });
 

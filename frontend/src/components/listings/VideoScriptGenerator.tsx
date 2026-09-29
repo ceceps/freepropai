@@ -28,6 +28,8 @@ const STYLE_OPTIONS: { value: VideoStyle; label: string; hint: string }[] = [
   { value: 'aerial', label: 'Aerial / Drone', hint: 'Sweeping drone establishing shots' },
   { value: 'lifestyle', label: 'Lifestyle', hint: 'Warm, natural, family moments' },
   { value: 'walkthrough', label: 'Walkthrough', hint: 'Smooth room-by-room gimbal tour' },
+  { value: 'ugc', label: 'UGC', hint: 'Handheld selfie-style, authentic, native to TikTok/Reels' },
+  { value: 'talking_head', label: 'Talking Head', hint: 'Presenter speaking to camera — gender wajib dipilih' },
 ];
 
 const MODEL_OPTIONS: { value: VideoModel; label: string }[] = [
@@ -36,10 +38,10 @@ const MODEL_OPTIONS: { value: VideoModel; label: string }[] = [
   { value: 'veo', label: 'Google Veo 3 / Omni Flash' },
 ];
 
-const ASPECT_OPTIONS: { value: AspectRatio; label: string; icon: string }[] = [
-  { value: '16:9', label: '16:9 Landscape', icon: '📺' },
-  { value: '9:16', label: '9:16 Vertical (Reels/TikTok)', icon: '📱' },
-  { value: '4:5', label: '4:5 Portrait Feed', icon: '🖼️' },
+const ASPECT_OPTIONS: { value: AspectRatio; label: string }[] = [
+  { value: '16:9', label: '16:9 Landscape' },
+  { value: '9:16', label: '9:16 Vertical (Reels/TikTok)' },
+  { value: '4:5', label: '4:5 Portrait Feed' },
 ];
 
 const VO_OPTIONS: { value: VOOption; label: string }[] = [
@@ -101,7 +103,8 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
   const [isUpdatingScript, setIsUpdatingScript] = useState(false);
   const [activeSavedScript, setActiveSavedScript] = useState<VideoScriptRecord | null>(null);
 
-  const includeVoiceOver = voPreset === 'custom';
+  const genderRequired = style === 'talking_head';
+  const includeVoiceOver = voPreset === 'custom' || genderRequired;
   const isVeo = model === 'veo';
   const promptLanguageLabel = isVeo
     ? includeVoiceOver && voLanguage === 'inggris'
@@ -138,6 +141,11 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
     fetchSavedScripts();
   }, [listing.id]);
 
+  // Talking Head is presenter-led, so voice over (with gender) is always on.
+  useEffect(() => {
+    if (style === 'talking_head') setVoPreset('custom');
+  }, [style]);
+
   const handleGenerateStoryboard = async (scriptJsonOverride?: any) => {
     try {
       setIsGeneratingStoryboard(true);
@@ -149,6 +157,8 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
         cinematic: 'Cinematic',
         walkthrough: 'VO + Walkthrough',
         lifestyle: 'Lifestyle',
+        ugc: 'UGC',
+        talking_head: 'Talking Head',
       };
 
       const response = await listingApi.generateStoryboard(listing.id, {
@@ -178,6 +188,10 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
   };
 
   const handleGenerate = async () => {
+    if (genderRequired && !voGender) {
+      setError('Pilih gender model untuk gaya Talking Head.');
+      return;
+    }
     try {
       setIsGenerating(true);
       setError(null);
@@ -352,25 +366,21 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
 
         {/* Video Style Selection */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-text-secondary">Gaya Video (Video Style)</label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <label htmlFor="video-style" className="block text-sm font-medium text-text-secondary">Gaya Video (Video Style)</label>
+          <select
+            id="video-style"
+            value={style}
+            onChange={(e) => setStyle(e.target.value as VideoStyle)}
+            disabled={isGenerating}
+            className="w-full"
+          >
             {STYLE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setStyle(opt.value)}
-                disabled={isGenerating}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  style === opt.value
-                    ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/20 text-primary-700 dark:text-primary-300 shadow-sm'
-                    : 'border-border bg-grey-50/50 dark:bg-grey-900/20 text-text-secondary hover:border-grey-300'
-                }`}
-              >
-                <div className="font-semibold text-sm">{opt.label}</div>
-                <div className="text-xs text-text-tertiary mt-1">{opt.hint}</div>
-              </button>
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
-          </div>
+          </select>
+          <p className="text-xs text-text-tertiary">
+            {STYLE_OPTIONS.find((opt) => opt.value === style)?.hint}
+          </p>
         </div>
 
         {/* Model AI & Aspect Ratio Grid */}
@@ -394,48 +404,38 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
 
           {/* Aspect Ratio */}
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text-secondary">Rasio Layar (Aspect Ratio)</label>
-            <div className="grid grid-cols-3 gap-2">
+            <label htmlFor="video-aspect" className="block text-sm font-medium text-text-secondary">Rasio Layar (Aspect Ratio)</label>
+            <select
+              id="video-aspect"
+              value={aspectRatio}
+              onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
+              disabled={isGenerating}
+              className="w-full"
+            >
               {ASPECT_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setAspectRatio(opt.value)}
-                  disabled={isGenerating}
-                  className={`px-3 py-2 rounded-lg border text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
-                    aspectRatio === opt.value
-                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-950/30 text-primary-600 dark:text-primary-400 font-semibold'
-                      : 'border-border bg-grey-50 dark:bg-grey-900/20 text-text-secondary hover:border-grey-300'
-                  }`}
-                >
-                  <span>{opt.icon}</span>
-                  <span>{opt.value}</span>
-                </button>
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
-            </div>
+            </select>
           </div>
         </div>
 
         {/* Voice Over Options */}
-        <div className="space-y-3 pt-2 border-t border-border">
-          <label className="block text-sm font-medium text-text-secondary">Pengaturan Voice Over (VO)</label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-2 pt-2 border-t border-border">
+          <label htmlFor="video-vo" className="block text-sm font-medium text-text-secondary">Pengaturan Voice Over (VO)</label>
+          <select
+            id="video-vo"
+            value={voPreset}
+            onChange={(e) => setVoPreset(e.target.value as VOOption)}
+            disabled={isGenerating || genderRequired}
+            className="w-full"
+          >
             {VO_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setVoPreset(opt.value)}
-                disabled={isGenerating}
-                className={`p-3 rounded-xl border text-left text-xs font-medium transition-all ${
-                  voPreset === opt.value
-                    ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/20 text-primary-700 dark:text-primary-300 font-semibold'
-                    : 'border-border bg-grey-50/50 dark:bg-grey-900/20 text-text-secondary'
-                }`}
-              >
-                {opt.label}
-              </button>
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
-          </div>
+          </select>
+          {genderRequired && (
+            <p className="text-xs text-text-tertiary">Talking Head memakai voice over presenter — gender wajib dipilih.</p>
+          )}
         </div>
 
         {/* Detailed VO Config when active */}
@@ -443,13 +443,15 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-grey-50 dark:bg-grey-900/30 rounded-xl border border-border">
             <div>
               <label htmlFor="vo-gender" className="block text-xs font-medium text-text-secondary mb-1">
-                Gender Model
+                Gender Model {genderRequired && <span className="text-red-500" aria-hidden="true">*</span>}
               </label>
               <select
                 id="vo-gender"
                 value={voGender}
                 onChange={(e) => setVoGender(e.target.value as VOGender)}
                 disabled={isGenerating}
+                required={genderRequired}
+                aria-required={genderRequired}
                 className="w-full text-xs"
               >
                 {GENDER_OPTIONS.map((opt) => (

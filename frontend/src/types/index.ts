@@ -85,7 +85,7 @@ export interface ListingWithDetails extends Listing {
 }
 
 // Video Script Generator Types
-export type VideoStyle = 'cinematic' | 'aerial' | 'lifestyle' | 'walkthrough';
+export type VideoStyle = 'cinematic' | 'aerial' | 'lifestyle' | 'walkthrough' | 'ugc' | 'talking_head';
 export type VideoModel = 'runway' | 'veo' | 'pika' | 'kling' | 'sora';
 export type AspectRatio = '16:9' | '9:16' | '4:5';
 export type VOGender = 'pria' | 'wanita';
@@ -113,40 +113,47 @@ export interface VideoOnScreenText {
   animation: string;
 }
 
-export interface VideoTransition {
-  in: string;
-  out: string;
-}
-
-export interface VideoSceneVisuals {
-  description: string;
-  camera: string;
-  on_screen_text: VideoOnScreenText | null;
+export interface VideoSceneDialogue {
+  speaker: string;
+  text: string;
+  delivery: string;
 }
 
 export interface VideoSceneAudio {
-  ambient?: string;
-  effects?: string;
-  voice_over?: {
-    text: string;
-    style: string;
-  };
+  ambient: string;
+  music: string;
+  dialogue: VideoSceneDialogue | null;
 }
 
 export interface VideoScriptScene {
   scene_number: number;
   duration_seconds: number;
-  transition: VideoTransition;
-  visuals: VideoSceneVisuals;
+  shot_framing_and_motion: string;
+  style: string;
+  lighting: string;
+  location: string;
+  action: string;
+  text_rendering: VideoOnScreenText | null;
   audio: VideoSceneAudio;
+  preservation: string;
+  negative: string;
+  prompt: string;
 }
 
 export interface VideoScriptJson {
   project: string;
+  model: string;
   settings: {
-    total_duration_seconds: number;
-    resolution: string;
+    video_style: string;
     aspect_ratio: string;
+    resolution: string;
+    total_duration_seconds: number;
+    voice_over: {
+      enabled: boolean;
+      gender: string | null;
+      language: string;
+      age_range: string | null;
+    };
   };
   scenes: VideoScriptScene[];
 }
