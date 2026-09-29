@@ -70,6 +70,24 @@ export default function ScrapedListingDetail({ listingId, onClose, onImported }:
       ].filter((s) => s.value !== null && s.value !== undefined)
     : [];
 
+  const getDirectSourceUrl = (d: PipelineListingDetail): string => {
+    if (!d.sourceUrl) return '';
+    const isHepihos =
+      d.sourceName?.toLowerCase() === 'hepihos' ||
+      d.sourceCode === 'hepihos' ||
+      d.sourceUrl.includes('hepihos.com');
+    if (isHepihos && !d.sourceUrl.includes('/project/detail/')) {
+      const id = d.sourceId || d.id;
+      if (id) {
+        return `https://hepihos.com/project/detail/${id}?page=cecep-saefulloh`;
+      }
+    }
+    return d.sourceUrl;
+  };
+
+  const directSourceUrl = detail ? getDirectSourceUrl(detail) : '';
+  const importedDetailUrl = detail?.importedListingId ? `/listings/${detail.importedListingId}` : '/listings';
+
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex justify-end" onClick={onClose}>
       <div
@@ -106,6 +124,16 @@ export default function ScrapedListingDetail({ listingId, onClose, onImported }:
                 {detail.marketStatus && <span className="badge badge-secondary">{detail.marketStatus}</span>}
                 {detail.propertyType && <span className="badge badge-secondary">{detail.propertyType}</span>}
                 {detail.certificate && <span className="badge badge-secondary">{detail.certificate}</span>}
+                {directSourceUrl && (
+                  <a
+                    href={directSourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> View source listing
+                  </a>
+                )}
               </div>
             </div>
 
@@ -145,7 +173,7 @@ export default function ScrapedListingDetail({ listingId, onClose, onImported }:
                 </div>
                 {detail.imported ? (
                   <a
-                    href="/listings"
+                    href={importedDetailUrl}
                     className="btn btn-secondary btn-sm flex items-center gap-1.5 whitespace-nowrap flex-shrink-0"
                   >
                     <Home className="w-3.5 h-3.5" />
@@ -211,7 +239,7 @@ export default function ScrapedListingDetail({ listingId, onClose, onImported }:
                   <span className="flex-1">{importMsg.text}</span>
                   {importMsg.mainListingId && (
                     <a
-                      href="/listings"
+                      href={`/listings/${importMsg.mainListingId}`}
                       className="flex items-center gap-1 font-semibold underline whitespace-nowrap hover:opacity-80"
                     >
                       <Home className="w-3 h-3" /> View
@@ -260,7 +288,7 @@ export default function ScrapedListingDetail({ listingId, onClose, onImported }:
               </div>
             )}
 
-            {(detail.agentName || detail.agentPhone || detail.agency) && (
+            {(detail.agentName || detail.agentPhone || detail.agency) ? (
               <div className="card p-4 space-y-2">
                 <h4 className="text-sm font-semibold text-text-primary">Agent</h4>
                 {detail.agentName && (
@@ -274,8 +302,22 @@ export default function ScrapedListingDetail({ listingId, onClose, onImported }:
                     <Phone className="w-4 h-4 text-text-tertiary" /> {detail.agentPhone}
                   </p>
                 )}
+                {directSourceUrl && (
+                  <a
+                    href={directSourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400 hover:underline"
+                  >
+                    <ExternalLink className="w-4 h-4" /> View source listing
+                  </a>
+                )}
+              </div>
+            ) : directSourceUrl ? (
+              <div className="card p-4 space-y-2">
+                <h4 className="text-sm font-semibold text-text-primary">Source Listing</h4>
                 <a
-                  href={detail.sourceUrl}
+                  href={directSourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400 hover:underline"
@@ -283,7 +325,7 @@ export default function ScrapedListingDetail({ listingId, onClose, onImported }:
                   <ExternalLink className="w-4 h-4" /> View source listing
                 </a>
               </div>
-            )}
+            ) : null}
 
             {detail.analysis && (
               <div className="space-y-3">

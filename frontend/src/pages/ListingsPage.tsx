@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin, Download, Check, Info, Video, RefreshCw, Target } from 'lucide-react';
 import { listingApi } from '../services/api';
 import ListingForm from '../components/listings/ListingForm';
@@ -28,6 +29,18 @@ export default function ListingsPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
+
+  const { id: paramId } = useParams<{ id?: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const routeListingId = paramId || searchParams.get('id');
+
+  // Load detail directly if URL points to a specific listing ID
+  useEffect(() => {
+    if (routeListingId) {
+      handleViewDetail(routeListingId);
+    }
+  }, [routeListingId]);
 
   // Reset to info tab when selectedListing changes
   useEffect(() => {
@@ -313,6 +326,13 @@ export default function ListingsPage() {
               setView('list');
               setSelectedListing(null);
               setError(null);
+              if (paramId) {
+                navigate('/listings');
+              } else if (searchParams.has('id')) {
+                const nextParams = new URLSearchParams(searchParams);
+                nextParams.delete('id');
+                setSearchParams(nextParams);
+              }
             }}
             className="btn btn-secondary"
           >

@@ -3,6 +3,7 @@ import { scrapingJobs, scrapedListings, listings, listingPhotos } from '../db/sc
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import { AcehomeScraperService } from './acehomeScraper.service';
 import { ProlovScraperService } from './prolovScraper.service';
+import { HepihosScraperService } from './hepihosScraper.service';
 import descriptionGenerator from './descriptionGenerator.service';
 import axios from 'axios';
 import * as fs from 'fs';
@@ -39,11 +40,13 @@ interface BatchImportResult {
 export class ScrapingOrchestratorService {
   private acehomeScraper: AcehomeScraperService;
   private prolovScraper: ProlovScraperService;
+  private hepihosScraper: HepihosScraperService;
   private uploadDir: string;
 
   constructor() {
     this.acehomeScraper = new AcehomeScraperService();
     this.prolovScraper = new ProlovScraperService();
+    this.hepihosScraper = new HepihosScraperService();
     this.uploadDir = process.env.UPLOAD_DIR || './uploads';
 
     // Ensure upload directory exists
@@ -80,7 +83,7 @@ export class ScrapingOrchestratorService {
   /**
    * Process a scraping job
    */
-  async processJob(jobId: string): Promise<void> {
+  async processJob(jobId: string, options?: CreateJobOptions): Promise<void> {
     try {
       console.log(`[ScrapingOrchestrator] Processing job ${jobId}`);
 
@@ -127,6 +130,22 @@ export class ScrapingOrchestratorService {
         if (detail) {
           scrapedData = [detail];
         }
+      } else if (job.sourceName === 'hepihos') {
+        // If the URL is a direct detail link, scrape just that detail item!
+        if (job.sourceUrl.includes('/project/detail/')) {
+          const detail = await this.hepihosScraper.scrapeListingDetail(job.sourceUrl);
+          if (detail) {
+            scrapedData = [detail];
+          }
+        } else {
+          // Agent listing page - scrape all pages
+          const known = await this.loadKnownSourceIds();
+          scrapedData = await this.hepihosScraper.scrapeListings({
+            url: job.sourceUrl,
+            maxPages: options?.maxPages || 3,
+            skipSourceIds: known,
+          });
+        }
       } else {
         throw new Error(`Unsupported source: ${job.sourceName}`);
       }
@@ -163,6 +182,16 @@ export class ScrapingOrchestratorService {
           description: item.description || null,
           imageUrls: item.imageUrls || [],
           contactInfo: item.contactInfo || null,
+          // New detailed fields from scraping
+          certificate: item.certificate || null,
+          yearBuilt: item.yearBuilt || null,
+          floors: item.floors || null,
+          garage: item.garage || null,
+          features: item.features || [],
+          nearbyPlaces: item.nearbyPlaces || [],
+          roadAccess: item.roadAccess || null,
+          electricity: item.electricity || null,
+          waterSource: item.waterSource || null,
           rawData: item,
           importStatus: 'pending',
         }));
@@ -257,6 +286,16 @@ export class ScrapingOrchestratorService {
         propertyType: scraped.propertyType,
         sourceUrl: scraped.sourceUrl,
         additionalInfo: options.additionalInfo || this.buildAdditionalInfo(scraped),
+        // New detailed fields from scraping
+        certificate: scraped.certificate,
+        yearBuilt: scraped.yearBuilt,
+        floors: scraped.floors,
+        garage: scraped.garage,
+        features: scraped.features || [],
+        nearbyPlaces: scraped.nearbyPlaces || [],
+        roadAccess: scraped.roadAccess,
+        electricity: scraped.electricity,
+        waterSource: scraped.waterSource,
         status: 'active',
       }).returning();
 

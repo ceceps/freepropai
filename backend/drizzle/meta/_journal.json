@@ -64,6 +64,13 @@
       "when": 1788820015482,
       "tag": "0008_outstanding_shadowcat",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790626320050,
+      "tag": "0009_confused_lady_mastermind",
+      "breakpoints": true
     }
   ]
 }
