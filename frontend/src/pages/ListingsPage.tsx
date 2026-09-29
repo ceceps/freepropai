@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin, Download, Check, Info, Video, RefreshCw, Target } from 'lucide-react';
 import { listingApi } from '../services/api';
 import ListingForm from '../components/listings/ListingForm';
@@ -12,9 +13,11 @@ import type { ListingSummary, ListingWithDetails, CreateListingData } from '../t
 
 type View = 'list' | 'create' | 'detail' | 'edit';
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 20;
 
 export default function ListingsPage() {
+  const params = useParams<{ id?: string }>();
+  const navigate = useNavigate();
   const [view, setView] = useState<View>('list');
   const [activeTab, setActiveTab] = useState<'info' | 'ai' | 'video' | 'analyze'>('info');
   const [listings, setListings] = useState<ListingSummary[]>([]);
@@ -28,6 +31,31 @@ export default function ListingsPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
+
+  // Load listing from URL param on mount
+  useEffect(() => {
+    if (params.id) {
+      loadListingFromUrl(params.id);
+    }
+  }, [params.id]);
+
+  const loadListingFromUrl = useCallback(async (id: string) => {
+    try {
+      setIsLoading(true);
+      const response = await listingApi.getById(id);
+      if (response.success && response.data) {
+        setSelectedListing(response.data);
+        setSelectedPhotoIds(new Set());
+        setView('detail');
+      }
+    } catch (err) {
+      console.error('Failed to load listing from URL:', err);
+      // Navigate back to list on error
+      navigate('/listings', { replace: true });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [navigate]);
 
   // Reset to info tab when selectedListing changes
   useEffect(() => {
@@ -149,6 +177,7 @@ export default function ListingsPage() {
         setSelectedListing(response.data);
         setSelectedPhotoIds(new Set());
         setView('detail');
+        navigate(`/listings/${id}`);
       }
     } catch (err) {
       console.error('Failed to load listing:', err);
