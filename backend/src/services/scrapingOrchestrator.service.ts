@@ -68,8 +68,7 @@ export class ScrapingOrchestratorService {
         status: 'pending',
       }).returning();
 
-      // Start processing in background (don't await)
-      this.processJob(job.id).catch(error => {
+      this.processJob(job.id, options).catch(error => {
         console.error(`[ScrapingOrchestrator] Background job processing failed:`, error);
       });
 
@@ -121,7 +120,7 @@ export class ScrapingOrchestratorService {
           const known = await this.loadKnownSourceIds();
           scrapedData = await this.acehomeScraper.scrapeListings({
             url: job.sourceUrl,
-            maxPages: 3, // Default to 3 pages for testing
+            maxPages: options?.maxPages || 3,
             skipSourceIds: known,
           });
         }

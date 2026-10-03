@@ -1,5 +1,5 @@
 import { db, listings, listingPhotos, listingDescriptions, listingVideoPrompts, listingAnalyses } from '../db';
-import { eq, desc, isNull, and, or, ilike, count } from 'drizzle-orm';
+import { eq, desc, isNull, and, or, ilike, count, sql } from 'drizzle-orm';
 import type {
   Listing,
   ListingPhoto,
@@ -56,7 +56,15 @@ export class ListingModel {
   }
 
   // Build the shared WHERE conditions for listing list/count queries
-  private buildListConditions(filters?: { status?: string; q?: string }) {
+  private buildListConditions(filters?: { 
+    status?: string; 
+    q?: string;
+    region?: string;
+    priceMin?: number;
+    priceMax?: number;
+    priceExact?: number;
+    location?: string;
+  }) {
     const conditions = [isNull(listings.deletedAt)];
 
     if (filters?.status) {
@@ -68,6 +76,25 @@ export class ListingModel {
         ilike(listings.title, `%${filters.q}%`),
         ilike(listings.location, `%${filters.q}%`)
       )!);
+    }
+
+    if (filters?.location) {
+      conditions.push(ilike(listings.location, `%${filters.location}%`));
+    }
+
+    if (filters?.region) {
+      conditions.push(ilike(listings.region, `%${filters.region}%`));
+    }
+
+    if (filters?.priceExact !== undefined) {
+      conditions.push(eq(listings.price, String(filters.priceExact)));
+    } else {
+      if (filters?.priceMin !== undefined) {
+        conditions.push(sql`${listings.price}::numeric >= ${filters.priceMin}`);
+      }
+      if (filters?.priceMax !== undefined) {
+        conditions.push(sql`${listings.price}::numeric <= ${filters.priceMax}`);
+      }
     }
 
     return and(...conditions);

@@ -124,24 +124,44 @@ class ListingController {
   });
 
   /**
-   * Get all listings (paginated)
-   * GET /api/listings?status=draft&q=bandung&limit=20&offset=0
-   */
-  getListings = asyncHandler(async (req: Request, res: Response) => {
-    const { status, q, limit = '20', offset = '0' } = req.query;
-    const limitNum = Math.min(Math.max(parseInt(String(limit), 10) || 20, 1), 100);
-    const offsetNum = Math.max(parseInt(String(offset), 10) || 0, 0);
+     * Get all listings (paginated)
+     * GET /api/listings?status=draft&q=bandung&region=bandung&priceMin=100000000&priceMax=500000000&location=padalarang&limit=20&offset=0
+     */
+    getListings = asyncHandler(async (req: Request, res: Response) => {
+      const { 
+        status, 
+        q, 
+        region, 
+        priceMin, 
+        priceMax, 
+        location, 
+        limit = '20', 
+        offset = '0' 
+      } = req.query;
+      const limitNum = Math.min(Math.max(parseInt(String(limit), 10) || 20, 1), 100);
+      const offsetNum = Math.max(parseInt(String(offset), 10) || 0, 0);
 
-    const filters: { status?: string; q?: string } = {};
-    if (status && status !== 'all') filters.status = String(status);
-    const searchTerm = q !== undefined ? String(q).trim() : '';
-    if (searchTerm) filters.q = searchTerm;
+      const filters: { 
+        status?: string; 
+        q?: string;
+        region?: string;
+        priceMin?: number;
+        priceMax?: number;
+        location?: string;
+      } = {};
+      if (status && status !== 'all') filters.status = String(status);
+      const searchTerm = q !== undefined ? String(q).trim() : '';
+      if (searchTerm) filters.q = searchTerm;
+      if (region !== undefined) filters.region = String(region).trim();
+      if (location !== undefined) filters.location = String(location).trim();
+      if (priceMin !== undefined) filters.priceMin = parseInt(String(priceMin), 10);
+      if (priceMax !== undefined) filters.priceMax = parseInt(String(priceMax), 10);
 
-    // Count and page at the SQL level so memory stays bounded regardless of table size
-    const [totalCount, listings] = await Promise.all([
-      ListingModel.countListings(filters),
-      ListingModel.findAll({ ...filters, limit: limitNum, offset: offsetNum }),
-    ]);
+      // Count and page at the SQL level so memory stays bounded regardless of table size
+      const [totalCount, listings] = await Promise.all([
+        ListingModel.countListings(filters),
+        ListingModel.findAll({ ...filters, limit: limitNum, offset: offsetNum }),
+      ]);
 
     // Get photo count for each listing
     const listingsWithMeta = await Promise.all(

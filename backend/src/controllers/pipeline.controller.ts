@@ -54,6 +54,11 @@ export class PipelineController {
         search: toStr(req.query.search),
         marketStatus: toStr(req.query.marketStatus),
         isActive: toBool(req.query.isActive),
+        region: toStr(req.query.region),
+        location: toStr(req.query.location),
+        priceMin: toInt(req.query.priceMin),
+        priceMax: toInt(req.query.priceMax),
+        propertyType: toStr(req.query.propertyType),
         limit: toInt(req.query.limit),
         offset: toInt(req.query.offset),
       });

@@ -5,6 +5,41 @@ import type { ScrapingJob, ScrapedListing } from '../types';
 
 const JOBS_PAGE_SIZE = 5;
 
+type ScrapeSource = {
+  value: string;
+  label: string;
+  defaultUrl?: string;
+  placeholder?: string;
+  disabled?: boolean;
+};
+
+const SCRAPE_SOURCES: ScrapeSource[] = [
+  {
+    value: 'acehome',
+    label: 'Acehome.com',
+    defaultUrl: 'https://www.acehome.co.id/?reg=BBR&kat=rumah',
+    placeholder: 'https://www.acehome.co.id/?reg=BBR&kat=rumah',
+  },
+  {
+    value: 'prolov',
+    label: 'Prolov.id',
+    defaultUrl: 'https://prolov.id',
+    placeholder: 'https://prolov.id/...',
+  },
+  {
+    value: 'hepihos',
+    label: 'Hepihos.com',
+    defaultUrl: 'https://hepihos.com/cecep-saefulloh',
+    placeholder: 'https://hepihos.com/cecep-saefulloh or /project/detail/{id}',
+  },
+  { value: 'rumah123', label: 'Rumah123 (Coming Soon)', disabled: true },
+  { value: 'olx', label: 'OLX (Coming Soon)', disabled: true },
+];
+
+function sourceMeta(name: string) {
+  return SCRAPE_SOURCES.find((s) => s.value === name);
+}
+
 export default function ScrapingPage() {
   const [jobs, setJobs] = useState<ScrapingJob[]>([]);
   const [jobsTotal, setJobsTotal] = useState(0);
@@ -19,9 +54,19 @@ export default function ScrapingPage() {
   const hasMoreJobs = jobs.length < jobsTotal;
   
   // Form state
-  const [sourceUrl, setSourceUrl] = useState('https://www.acehome.co.id/?reg=BBR&kat=rumah');
+  const [sourceUrl, setSourceUrl] = useState(sourceMeta('acehome')?.defaultUrl ?? '');
   const [sourceName, setSourceName] = useState('acehome');
   const [maxPages, setMaxPages] = useState(5);
+
+  const handleSourceChange = (next: string) => {
+    const previous = sourceMeta(sourceName);
+    const nextMeta = sourceMeta(next);
+    setSourceName(next);
+    if (!nextMeta || nextMeta.disabled) return;
+    if (!sourceUrl.trim() || sourceUrl === previous?.defaultUrl) {
+      setSourceUrl(nextMeta.defaultUrl ?? '');
+    }
+  };
 
   // Fetch jobs on mount
   useEffect(() => {
@@ -110,7 +155,7 @@ export default function ScrapingPage() {
 
       if (response.success) {
         alert('Scraping job started! Check the jobs list for progress.');
-        setSourceUrl('');
+        setSourceUrl(sourceMeta(sourceName)?.defaultUrl ?? '');
         fetchJobs();
       }
     } catch (err: any) {
@@ -193,13 +238,15 @@ export default function ScrapingPage() {
             </label>
             <select
               value={sourceName}
-              onChange={(e) => setSourceName(e.target.value)}
+              onChange={(e) => handleSourceChange(e.target.value)}
               className="input"
+              aria-label="Source website"
             >
-              <option value="acehome">Acehome.com</option>
-              <option value="prolov">Prolov.id</option>
-              <option value="rumah123" disabled>Rumah123 (Coming Soon)</option>
-              <option value="olx" disabled>OLX (Coming Soon)</option>
+              {SCRAPE_SOURCES.map((source) => (
+                <option key={source.value} value={source.value} disabled={source.disabled}>
+                  {source.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -211,7 +258,7 @@ export default function ScrapingPage() {
               type="url"
               value={sourceUrl}
               onChange={(e) => setSourceUrl(e.target.value)}
-              placeholder="https://www.acehome.co.id/?reg=BBR&kat=rumah"
+              placeholder={sourceMeta(sourceName)?.placeholder ?? 'https://...'}
               className="input"
               required
             />

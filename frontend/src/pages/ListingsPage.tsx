@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { Plus, Home, Sparkles, Edit2, Trash2, Star, Search, Filter, Eye, Upload, Image, MapPin, Download, Check, Info, Video, RefreshCw, Target } from 'lucide-react';
 import { listingApi } from '../services/api';
+import { downloadFile } from '../utils/download';
 import ListingForm from '../components/listings/ListingForm';
 import DescriptionVariants from '../components/listings/DescriptionVariants';
 import VideoScriptGenerator from '../components/listings/VideoScriptGenerator';
@@ -196,12 +197,8 @@ export default function ListingsPage() {
     if (!selectedListing) return;
     const selected = selectedListing.photos.filter(p => selectedPhotoIds.has(p.id));
     selected.forEach((photo, index) => {
-      const link = document.createElement('a');
-      link.href = photo.photo_url;
-      link.download = `${selectedListing.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 30) || 'property'}-${index + 1}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const filename = `${selectedListing.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 30) || 'property'}-${index + 1}.jpg`;
+      downloadFile(photo.photo_url, filename);
     });
   };
 

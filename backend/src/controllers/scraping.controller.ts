@@ -36,6 +36,29 @@ export const createScrapingJob = async (req: Request, res: Response) => {
       });
     }
 
+    const hostBySource: Record<string, string> = {
+      acehome: 'acehome.co.id',
+      prolov: 'prolov.id',
+      hepihos: 'hepihos.com',
+    };
+    const expectedHost = hostBySource[sourceName];
+    if (expectedHost) {
+      try {
+        const hostname = new URL(sourceUrl).hostname;
+        if (!hostname.includes(expectedHost)) {
+          return res.status(400).json({
+            success: false,
+            error: `URL must be a ${expectedHost} address for source "${sourceName}"`,
+          });
+        }
+      } catch {
+        return res.status(400).json({
+          success: false,
+          error: 'sourceUrl must be a valid URL',
+        });
+      }
+    }
+
     const job = await getOrchestrator().createJob({
       sourceUrl,
       sourceName,
@@ -293,11 +316,29 @@ export const getScrapingConfigs = async (req: Request, res: Response) => {
         {
           id: '1',
           sourceName: 'acehome',
-          baseUrl: 'https://acehome.com',
+          baseUrl: 'https://www.acehome.co.id',
           isActive: true,
           maxPages: 10,
           rateLimitDelay: 2000,
-          notes: 'Scraping config for acehome.com',
+          notes: 'Scraping config for acehome.co.id',
+        },
+        {
+          id: '2',
+          sourceName: 'prolov',
+          baseUrl: 'https://prolov.id',
+          isActive: true,
+          maxPages: 10,
+          rateLimitDelay: 2000,
+          notes: 'Scraping config for prolov.id',
+        },
+        {
+          id: '3',
+          sourceName: 'hepihos',
+          baseUrl: 'https://hepihos.com',
+          isActive: true,
+          maxPages: 10,
+          rateLimitDelay: 2000,
+          notes: 'Scraping config for hepihos.com agent and detail pages',
         },
       ],
     });
