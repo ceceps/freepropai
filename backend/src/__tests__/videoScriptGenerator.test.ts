@@ -65,6 +65,10 @@ describe('VideoScriptGenerator — Omni Flash JSON', () => {
     expect(scene.prompt).toContain('Preservation:');
     expect(scene.prompt).toContain('Avoid:');
     expect(scene.audio.dialogue).toBeNull();
+    expect(res.scriptJson.constraints.reference_identity).toMatch(/reference images/);
+    expect(res.scriptJson.constraints.voice_over).toMatch(/voice-over/);
+    expect(scene.preservation).toMatch(/Do not change the model, objects, or faces/);
+    expect(scene.negative).toMatch(/Do not alter the model, objects, or faces/);
   });
 
   it('forces voice over with a gender for the Talking Head style', async () => {
@@ -80,7 +84,12 @@ describe('VideoScriptGenerator — Omni Flash JSON', () => {
     expect(res.scriptJson.settings.voice_over.enabled).toBe(true);
     expect(res.scriptJson.settings.voice_over.gender).toBe('wanita');
     expect(res.scriptJson.scenes[0].audio.dialogue).not.toBeNull();
-    expect(res.scriptJson.scenes[0].audio.dialogue?.speaker).toContain('Wanita');
+    expect(res.scriptJson.scenes[0].audio.dialogue?.speaker).toContain('Female');
+    expect(res.scriptJson.settings.voice_over.language).toBe('English');
+    expect(res.scriptJson.constraints.reference_identity).toMatch(/Do not change the model, objects, or faces/);
+    expect(res.scriptJson.constraints.voice_over).toMatch(/English/);
+    expect(res.scriptJson.scenes[0].preservation).toMatch(/Do not change the model, objects, or faces/);
+    expect(res.scriptJson.scenes[0].audio.dialogue?.text).toMatch(/Welcome to/);
   });
 
   it('supports the UGC style', async () => {

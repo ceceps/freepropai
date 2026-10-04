@@ -114,6 +114,10 @@ export interface VideoScriptJson {
       age_range: string | null;
     };
   };
+  constraints: {
+    reference_identity: string;
+    voice_over: string;
+  };
   scenes: VideoScriptScene[];
 }
 
@@ -181,9 +185,10 @@ class VideoScriptGeneratorService {
     // Veo / Omni use a dedicated [Visual]/VO alternating prompt so the native
     // audio voice-over is embedded directly in the generation prompt.
     const isVeo = model === 'veo';
-    const promptLanguage: 'indonesia' | 'inggris' = voiceOver.enabled
-      ? (voiceOver.language || 'indonesia')
-      : 'indonesia';
+    if (voiceOver.enabled) {
+      voiceOver = { ...voiceOver, language: 'inggris' };
+    }
+    const promptLanguage: 'indonesia' | 'inggris' = voiceOver.enabled ? 'inggris' : 'indonesia';
 
     let script = '';
     let scriptFromLlm = false;
@@ -449,17 +454,19 @@ Rules:
     };
     const ageStr = ageMap[voiceOver.ageRange || 'dewasa'] || 'adult';
 
-    return `You are a professional real estate voice-over narrator (${genderStr}, ${ageStr}) speaking in ${langStr}.
+    return `You are a professional real estate voice-over narrator (${genderStr}, ${ageStr}) speaking in English.
 
-Write a voice-over narration script in ${langStr} for a ${VIDEO_STYLES[style].label.toLowerCase()} property video. The narration must match the exact scene structure below, one narration per scene:
+Write a voice-over narration script in English for a ${VIDEO_STYLES[style].label.toLowerCase()} property video. The narration must match the exact scene structure below, one narration per scene:
 
 ${scenes}
 
 Rules:
 - Speak in natural, warm, professional tone suitable for a ${genderStr} ${ageStr} narrator.
+- Always write the spoken lines in English, even if the property details are in Indonesian.
 - Each scene block starts with [Scene N — Scene Title] then 1-2 short spoken sentences that fit the scene duration.
 - Do not read out camera directions or timing; those are visual notes, not narration.
 - Never invent specs or numbers not present in the property details.
+- Do not rewrite or replace a voice-over that has already been defined for a scene.
 - Close the last scene with a friendly call to action to contact the agent.
 - Output only the narration script, no commentary.`;
   }
@@ -479,24 +486,24 @@ Rules:
       : `${(listing.price / 1000000).toLocaleString('id-ID', { maximumFractionDigits: 0 })} juta`;
 
     const lines: string[] = [
-      'Property yang akan dinarasikan:',
-      `Judul: ${listing.title}`,
-      `Lokasi: ${listing.location}`,
-      `Tipe: ${listing.property_type || 'Rumah'}`,
-      specLine ? `Spesifikasi: ${specLine}` : '',
-      `Harga: sekitar Rp ${priceText}`,
-      listing.additional_info ? `Fitur utama: ${listing.additional_info}` : '',
+      'Property to narrate:',
+      `Title: ${listing.title}`,
+      `Location: ${listing.location}`,
+      `Type: ${listing.property_type || 'Rumah'}`,
+      specLine ? `Specs: ${specLine}` : '',
+      `Price: about Rp ${priceText}`,
+      listing.additional_info ? `Key features: ${listing.additional_info}` : '',
       '',
-      `Tulis narasi voice over per scene dengan struktur ini (${plan.length} scene):`,
+      `Write the English voice-over narration per scene with this structure (${plan.length} scenes):`,
       ...plan.map((s) => `  - Scene ${s.scene} "${s.title}" (~${s.durationSeconds}s)`),
     ];
 
     if (generatedScript) {
-      lines.push('', 'Sebagai referensi, berikut video prompt yang sudah dibuat untuk properti ini:', '');
+      lines.push('', 'For reference, here is the video prompt already created for this property:', '');
       lines.push(generatedScript);
     }
 
-    lines.push('', 'Keluarkan hanya naskah voice over, tanpa komentar tambahan.');
+    lines.push('', 'Output only the English voice-over script, with no extra commentary.');
     return lines.join('\n');
   }
 
@@ -690,11 +697,11 @@ Rules:
     const aspectInfo = ASPECT_RATIO_MAP[aspectRatio] || ASPECT_RATIO_MAP['16:9'];
     const styleInfo = VIDEO_STYLES[style];
 
-    const genderLabel = voiceOver.gender === 'pria' ? 'Pria' : 'Wanita';
-    const langLabel = voiceOver.language === 'inggris' ? 'English' : 'Bahasa Indonesia';
+    const genderLabel = voiceOver.gender === 'pria' ? 'Male' : 'Female';
+    const langLabel = 'English';
     const ageMapLabel: Record<string, string> = {
-      anak: 'Anak',
-      remaja: 'Remaja',
+      anak: 'Child',
+      remaja: 'Teen',
       dewasa_muda: '20-30',
       dewasa: '30-45',
       senior: '50+',
@@ -706,10 +713,10 @@ Rules:
 
     const onScreenTexts: Array<VideoOnScreenText | null> = [
       { content: `${listing.title.toUpperCase()}`, style: 'Bold elegant sans-serif font, stark white glow', animation: 'Flicker on, smooth tracking' },
-      { content: `LOKASI: ${listing.location.toUpperCase()}`, style: 'Minimalist clean typography, subtle cyan accent', animation: 'Pop up sharply on beat, stays centered' },
-      { content: listing.bedrooms ? `${listing.bedrooms} KAMAR TIDUR | ${listing.bathrooms || 1} KAMAR MANDI` : 'DESAIN MODERN & SIAP HUNI', style: 'Italic bold modern font, neon white glow', animation: 'Fades in smoothly from bottom third' },
+      { content: `LOCATION: ${listing.location.toUpperCase()}`, style: 'Minimalist clean typography, subtle cyan accent', animation: 'Pop up sharply on beat, stays centered' },
+      { content: listing.bedrooms ? `${listing.bedrooms} BEDROOMS | ${listing.bathrooms || 1} BATHROOMS` : 'MODERN DESIGN & READY TO MOVE IN', style: 'Italic bold modern font, neon white glow', animation: 'Fades in smoothly from bottom third' },
       null,
-      { content: `HUBUNGI AGEN SEKARANG`, style: 'Cinematic elegant serif font, glowing gold, large scale', animation: 'Expands slowly from center (zoom in)' },
+      { content: `CONTACT THE AGENT NOW`, style: 'Cinematic elegant serif font, glowing gold, large scale', animation: 'Expands slowly from center (zoom in)' },
     ];
 
     const scenes: VideoScriptScene[] = plan.map((s, idx) => {
@@ -778,21 +785,33 @@ Rules:
           age_range: voiceOver.enabled ? ageLabel : null,
         },
       },
+      constraints: {
+        reference_identity: this.REFERENCE_IDENTITY_CONSTRAINT,
+        voice_over: this.VOICE_OVER_CONSTRAINT,
+      },
       scenes,
     };
   }
 
+  private readonly REFERENCE_IDENTITY_CONSTRAINT =
+    'Do not change the model, objects, or faces from the reference images. Preserve identity, facial features, body shape, clothing, and every object exactly as shown in the reference photos.';
+
+  private readonly VOICE_OVER_CONSTRAINT =
+    'Do not rewrite, paraphrase, translate, or replace the defined voice-over. Speak the voice-over text exactly as written, in English.';
+
   /** Presenter identity/outfit must stay stable in presenter-led styles. */
   private buildPreservation(style: VideoStyle): string {
-    const base = 'Keep the property layout, materials, colors, and fixtures exactly unchanged.';
+    const identity = this.REFERENCE_IDENTITY_CONSTRAINT;
+    const voice = this.VOICE_OVER_CONSTRAINT;
+    const property = 'Keep the property layout, materials, colors, and fixtures exactly unchanged.';
     if (style === 'talking_head' || style === 'ugc') {
-      return `${base} Keep the same presenter identity, face, hairstyle, and outfit across all scenes.`;
+      return `${identity} ${property} Keep the same presenter identity, face, hairstyle, and outfit across all scenes. ${voice}`;
     }
-    return base;
+    return `${identity} ${property} ${voice}`;
   }
 
   private buildNegative(): string {
-    return 'No readable text, no logos, no watermarks, no extra people, no distorted architecture, no invented property features, no scene cuts.';
+    return 'Do not alter the model, objects, or faces from the reference images. Do not change the defined English voice-over. No readable text, no logos, no watermarks, no extra people, no distorted architecture, no invented property features, no scene cuts.';
   }
 
   private buildOmniScenePrompt(args: {

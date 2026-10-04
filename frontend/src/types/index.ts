@@ -155,6 +155,10 @@ export interface VideoScriptJson {
       age_range: string | null;
     };
   };
+  constraints: {
+    reference_identity: string;
+    voice_over: string;
+  };
   scenes: VideoScriptScene[];
 }
 
