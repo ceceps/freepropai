@@ -9,6 +9,7 @@ import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { notificationService } from './notification.service';
 
 interface CreateJobOptions {
   sourceUrl: string;
@@ -232,6 +233,22 @@ export class ScrapingOrchestratorService {
 
       console.log(`[ScrapingOrchestrator] Job ${jobId} completed successfully`);
 
+      const sourceLabel = job.sourceName || 'source';
+      await notificationService.create({
+        type: 'scrape_complete',
+        title: 'Scraping complete',
+        message: `${scrapedData.length} listing${scrapedData.length === 1 ? '' : 's'} scraped from ${sourceLabel}`,
+        link: `/scraping?job=${jobId}`,
+        metadata: {
+          jobId,
+          sourceName: job.sourceName,
+          sourceUrl: job.sourceUrl,
+          totalListingsFound: scrapedData.length,
+        },
+      }).catch((notifyError) => {
+        console.warn(`[ScrapingOrchestrator] Failed to create scrape notification: ${notifyError.message}`);
+      });
+
     } catch (error: any) {
       console.error(`[ScrapingOrchestrator] Job ${jobId} failed:`, error);
 
@@ -244,6 +261,16 @@ export class ScrapingOrchestratorService {
           updatedAt: new Date(),
         })
         .where(eq(scrapingJobs.id, jobId));
+
+      await notificationService.create({
+        type: 'scrape_failed',
+        title: 'Scraping failed',
+        message: error.message || 'Scraping job failed',
+        link: `/scraping?job=${jobId}`,
+        metadata: { jobId },
+      }).catch((notifyError) => {
+        console.warn(`[ScrapingOrchestrator] Failed to create scrape failure notification: ${notifyError.message}`);
+      });
     }
   }
 

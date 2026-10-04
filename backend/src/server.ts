@@ -20,6 +20,7 @@ import leadRoutes from './routes/lead.routes';
 import followUpRoutes from './routes/followUp.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import pipelineRoutes from './routes/pipeline.routes';
+import notificationRoutes from './routes/notification.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
@@ -73,6 +74,7 @@ app.get('/api', (req, res) => {
       listings: '/api/listings',
       dashboard: '/api/dashboard',
       pipeline: '/api/pipeline',
+      notifications: '/api/notifications',
     },
   });
 });
@@ -85,6 +87,7 @@ app.use('/api/leads', leadRoutes);
 app.use('/api/followups', followUpRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/pipeline', pipelineRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 const frontendDist = process.env.FRONTEND_DIST || path.join(__dirname, '..', 'public');
 app.use(express.static(frontendDist));

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { scrapingApi } from '../services/api';
 import ZoomableImage from '../components/common/ZoomableImage';
 import type { ScrapingJob, ScrapedListing } from '../types';
@@ -57,6 +58,8 @@ export default function ScrapingPage() {
   const [sourceUrl, setSourceUrl] = useState(sourceMeta('acehome')?.defaultUrl ?? '');
   const [sourceName, setSourceName] = useState('acehome');
   const [maxPages, setMaxPages] = useState(5);
+  const [searchParams] = useSearchParams();
+  const jobFromQuery = searchParams.get('job');
 
   const handleSourceChange = (next: string) => {
     const previous = sourceMeta(sourceName);
@@ -68,10 +71,25 @@ export default function ScrapingPage() {
     }
   };
 
-  // Fetch jobs on mount
   useEffect(() => {
     fetchJobs();
   }, []);
+
+  useEffect(() => {
+    if (!jobFromQuery) return;
+    const match = jobs.find((job) => job.id === jobFromQuery);
+    if (match) {
+      setSelectedJob(match);
+      return;
+    }
+    scrapingApi.getJob(jobFromQuery)
+      .then((res) => {
+        if (res.success && res.data) setSelectedJob(res.data);
+      })
+      .catch(() => {
+        /* keep current selection if the job id is stale */
+      });
+  }, [jobFromQuery, jobs]);
 
   // Fetch scraped listings when job is selected
   useEffect(() => {

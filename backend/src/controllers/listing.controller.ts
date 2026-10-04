@@ -10,6 +10,7 @@ import videoScriptGenerator from '../services/videoScriptGenerator.service';
 import storyboardPlanner from '../services/storyboardPlanner.service';
 import { getFirstUser } from '../services/auth.service';
 import { listingAnalysisService } from '../services/listingAnalysis.service';
+import { countGeneratedStoryboardImages, notificationService } from '../services/notification.service';
 import type { CreateListingRequest, ApiResponse, PaginatedResponse } from '../types';
 
 function cleanLocation(location: string, title: string): string {
@@ -436,6 +437,25 @@ class ListingController {
         message: result.message,
       });
       return;
+    }
+
+    const imageCount = countGeneratedStoryboardImages(result);
+    if (imageCount > 0) {
+      await notificationService.create({
+        type: 'storyboard_images',
+        title: 'Storyboard images ready',
+        message: `${imageCount} storyboard image${imageCount === 1 ? '' : 's'} generated for ${listing.title}`,
+        link: `/listings/${id}`,
+        metadata: {
+          listingId: id,
+          listingTitle: listing.title,
+          imageCount,
+          totalScenes: result.meta?.total_scenes ?? imageCount,
+        },
+        userId: currentUser?.id ?? null,
+      }).catch((notifyError) => {
+        console.warn(`[ListingController] Failed to create storyboard notification: ${notifyError.message}`);
+      });
     }
 
     res.json({

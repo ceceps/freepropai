@@ -676,6 +676,22 @@ export type PipelineListResponse<T> = ApiResponse<T[]> & {
   offset: number;
 };
 
+export interface AppNotification {
+  id: string;
+  type: 'storyboard_images' | 'scrape_complete' | 'scrape_failed' | string;
+  title: string;
+  message: string;
+  link: string | null;
+  metadata: Record<string, unknown> | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationListData {
+  items: AppNotification[];
+  unreadCount: number;
+}
+
 export const allContentTypes = [
   'aboutus',
   'generalposting',

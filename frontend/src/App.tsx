@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { PrivateRoute } from './components/auth/PrivateRoute';
 import Layout from './components/common/Layout';
 import Dashboard from './pages/Dashboard';
@@ -42,9 +43,11 @@ function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
-        <Router>
-          <AppRoutes />
-        </Router>
+        <NotificationProvider>
+          <Router>
+            <AppRoutes />
+          </Router>
+        </NotificationProvider>
       </ThemeProvider>
     </AuthProvider>
   );

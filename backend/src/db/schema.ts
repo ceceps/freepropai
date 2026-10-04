@@ -261,3 +261,19 @@ export const scrapingConfigs = pgTable('scraping_configs', {
   sourceIdx: index('idx_scraping_configs_source').on(table.sourceName),
   activeIdx: index('idx_scraping_configs_active').on(table.isActive),
 }));
+
+export const notifications = pgTable('notifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  type: varchar('type', { length: 50 }).notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  message: text('message').notNull(),
+  link: varchar('link', { length: 500 }),
+  metadata: jsonb('metadata'),
+  readAt: timestamp('read_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  typeIdx: index('idx_notifications_type').on(table.type),
+  createdIdx: index('idx_notifications_created').on(table.createdAt),
+  unreadIdx: index('idx_notifications_unread').on(table.readAt),
+}));
