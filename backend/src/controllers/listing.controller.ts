@@ -361,8 +361,8 @@ class ListingController {
     // Save descriptions to database
     const savedDescriptions = await Promise.all([
       ListingModel.addDescription(id, 'formal', descriptions.formal),
-      ListingModel.addDescription(id, 'casual_1', descriptions.casual_1),
-      ListingModel.addDescription(id, 'casual_2', descriptions.casual_2),
+      ListingModel.addDescription(id, 'pas', descriptions.pas),
+      ListingModel.addDescription(id, 'short', descriptions.short),
     ]);
 
     const response: ApiResponse = {

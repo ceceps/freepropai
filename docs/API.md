@@ -35,7 +35,7 @@ Update listing details or update photos.
 Soft-delete a listing.
 
 ### `POST /api/listings/:id/generate-descriptions`
-Generate AI marketing descriptions (3 variants: `formal`, `casual_1`, `casual_2`).
+Generate AI marketing descriptions (3 variants: `formal`, `pas`, `short`).
 
 ### `PATCH /api/listings/:listingId/descriptions/:descId/select`
 Select a description variant to feature.
