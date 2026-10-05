@@ -26,8 +26,8 @@ It is not a buyer marketplace. Agents own their records, content, and conversati
 
 - Three description variants from property specs:
   - **Formal** — listing-portal copy (OLX, Rumah123)
-  - **Casual 1** — lifestyle Instagram caption
-  - **Casual 2** — short urgency copy for Stories / WhatsApp Status
+  - **PAS** — Problem-Agitate-Solution for Instagram feed / WhatsApp broadcast
+  - **Short** — Instagram Story / WhatsApp Status
 - Buyer-persona / target-market / channel analysis per listing
 - Template fallback when the LLM provider is unavailable (`ALLOW_MISSING_LLM=true`)
 

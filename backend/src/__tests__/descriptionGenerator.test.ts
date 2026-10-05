@@ -6,27 +6,26 @@ describe('DescriptionGeneratorService Unit Tests', () => {
   const sampleListing: Listing = {
     id: 'e0d4b91e-6f6e-4cdb-b488-a4355e63c6c5',
     title: 'Rumah Readystock Rooftop Dekat KCIC Whoosh Padalarang Dan Gerbang Tol',
-    description: 'Rumah 2 lantai readystock',
-    property_type: 'rumah',
-    price: 975000000,
-    location: 'Ngamprah Bandung Barat',
-    bedrooms: 3,
-    bathrooms: 2,
     land_area: 72,
     building_area: 100,
+    location: 'Ngamprah Bandung Barat',
+    price: 975000000,
+    bedrooms: 3,
+    bathrooms: 2,
+    property_type: 'rumah',
     status: 'available',
     additional_info: `Harga: Rp975.000.000\nDetail:\nLuas Tanah: 72.00 m²\nLuas Bangunan: 100.00 m²\nKamar Tidur: 3\nKamar Mandi: 2\nDeskripsi:\nRumah Readystock Rooftop Dekat KCIC Whoosh Padalarang Dan Gerbang Tol\nSpesifikasi:\n- Type Alocasia custom 100/72\n- 2 lantai\n- 3 kamar tidur\n- 2 kamar mandi\n- Dapur\n- Ruang keluarga\n- Carport\n- Halaman belakang\n- Rooftop\nPromo: Harga 975 juta nego\nSelling Point:\n- Lokasi sangat strategis dekat KCIC whoosh dan gerbang tol Padalarang dekat wisata Lembang\n- Dekat kantor Bupati KBB dan kantor DPRD KBB\nCARA BAYAR : CASH DAN KPR\nAKSES LOKASI : 2 MOBIL\nSURVEY : JANJIAN SATU HARI SEBELUMNYA`,
     source_url: 'https://www.acehome.co.id/project/detail/9f1c3ad7-d2b6-43e5-b641-eae0f5c9924e',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: new Date(),
+    updated_at: new Date(),
   };
 
   it('should generate fallback descriptions matching required 3 variants when LLM fails or is offline', async () => {
     const result = await descriptionGeneratorService.generateDescriptions(sampleListing);
 
     expect(result).toHaveProperty('formal');
-    expect(result).toHaveProperty('casual_1');
-    expect(result).toHaveProperty('casual_2');
+    expect(result).toHaveProperty('pas');
+    expect(result).toHaveProperty('short');
 
     // Check Formal variant rules
     expect(result.formal).toContain('Rumah di Ngamprah Bandung Barat');
@@ -34,13 +33,13 @@ describe('DescriptionGeneratorService Unit Tests', () => {
     expect(result.formal).toContain('Spesifikasi:');
     expect(result.formal).not.toMatch(/\p{Extended_Pictographic}/u); // No emojis in formal
 
-    // Check Casual 1 (PAS) variant rules
-    expect(result.casual_1).toContain('Ngamprah Bandung Barat');
-    expect(result.casual_1).toContain('Rp975 Juta');
+    // Check PAS variant rules
+    expect(result.pas).toContain('Ngamprah Bandung Barat');
+    expect(result.pas).toContain('Rp975 Juta');
 
-    // Check Casual 2 (SHORT) variant rules
-    expect(result.casual_2).toContain('Ngamprah Bandung Barat');
-    expect(result.casual_2).toContain('Rp975 Juta');
+    // Check Short variant rules
+    expect(result.short).toContain('Ngamprah Bandung Barat');
+    expect(result.short).toContain('Rp975 Juta');
   });
 
   it('should correctly format compact price for millions and billions', () => {
@@ -74,7 +73,9 @@ describe('DescriptionGeneratorService Unit Tests', () => {
     expect(systemPrompt).toContain('copywriter properti untuk agen real estate di Bandung Raya');
     expect(systemPrompt).toContain('ATURAN FAKTA (berlaku untuk semua versi):');
     expect(systemPrompt).toContain('ATURAN FORMAT & HARGA:');
-    expect(systemPrompt).toContain('PERIKSA DATA: [alasan singkat]');
-    expect(systemPrompt).toContain('FORMAT OUTPUT \'formal\'');
+    expect(systemPrompt).toContain("FORMAT OUTPUT 'formal'");
+    expect(systemPrompt).toContain("FORMAT OUTPUT 'pas'");
+    expect(systemPrompt).toContain("FORMAT OUTPUT 'short'");
+    expect(systemPrompt).toContain('Problem-Agitate-Solution + Social Proof + Comparative + CTA');
   });
 });

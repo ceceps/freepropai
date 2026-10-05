@@ -41,11 +41,13 @@ export default function DescriptionVariants({
   const getVariantLabel = (type: string) => {
     switch (type) {
       case 'formal':
-        return { label: 'Formal', subtitle: 'Hook → Problem → Solution → CTA · Listing portals (OLX, Rumah123)', icon: '🏢' };
+        return { label: 'Formal', subtitle: 'Listing portals (OLX, Rumah123)', icon: '🏢' };
+      case 'pas':
       case 'casual_1':
-        return { label: 'PAS', subtitle: 'Problem → Agitate → Solution → CTA · Instagram feed post', icon: '📱' };
+        return { label: 'PAS', subtitle: 'Problem-Agitate-Solution · Instagram feed / WhatsApp broadcast', icon: '📱' };
+      case 'short':
       case 'casual_2':
-        return { label: 'Short', subtitle: 'Hook → Problem → Solution → CTA · Instagram story / WhatsApp', icon: '💬' };
+        return { label: 'Short', subtitle: 'Instagram Story / WhatsApp Status', icon: '💬' };
       default:
         return { label: type, subtitle: '', icon: '📝' };
     }

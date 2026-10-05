@@ -188,7 +188,7 @@ export interface ListingPhoto {
 export interface ListingDescription {
   id: string;
   listing_id: string;
-  variant_type: 'formal' | 'casual_1' | 'casual_2';
+  variant_type: 'formal' | 'pas' | 'short';
   description_text: string;
   generated_at: Date;
   is_selected: boolean;
@@ -234,8 +234,8 @@ export interface CreateListingRequest {
 
 export interface GeneratedDescriptions {
   formal: string;
-  casual_1: string;
-  casual_2: string;
+  pas: string;
+  short: string;
 }
 
 export interface VideoScriptRecord {

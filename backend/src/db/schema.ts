@@ -146,7 +146,7 @@ export const listingDescriptions = pgTable('listing_descriptions', {
   isSelected: boolean('is_selected').default(false),
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => ({
-  variantCheck: check('variant_check', sql`${table.variantType} IN ('formal', 'casual_1', 'casual_2')`),
+  variantCheck: check('variant_check', sql`${table.variantType} IN ('formal', 'pas', 'short')`),
 }));
 
 // Listing video prompts table (saved versions of generated video scripts)
