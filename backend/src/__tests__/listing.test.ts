@@ -200,6 +200,25 @@ describe('Listing API Endpoints', () => {
       expect(response.body.data[0].title).toBe('Listing 1');
       expect(response.body.meta.total).toBe(1);
     });
+
+    it('should filter listings by origin mine vs sourced', async () => {
+      await db.insert(listings).values({
+        title: 'Sourced Villa',
+        location: 'Lembang',
+        price: '3000000000',
+        status: 'active',
+        sourceUrl: 'https://hepihos.com/project/detail/abc',
+      });
+
+      const mine = await request(app).get('/api/listings?origin=mine').expect(200);
+      expect(mine.body.data.every((row: { origin: string }) => row.origin === 'mine')).toBe(true);
+      expect(mine.body.meta.total).toBe(3);
+
+      const sourced = await request(app).get('/api/listings?origin=sourced').expect(200);
+      expect(sourced.body.data).toHaveLength(1);
+      expect(sourced.body.data[0].title).toBe('Sourced Villa');
+      expect(sourced.body.data[0].origin).toBe('sourced');
+    });
   });
 
   describe('GET /api/listings/:id', () => {

@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import axios from 'axios';
 import { db } from '../db';
 import { scrapedListings, scrapingJobs, listings } from '../db/schema';
 import { ScrapingOrchestratorService } from '../services/scrapingOrchestrator.service';
@@ -45,6 +46,10 @@ describe('ScrapingOrchestratorService — skip listings already in DB', () => {
     await db.delete(scrapedListings);
     await db.delete(scrapingJobs);
     await db.delete(listings);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('drops a scraped row whose source_id is already stored', async () => {
@@ -136,5 +141,73 @@ describe('ScrapingOrchestratorService — skip listings already in DB', () => {
     expect(ids.has('ACFROMSCRAPED')).toBe(true);
     expect(ids.has('ACFROMLISTINGS')).toBe(true);
     expect(ids.has('ACNOTHING')).toBe(false);
+  });
+
+  it('auto-imports qualifying pending rows and skips sold or incomplete ones', async () => {
+    vi.spyOn(axios, 'get').mockRejectedValue(new Error('skip image download in tests'));
+    const job = await makeJob();
+    const urlOpen = 'https://www.acehome.co.id/project/detail/ACOPEN1';
+    const urlSold = 'https://www.acehome.co.id/project/detail/ACSOLD1';
+    const urlDup = 'https://www.acehome.co.id/project/detail/ACDUP1';
+
+    await db.insert(listings).values({
+      sourceUrl: urlDup,
+      title: 'Already in listings',
+      location: 'Bandung Barat',
+      price: '1',
+    } as any);
+
+    await db.insert(scrapedListings).values([
+      {
+        scrapingJobId: job.id,
+        sourceId: 'ACOPEN1',
+        sourceUrl: urlOpen,
+        title: 'Rumah Open',
+        location: 'Parongpong',
+        price: '2000000000',
+        imageUrls: ['https://example.com/a.jpg'],
+        importStatus: 'pending',
+        rawData: { marketStatus: 'OPEN' },
+      },
+      {
+        scrapingJobId: job.id,
+        sourceId: 'ACSOLD1',
+        sourceUrl: urlSold,
+        title: 'Rumah Terjual',
+        location: 'Cimahi',
+        price: '1500000000',
+        imageUrls: ['https://example.com/b.jpg'],
+        importStatus: 'pending',
+        rawData: { ribbonText: 'Sold' },
+      },
+      {
+        scrapingJobId: job.id,
+        sourceId: 'ACDUP1',
+        sourceUrl: urlDup,
+        title: 'Duplikat',
+        location: 'Lembang',
+        price: '900000000',
+        imageUrls: ['https://example.com/c.jpg'],
+        importStatus: 'pending',
+        rawData: { marketStatus: 'OPEN' },
+      },
+    ] as any);
+
+    const result = await call<{ imported: number; skipped: number }>('autoImportQualifying', job.id);
+
+    expect(result.imported).toBe(2);
+    expect(result.skipped).toBe(1);
+
+    const rows = await db.select().from(scrapedListings);
+    const byId = Object.fromEntries(rows.map((r) => [r.sourceId, r]));
+    expect(byId.ACOPEN1.importStatus).toBe('imported');
+    expect(byId.ACOPEN1.importedListingId).toBeTruthy();
+    expect(byId.ACSOLD1.importStatus).toBe('skipped');
+    expect(byId.ACDUP1.importStatus).toBe('imported');
+
+    const listingRows = await db.select().from(listings);
+    const sourced = listingRows.filter((r) => r.sourceUrl === urlOpen);
+    expect(sourced).toHaveLength(1);
+    expect(listingRows.filter((r) => r.sourceUrl === urlDup)).toHaveLength(1);
   });
 });

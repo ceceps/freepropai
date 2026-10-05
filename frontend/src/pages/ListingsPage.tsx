@@ -27,6 +27,7 @@ export default function ListingsPage() {
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [originFilter, setOriginFilter] = useState<'all' | 'mine' | 'sourced'>('all');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
@@ -60,7 +61,7 @@ export default function ListingsPage() {
   // A status change always restarts from the first page
   useEffect(() => {
     setPage(1);
-  }, [statusFilter]);
+  }, [statusFilter, originFilter]);
 
   const loadListings = useCallback(async () => {
     try {
@@ -68,6 +69,7 @@ export default function ListingsPage() {
       setError(null);
       const response = await listingApi.getAll({
         status: statusFilter !== 'All' ? statusFilter : undefined,
+        origin: originFilter !== 'all' ? originFilter : undefined,
         q: searchTerm || undefined,
         limit: PAGE_SIZE,
         offset: (page - 1) * PAGE_SIZE,
@@ -82,7 +84,7 @@ export default function ListingsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, searchTerm, page]);
+  }, [statusFilter, originFilter, searchTerm, page]);
 
   // Load listings whenever the list view, page, or filters change
   useEffect(() => {
@@ -362,9 +364,20 @@ export default function ListingsPage() {
                 />
               </div>
               <select
+                value={originFilter}
+                onChange={(e) => setOriginFilter(e.target.value as 'all' | 'mine' | 'sourced')}
+                className="input w-full sm:w-40"
+                aria-label="Listing origin"
+              >
+                <option value="all">All origins</option>
+                <option value="mine">Mine</option>
+                <option value="sourced">Sourced</option>
+              </select>
+              <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="input w-full sm:w-40"
+                aria-label="Listing status"
               >
                 <option value="All">All Status</option>
                 <option value="published">Published</option>
@@ -389,11 +402,11 @@ export default function ListingsPage() {
             <div className="card p-12 text-center">
               <Home className="w-16 h-16 text-text-tertiary dark:text-text-tertiary-dark mx-auto mb-4" />
               <p className="text-text-secondary dark:text-text-secondary-dark mb-4">
-                {total === 0 && !searchTerm && statusFilter === 'All'
+                {total === 0 && !searchTerm && statusFilter === 'All' && originFilter === 'all'
                   ? 'No listings yet. Create your first listing to get started!'
                   : 'No listings match your filters.'}
               </p>
-              {total === 0 && !searchTerm && statusFilter === 'All' && (
+              {total === 0 && !searchTerm && statusFilter === 'All' && originFilter === 'all' && (
                 <button
                   onClick={() => setView('create')}
                   className="btn btn-primary"
@@ -416,9 +429,12 @@ export default function ListingsPage() {
                         src={listing.thumbnailUrl || listing.photos?.[0]?.photo_url || null}
                         alt={listing.title}
                       />
-                      <div className="absolute top-3 right-3">
+                      <div className="absolute top-3 right-3 flex flex-col items-end gap-1">
                         <span className={`badge ${statusConfig.badge}`}>
                           {statusConfig.label}
+                        </span>
+                        <span className={`badge ${listing.origin === 'sourced' ? 'badge-primary' : 'badge-neutral'}`}>
+                          {listing.origin === 'sourced' ? 'Sourced' : 'Mine'}
                         </span>
                       </div>
                       <div className="absolute bottom-3 left-3 right-3 flex justify-between">

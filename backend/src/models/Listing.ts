@@ -64,11 +64,18 @@ export class ListingModel {
     priceMax?: number;
     priceExact?: number;
     location?: string;
+    origin?: string;
   }) {
     const conditions = [isNull(listings.deletedAt)];
 
     if (filters?.status) {
       conditions.push(eq(listings.status, filters.status));
+    }
+
+    if (filters?.origin === 'mine') {
+      conditions.push(sql`${listings.sourceUrl} IS NULL`);
+    } else if (filters?.origin === 'sourced') {
+      conditions.push(sql`${listings.sourceUrl} IS NOT NULL`);
     }
 
     if (filters?.q) {
@@ -104,6 +111,7 @@ export class ListingModel {
   async findAll(filters?: {
     status?: string;
     q?: string;
+    origin?: string;
     limit?: number;
     offset?: number;
   }): Promise<Listing[]> {
@@ -124,7 +132,7 @@ export class ListingModel {
   }
 
   // Count listings matching the same filters as findAll
-  async countListings(filters?: { status?: string; q?: string }): Promise<number> {
+  async countListings(filters?: { status?: string; q?: string; origin?: string }): Promise<number> {
     const [row] = await db
       .select({ value: count() })
       .from(listings)
@@ -469,6 +477,7 @@ export class ListingModel {
       property_type: data.propertyType,
       region: data.region ?? undefined,
       source_url: data.sourceUrl ?? undefined,
+      origin: data.sourceUrl ? 'sourced' : 'mine',
       additional_info: data.additionalInfo,
       status: data.status,
       created_at: data.createdAt,

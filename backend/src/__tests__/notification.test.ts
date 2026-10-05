@@ -24,7 +24,7 @@ describe('Notifications', () => {
       type: 'scrape_complete',
       title: 'Scraping complete',
       message: '3 listings scraped from hepihos',
-      link: '/scraping?job=abc',
+      link: '/pipeline?tab=jobs&job=abc',
     });
     await notificationService.create({
       type: 'storyboard_images',
@@ -45,7 +45,7 @@ describe('Notifications', () => {
       type: 'scrape_complete',
       title: 'Scraping complete',
       message: '1 listing scraped from acehome',
-      link: '/scraping',
+      link: '/pipeline?tab=jobs',
     });
 
     const res = await request(app).patch(`/api/notifications/${created.id}/read`).expect(200);

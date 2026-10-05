@@ -54,6 +54,7 @@ export interface Listing {
   property_type?: string;
   region?: string;
   source_url?: string;
+  origin?: 'mine' | 'sourced';
   additional_info?: string;
   status: string;
   created_at: string;
@@ -271,6 +272,8 @@ export interface ListingSummary {
   bedrooms?: number;
   bathrooms?: number;
   status: string;
+  origin?: 'mine' | 'sourced';
+  source_url?: string;
   photoCount: number;
   hasDescriptions: boolean;
   created_at: string;

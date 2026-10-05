@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { notificationService } from './notification.service';
+import { qualifiesForAutoImport } from './scrapeImportGate';
 
 interface CreateJobOptions {
   sourceUrl: string;
@@ -219,7 +220,18 @@ export class ScrapingOrchestratorService {
             `[ScrapingOrchestrator] Per-row insert stored ${inserted}/${listingsToInsert.length} listings`
           );
         }
+
+        const autoImport = await this.autoImportQualifying(jobId);
+        if (autoImport.imported > 0 || autoImport.skipped > 0) {
+          console.log(
+            `[ScrapingOrchestrator] Auto-import job ${jobId}: ${autoImport.imported} imported, ${autoImport.skipped} skipped`
+          );
+        }
       }
+
+      const [jobAfter] = await db.select()
+        .from(scrapingJobs)
+        .where(eq(scrapingJobs.id, jobId));
 
       // Update job as completed
       await db.update(scrapingJobs)
@@ -234,16 +246,19 @@ export class ScrapingOrchestratorService {
       console.log(`[ScrapingOrchestrator] Job ${jobId} completed successfully`);
 
       const sourceLabel = job.sourceName || 'source';
+      const importedCount = jobAfter?.totalListingsImported ?? 0;
       await notificationService.create({
         type: 'scrape_complete',
         title: 'Scraping complete',
-        message: `${scrapedData.length} listing${scrapedData.length === 1 ? '' : 's'} scraped from ${sourceLabel}`,
-        link: `/scraping?job=${jobId}`,
+        message: `${scrapedData.length} listing${scrapedData.length === 1 ? '' : 's'} scraped from ${sourceLabel}`
+          + (importedCount > 0 ? `, ${importedCount} added to listings` : ''),
+        link: `/pipeline?tab=jobs&job=${jobId}`,
         metadata: {
           jobId,
           sourceName: job.sourceName,
           sourceUrl: job.sourceUrl,
           totalListingsFound: scrapedData.length,
+          totalListingsImported: importedCount,
         },
       }).catch((notifyError) => {
         console.warn(`[ScrapingOrchestrator] Failed to create scrape notification: ${notifyError.message}`);
@@ -266,7 +281,7 @@ export class ScrapingOrchestratorService {
         type: 'scrape_failed',
         title: 'Scraping failed',
         message: error.message || 'Scraping job failed',
-        link: `/scraping?job=${jobId}`,
+        link: `/pipeline?tab=jobs&job=${jobId}`,
         metadata: { jobId },
       }).catch((notifyError) => {
         console.warn(`[ScrapingOrchestrator] Failed to create scrape failure notification: ${notifyError.message}`);
@@ -293,8 +308,33 @@ export class ScrapingOrchestratorService {
         throw new Error('Scraped listing not found');
       }
 
-      if (scraped.importStatus === 'imported') {
-        throw new Error('Listing already imported');
+      if (scraped.importStatus === 'imported' && scraped.importedListingId) {
+        return {
+          scrapedListingId,
+          listingId: scraped.importedListingId,
+          importedAt: scraped.importedAt,
+          imagesDownloaded: 0,
+          descriptionsGenerated: false,
+        };
+      }
+
+      const existing = await this.findListingBySourceUrl(scraped.sourceUrl);
+      if (existing) {
+        await db.update(scrapedListings)
+          .set({
+            importStatus: 'imported',
+            importedListingId: existing.id,
+            importedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(scrapedListings.id, scrapedListingId));
+        return {
+          scrapedListingId,
+          listingId: existing.id,
+          importedAt: new Date(),
+          imagesDownloaded: 0,
+          descriptionsGenerated: false,
+        };
       }
 
       // Create listing
@@ -575,6 +615,60 @@ export class ScrapingOrchestratorService {
         updatedAt: new Date(),
       })
       .where(eq(scrapedListings.id, scrapedListingId));
+  }
+
+  private async findListingBySourceUrl(sourceUrl: string | null): Promise<{ id: string } | null> {
+    if (!sourceUrl) return null;
+    const [existing] = await db
+      .select({ id: listings.id })
+      .from(listings)
+      .where(eq(listings.sourceUrl, sourceUrl))
+      .limit(1);
+    return existing ?? null;
+  }
+
+  /**
+   * Auto-import scraped rows that pass the quality gate (OPEN, price, photos,
+   * title, location, source URL). Failures stay pending/skipped in scraped_listings.
+   */
+  private async autoImportQualifying(
+    jobId: string
+  ): Promise<{ imported: number; skipped: number }> {
+    const pending = await this.getScrapedListings(jobId, { importStatus: 'pending' });
+    let imported = 0;
+    let skipped = 0;
+
+    for (const row of pending) {
+      const gate = qualifiesForAutoImport({
+        title: row.title,
+        location: row.location,
+        price: row.price,
+        imageUrls: row.imageUrls,
+        sourceUrl: row.sourceUrl,
+        description: row.description,
+        rawData: row.rawData,
+      });
+
+      if (!gate.ok) {
+        await db.update(scrapedListings)
+          .set({
+            importStatus: 'skipped',
+            updatedAt: new Date(),
+          })
+          .where(eq(scrapedListings.id, row.id));
+        skipped++;
+        continue;
+      }
+
+      try {
+        await this.importScrapedListing(row.id, { downloadImages: true });
+        imported++;
+      } catch (error: any) {
+        console.warn(`[ScrapingOrchestrator] Auto-import failed for ${row.id}: ${error.message}`);
+      }
+    }
+
+    return { imported, skipped };
   }
 
   /**

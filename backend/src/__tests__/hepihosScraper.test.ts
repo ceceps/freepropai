@@ -58,6 +58,7 @@ describe('HepihosScraperService', () => {
       expect(listings[0].sourceId).toBe('2f70a28b-ec29-4205-a4d7-aad7313c9f3f');
       expect(listings[0].title).toBe('Rumah Strategis Sukaati Permai Pasir Luyu Regol');
       expect(listings[0].price).toBe(2700000000);
+      expect(listings[0].marketStatus).toBe('Dijual');
     });
   });
 

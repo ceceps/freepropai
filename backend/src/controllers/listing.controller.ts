@@ -135,7 +135,8 @@ class ListingController {
         region, 
         priceMin, 
         priceMax, 
-        location, 
+        location,
+        origin,
         limit = '20', 
         offset = '0' 
       } = req.query;
@@ -149,8 +150,10 @@ class ListingController {
         priceMin?: number;
         priceMax?: number;
         location?: string;
+        origin?: string;
       } = {};
       if (status && status !== 'all') filters.status = String(status);
+      if (origin === 'mine' || origin === 'sourced') filters.origin = String(origin);
       const searchTerm = q !== undefined ? String(q).trim() : '';
       if (searchTerm) filters.q = searchTerm;
       if (region !== undefined) filters.region = String(region).trim();
@@ -197,6 +200,8 @@ class ListingController {
           bedrooms: listing.bedrooms,
           bathrooms: listing.bathrooms,
           status: listing.status,
+          origin: listing.origin,
+          source_url: listing.source_url,
           photoCount: photos.length,
           hasDescriptions: hasGenerated || hasAdditional,
           hasGeneratedDescriptions: hasGenerated,

@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
@@ -8,12 +8,20 @@ import Dashboard from './pages/Dashboard';
 import LeadsPage from './pages/LeadsPage';
 import FollowUpsPage from './pages/FollowUpsPage';
 import ListingsPage from './pages/ListingsPage';
-import ScrapingPage from './pages/ScrapingPage';
 import PipelinePage from './pages/PipelinePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/SettingsPage';
+
+function ScrapingRedirect() {
+  const [params] = useSearchParams();
+  const job = params.get('job');
+  const to = job
+    ? `/pipeline?tab=jobs&job=${encodeURIComponent(job)}`
+    : '/pipeline?tab=jobs';
+  return <Navigate to={to} replace />;
+}
 
 function AppRoutes() {
   return (
@@ -30,7 +38,7 @@ function AppRoutes() {
         <Route path="/followups" element={<FollowUpsPage />} />
         <Route path="/listings" element={<ListingsPage />} />
         <Route path="/listings/:id" element={<ListingsPage />} />
-        <Route path="/scraping" element={<ScrapingPage />} />
+        <Route path="/scraping" element={<ScrapingRedirect />} />
         <Route path="/pipeline" element={<PipelinePage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/settings" element={<SettingsPage />} />

@@ -41,7 +41,11 @@ function sourceMeta(name: string) {
   return SCRAPE_SOURCES.find((s) => s.value === name);
 }
 
-export default function ScrapingPage() {
+interface ScrapingPageProps {
+  embedded?: boolean;
+}
+
+export default function ScrapingPage({ embedded = false }: ScrapingPageProps) {
   const [jobs, setJobs] = useState<ScrapingJob[]>([]);
   const [jobsTotal, setJobsTotal] = useState(0);
   const [jobsLoading, setJobsLoading] = useState(false);
@@ -237,8 +241,8 @@ export default function ScrapingPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-8 animate-fade-in">
-      <h1 className="text-3xl font-bold text-text-primary">Property Scraping</h1>
+    <div className={embedded ? 'space-y-6' : 'container mx-auto px-4 py-8 space-y-8 animate-fade-in'}>
+      {!embedded && <h1 className="text-3xl font-bold text-text-primary">Property Scraping</h1>}
 
       {error && (
         <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg">

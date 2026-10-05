@@ -181,6 +181,7 @@ export const listingApi = {
   async getAll(params?: {
     status?: string;
     q?: string;
+    origin?: 'mine' | 'sourced';
     limit?: number;
     offset?: number;
   }): Promise<PaginatedResponse<ListingSummary>> {

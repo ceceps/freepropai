@@ -55,6 +55,7 @@ interface ScrapedProperty {
   roadAccess?: string | null;
   electricity?: string | null;
   waterSource?: string | null;
+  marketStatus?: string | null;
 }
 
 export class HepihosScraperService {
@@ -220,6 +221,7 @@ export class HepihosScraperService {
             roadAccess: null,
             electricity: null,
             waterSource: null,
+            marketStatus: ribbonText || null,
           });
         } catch (err) {
           console.warn(`[HepihosScraperService] Error parsing card element:`, err);
@@ -238,7 +240,11 @@ export class HepihosScraperService {
             region: resolvedAgentHandle,
             agentHandle: resolvedAgentHandle,
           });
-          enrichedListings.push(detail || listing);
+          enrichedListings.push(
+            detail
+              ? { ...detail, marketStatus: listing.marketStatus ?? detail.marketStatus }
+              : listing
+          );
         } catch {
           enrichedListings.push(listing);
         }
