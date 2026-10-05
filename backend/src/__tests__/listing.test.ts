@@ -200,6 +200,25 @@ describe('Listing API Endpoints', () => {
       expect(response.body.data[0].title).toBe('Listing 1');
       expect(response.body.meta.total).toBe(1);
     });
+
+    it('should filter listings by origin mine vs sourced', async () => {
+      await db.insert(listings).values({
+        title: 'Sourced Villa',
+        location: 'Lembang',
+        price: '3000000000',
+        status: 'active',
+        sourceUrl: 'https://hepihos.com/project/detail/abc',
+      });
+
+      const mine = await request(app).get('/api/listings?origin=mine').expect(200);
+      expect(mine.body.data.every((row: { origin: string }) => row.origin === 'mine')).toBe(true);
+      expect(mine.body.meta.total).toBe(3);
+
+      const sourced = await request(app).get('/api/listings?origin=sourced').expect(200);
+      expect(sourced.body.data).toHaveLength(1);
+      expect(sourced.body.data[0].title).toBe('Sourced Villa');
+      expect(sourced.body.data[0].origin).toBe('sourced');
+    });
   });
 
   describe('GET /api/listings/:id', () => {
@@ -683,7 +702,7 @@ describe('Listing API Endpoints', () => {
       expect(response.body.data.script).toBe(mockScript);
       expect(response.body.data.style).toBe('aerial');
       expect(response.body.data.model).toBe('veo');
-      expect(response.body.data.voiceOver).toEqual({ enabled: true });
+      expect(response.body.data.voiceOver).toEqual({ enabled: true, language: 'inggris' });
       expect(response.body.data.voiceOverScript).toBe(mockScript);
       vi.restoreAllMocks();
     });
@@ -704,9 +723,9 @@ describe('Listing API Endpoints', () => {
       vi.restoreAllMocks();
     });
 
-    it('should generate an Indonesian voice over when requested', async () => {
+    it('should generate an English voice over when requested', async () => {
       const mockScript = 'Cinematic walkthrough of the villa...';
-      const mockVoiceOver = '[Scene 1] Selamat datang di properti ini...';
+      const mockVoiceOver = '[Scene 1] Welcome to this property...';
       vi.spyOn(llmClient, 'generateCompletion')
         .mockResolvedValueOnce(mockScript)
         .mockResolvedValueOnce(mockVoiceOver);
@@ -723,7 +742,7 @@ describe('Listing API Endpoints', () => {
       vi.restoreAllMocks();
     });
 
-    it('should fall back to an Indonesian voice over template when LLM fails', async () => {
+    it('should fall back to an English voice over template when LLM fails', async () => {
       vi.spyOn(llmClient, 'generateCompletion').mockRejectedValue(new Error('LLM API Error'));
 
       const response = await request(app)
@@ -765,10 +784,13 @@ describe('Listing API Endpoints', () => {
 
       const json = response.body.data.scriptJson;
       expect(json.project).toContain('video_campaign');
-      expect(json.settings).toEqual({
+      expect(json.model).toBe('gemini-omni-flash');
+      expect(json.settings).toMatchObject({
+        video_style: 'Cinematic',
         total_duration_seconds: 22,
         resolution: '1920x1080',
         aspect_ratio: '16:9',
+        voice_over: { enabled: false, gender: null },
       });
       expect(Array.isArray(json.scenes)).toBe(true);
       expect(json.scenes).toHaveLength(5);
@@ -776,21 +798,24 @@ describe('Listing API Endpoints', () => {
       json.scenes.forEach((scene, index) => {
         expect(scene.scene_number).toBe(index + 1);
         expect(scene.duration_seconds).toEqual(expect.any(Number));
-        expect(scene.transition).toBeDefined();
-        expect(scene.transition.in).toEqual(expect.any(String));
-        expect(scene.transition.out).toEqual(expect.any(String));
-        expect(scene.visuals.description).toEqual(expect.any(String));
-        expect(scene.visuals.camera).toEqual(expect.any(String));
+        expect(scene.shot_framing_and_motion).toEqual(expect.any(String));
+        expect(scene.style).toEqual(expect.any(String));
+        expect(scene.lighting).toEqual(expect.any(String));
+        expect(scene.location).toEqual(expect.any(String));
+        expect(scene.action).toEqual(expect.any(String));
         expect(scene.audio.ambient).toEqual(expect.any(String));
-        expect(scene.audio.effects).toEqual(expect.any(String));
-        expect(scene.audio.voice_over).toBeUndefined();
+        expect(scene.audio.music).toEqual(expect.any(String));
+        expect(scene.audio.dialogue).toBeNull();
+        expect(scene.preservation).toEqual(expect.any(String));
+        expect(scene.negative).toEqual(expect.any(String));
+        expect(scene.prompt).toContain('In a single continuous shot');
       });
       vi.restoreAllMocks();
     });
 
-    it('should embed Indonesian voice over text inside the JSON scenes when requested', async () => {
+    it('should embed English voice over text inside the JSON scenes when requested', async () => {
       const mockScript = 'Cinematic showcase...';
-      const mockVoiceOver = '[Scene 1: Establishing Shot]\nSelamat datang di properti nyaman ini.\n\n[Scene 2: Interior]\nRuangannya luas dan terang.';
+      const mockVoiceOver = '[Scene 1: Establishing Shot]\nWelcome to this comfortable property.\n\n[Scene 2: Interior]\nThe rooms are spacious and bright.';
       vi.spyOn(llmClient, 'generateCompletion')
         .mockResolvedValueOnce(mockScript)
         .mockResolvedValueOnce(mockVoiceOver);
@@ -800,14 +825,19 @@ describe('Listing API Endpoints', () => {
         .send({ includeVoiceOver: true })
         .expect(200);
 
-      const scenes = response.body.data.scriptJson.scenes;
+      const json = response.body.data.scriptJson;
+      const scenes = json.scenes;
       expect(scenes).toHaveLength(5);
-      expect(scenes[0].audio.voice_over.text).toContain('Selamat datang di properti nyaman ini');
-      expect(scenes[1].audio.voice_over.text).toContain('Ruangannya luas dan terang');
-      expect(scenes[0].audio.voice_over.style).toEqual(expect.any(String));
+      expect(json.settings.voice_over.language).toBe('English');
+      expect(json.constraints.reference_identity).toMatch(/Do not change the model, objects, or faces/);
+      expect(json.constraints.voice_over).toMatch(/English/);
+      expect(scenes[0].audio.dialogue.text).toContain('Welcome to this comfortable property');
+      expect(scenes[1].audio.dialogue.text).toContain('The rooms are spacious and bright');
+      expect(scenes[0].audio.dialogue.speaker).toEqual(expect.any(String));
+      expect(scenes[0].audio.dialogue.delivery).toEqual(expect.any(String));
 
       for (const scene of scenes.slice(2)) {
-        expect(scene.audio.voice_over.text).toEqual(expect.any(String));
+        expect(scene.audio.dialogue.text).toEqual(expect.any(String));
       }
       vi.restoreAllMocks();
     });
@@ -871,13 +901,13 @@ describe('Listing API Endpoints', () => {
 
       const scenes = response.body.data.scriptJson.scenes;
       expect(scenes).toHaveLength(5);
-      expect(scenes[0].audio.voice_over.text).toContain('Listing With Photos');
-      expect(scenes[4].audio.voice_over.text).toContain('hubungi agen kami');
+      expect(scenes[0].audio.dialogue.text).toContain('Listing With Photos');
+      expect(scenes[4].audio.dialogue.text).toContain('contact our agent');
       vi.restoreAllMocks();
     });
 
     it('should instruct veo to alternate [Visual] and VO blocks in the prompt', async () => {
-      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue('[Visual: Exterior shot.]\nVO: Selamat datang.');
+      vi.spyOn(llmClient, 'generateCompletion').mockResolvedValue('[Visual: Exterior shot.]\nVO: Welcome.');
 
       await request(app)
         .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
@@ -887,7 +917,7 @@ describe('Listing API Endpoints', () => {
       const [systemPrompt, userPrompt] = (llmClient.generateCompletion as any).mock.calls[0];
       expect(systemPrompt).toContain('[Visual:');
       expect(systemPrompt).toContain('VO:');
-      expect(systemPrompt).toContain('Bahasa Indonesia');
+      expect(systemPrompt).toContain('English');
       expect(userPrompt).toContain('alternating [Visual: ...] and VO: ... blocks');
       vi.restoreAllMocks();
     });
@@ -916,7 +946,7 @@ describe('Listing API Endpoints', () => {
       const script = response.body.data.script as string;
       expect(script.match(/\[Visual:/g)).toHaveLength(5);
       expect(script.match(/\nVO: /g)).toHaveLength(5);
-      expect(script).toContain('Selamat datang di Listing With Photos');
+      expect(script).toContain('Welcome to Listing With Photos');
       vi.restoreAllMocks();
     });
 

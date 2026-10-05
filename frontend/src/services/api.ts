@@ -37,7 +37,9 @@ import type {
   PipelineCalendarItem,
   PipelineCalendarDetail,
   PipelineFacets,
-  PipelineListResponse
+  PipelineListResponse,
+  AppNotification,
+  NotificationListData,
 } from '../types';
 
 // Create axios instance
@@ -179,6 +181,7 @@ export const listingApi = {
   async getAll(params?: {
     status?: string;
     q?: string;
+    origin?: 'mine' | 'sourced';
     limit?: number;
     offset?: number;
   }): Promise<PaginatedResponse<ListingSummary>> {
@@ -548,6 +551,23 @@ export const pipelineApi = {
       `/pipeline/listings/${listingId}/generate-calendar`,
       { contentTypes, startDate }
     );
+    return response.data;
+  },
+};
+
+export const notificationApi = {
+  async list(limit = 20): Promise<ApiResponse<NotificationListData>> {
+    const response = await api.get<ApiResponse<NotificationListData>>('/notifications', { params: { limit } });
+    return response.data;
+  },
+
+  async markRead(id: string): Promise<ApiResponse<AppNotification>> {
+    const response = await api.patch<ApiResponse<AppNotification>>(`/notifications/${id}/read`);
+    return response.data;
+  },
+
+  async markAllRead(): Promise<ApiResponse<{ updated: number }>> {
+    const response = await api.patch<ApiResponse<{ updated: number }>>('/notifications/read-all');
     return response.data;
   },
 };

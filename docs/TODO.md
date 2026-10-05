@@ -60,3 +60,35 @@
 - [ ] Scraping Feature (Phase 2) — sudah di-plan detail, perlu verifikasi implementasi aktual
 - [ ] `docs/API.md` — belum ada
 - [ ] `docs/DEMO_SCRIPT.md` — belum ada
+
+---
+
+## 5. Security: Hardcoded Credentials
+
+Hasil audit kredensial di source code. Nilai rahasia tidak ditulis di sini; cek file terkait. Rotasi semua nilai yang benar-benar live, lalu hapus dari source.
+
+### Real secret, git-tracked (masuk riwayat Git — prioritas tinggi)
+- [ ] `backend/src/config/llm.ts:13` — fallback token image API (`sk-...`) hardcoded di source
+- [ ] `backend/.env.test:6` — password Postgres
+- [ ] `backend/.env.test:7` — `DATABASE_URL` berisi password yang sama
+- [ ] `backend/src/config/auth.ts:2` — fallback `JWT_SECRET` (`dev-secret-change-in-production`)
+- [ ] `Changelog.md:74` — kredensial login pgAdmin (email + password)
+
+### Real secret, ada lokal tapi sudah gitignored
+- [ ] `backend/.env:2,7` — `DATABASE_URL` + password DB live
+- [ ] `backend/.env:14` — `AGENTROUTER_API_KEY` live
+- [ ] `backend/.env.test.local:3` — API key live yang sama
+
+### Placeholder saja (bukan secret, tidak perlu rotasi)
+- `backend/.env.example`, `README.md`, `PLANNING.md`, `backend/TEST_SETUP.md`, `backend/DRIZZLE_SETUP.md`
+
+### Tindakan
+- [ ] Rotasi token image API (`LLM_TOKEN_IMAGE`)
+- [ ] Rotasi `AGENTROUTER_API_KEY`
+- [ ] Rotasi password DB
+- [x] Hapus fallback hardcoded di `backend/src/config/llm.ts:13` (wajib dari env) — done; token kini hanya dari `LLM_TOKEN_IMAGE`, generation di-skip dengan warning bila kosong
+- [ ] Wajibkan `JWT_SECRET` dari env; hapus default `dev-secret-change-in-production`
+- [ ] Ganti `backend/.env.test` agar pakai password dummy/non-produksi
+- [ ] Pindahkan kredensial pgAdmin dari `Changelog.md` ke secret manager
+- [ ] Pastikan `.env` dan `.env.test.local` tetap gitignored, jangan pernah di-commit
+- [ ] (Opsional) Bersihkan riwayat Git yang sudah terlanjur memuat token

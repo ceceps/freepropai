@@ -169,6 +169,7 @@ export interface Listing {
   property_type?: string;
   region?: string;
   source_url?: string;
+  origin?: 'mine' | 'sourced';
   additional_info?: string;
   status: string;
   created_at: Date;

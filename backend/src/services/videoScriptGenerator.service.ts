@@ -18,6 +18,14 @@ export const VIDEO_STYLES = {
     label: 'Walkthrough',
     description: 'Smooth room-by-room gimbal tour, doorway-to-doorway flow, architecture-focused.',
   },
+  ugc: {
+    label: 'UGC',
+    description: 'Authentic user-generated content: handheld selfie-style, a real person talking straight to camera, casual and native to TikTok/Reels.',
+  },
+  talking_head: {
+    label: 'Talking Head',
+    description: 'Presenter-led video: one person speaking directly to camera in medium close-up, natural delivery, minimal camera movement.',
+  },
 } as const;
 
 export const VIDEO_MODELS = {
@@ -58,40 +66,57 @@ export interface VideoOnScreenText {
   animation: string;
 }
 
-export interface VideoTransition {
-  in: string;
-  out: string;
-}
-
-export interface VideoSceneVisuals {
-  description: string;
-  camera: string;
-  on_screen_text: VideoOnScreenText | null;
+export interface VideoSceneDialogue {
+  speaker: string;
+  text: string;
+  delivery: string;
 }
 
 export interface VideoSceneAudio {
-  ambient?: string;
-  effects?: string;
-  voice_over?: {
-    text: string;
-    style: string;
-  };
+  ambient: string;
+  music: string;
+  dialogue: VideoSceneDialogue | null;
 }
 
+/**
+ * Per-scene JSON aligned with the official Gemini Omni Flash prompt framework.
+ * The six prompt dimensions (shot framing & motion, style, lighting, location,
+ * action, text rendering) plus audio, preservation and negative rules map 1:1
+ * to the fields below. `prompt` is the ready-to-paste plain-language prompt.
+ */
 export interface VideoScriptScene {
   scene_number: number;
   duration_seconds: number;
-  transition: VideoTransition;
-  visuals: VideoSceneVisuals;
+  shot_framing_and_motion: string;
+  style: string;
+  lighting: string;
+  location: string;
+  action: string;
+  text_rendering: VideoOnScreenText | null;
   audio: VideoSceneAudio;
+  preservation: string;
+  negative: string;
+  prompt: string;
 }
 
 export interface VideoScriptJson {
   project: string;
+  model: string;
   settings: {
-    total_duration_seconds: number;
-    resolution: string;
+    video_style: string;
     aspect_ratio: string;
+    resolution: string;
+    total_duration_seconds: number;
+    voice_over: {
+      enabled: boolean;
+      gender: string | null;
+      language: string;
+      age_range: string | null;
+    };
+  };
+  constraints: {
+    reference_identity: string;
+    voice_over: string;
   };
   scenes: VideoScriptScene[];
 }
@@ -115,6 +140,28 @@ const IDR = new Intl.NumberFormat('id-ID', {
   maximumFractionDigits: 0,
 });
 
+const MUSIC_BY_STYLE: Record<VideoStyle, string> = {
+  cinematic: 'warm cinematic orchestral bed with soft piano',
+  aerial: 'uplifting ambient pad with light percussion',
+  lifestyle: 'warm acoustic guitar, feel-good family tone',
+  walkthrough: 'minimal lo-fi beat, unobtrusive',
+  ugc: 'trendy upbeat TikTok-style beat, casual energy',
+  talking_head: 'soft corporate-friendly background bed, low volume',
+};
+
+interface SceneVisual {
+  subject: string;
+  action: string;
+  expression: string;
+  setting: string;
+  lighting: string;
+  atmosphere: string;
+  camera: string;
+  lens: string;
+  ambient: string;
+  effects: string;
+}
+
 interface ScenePlan {
   scene: number;
   title: string;
@@ -126,7 +173,11 @@ class VideoScriptGeneratorService {
     const style = this.resolveStyle(options.style);
     const model = this.resolveModel(options.model);
     const aspectRatio = options.aspectRatio && options.aspectRatio in ASPECT_RATIO_MAP ? options.aspectRatio : '16:9';
-    const voiceOver = options.voiceOver && options.voiceOver.enabled ? options.voiceOver : { enabled: false };
+    let voiceOver: VoiceOverConfig = options.voiceOver && options.voiceOver.enabled ? options.voiceOver : { enabled: false };
+    // Talking Head is presenter-led: a narrator (with a gender) is mandatory.
+    if (style === 'talking_head') {
+      voiceOver = { ...voiceOver, enabled: true, gender: voiceOver.gender || 'wanita' };
+    }
     const customInstructions = (options.customInstructions || '').trim();
 
     const plan = this.buildScenePlan(listing);
@@ -134,9 +185,10 @@ class VideoScriptGeneratorService {
     // Veo / Omni use a dedicated [Visual]/VO alternating prompt so the native
     // audio voice-over is embedded directly in the generation prompt.
     const isVeo = model === 'veo';
-    const promptLanguage: 'indonesia' | 'inggris' = voiceOver.enabled
-      ? (voiceOver.language || 'indonesia')
-      : 'indonesia';
+    if (voiceOver.enabled) {
+      voiceOver = { ...voiceOver, language: 'inggris' };
+    }
+    const promptLanguage: 'indonesia' | 'inggris' = voiceOver.enabled ? 'inggris' : 'indonesia';
 
     let script = '';
     let scriptFromLlm = false;
@@ -402,17 +454,19 @@ Rules:
     };
     const ageStr = ageMap[voiceOver.ageRange || 'dewasa'] || 'adult';
 
-    return `You are a professional real estate voice-over narrator (${genderStr}, ${ageStr}) speaking in ${langStr}.
+    return `You are a professional real estate voice-over narrator (${genderStr}, ${ageStr}) speaking in English.
 
-Write a voice-over narration script in ${langStr} for a ${VIDEO_STYLES[style].label.toLowerCase()} property video. The narration must match the exact scene structure below, one narration per scene:
+Write a voice-over narration script in English for a ${VIDEO_STYLES[style].label.toLowerCase()} property video. The narration must match the exact scene structure below, one narration per scene:
 
 ${scenes}
 
 Rules:
 - Speak in natural, warm, professional tone suitable for a ${genderStr} ${ageStr} narrator.
+- Always write the spoken lines in English, even if the property details are in Indonesian.
 - Each scene block starts with [Scene N — Scene Title] then 1-2 short spoken sentences that fit the scene duration.
 - Do not read out camera directions or timing; those are visual notes, not narration.
 - Never invent specs or numbers not present in the property details.
+- Do not rewrite or replace a voice-over that has already been defined for a scene.
 - Close the last scene with a friendly call to action to contact the agent.
 - Output only the narration script, no commentary.`;
   }
@@ -432,24 +486,24 @@ Rules:
       : `${(listing.price / 1000000).toLocaleString('id-ID', { maximumFractionDigits: 0 })} juta`;
 
     const lines: string[] = [
-      'Property yang akan dinarasikan:',
-      `Judul: ${listing.title}`,
-      `Lokasi: ${listing.location}`,
-      `Tipe: ${listing.property_type || 'Rumah'}`,
-      specLine ? `Spesifikasi: ${specLine}` : '',
-      `Harga: sekitar Rp ${priceText}`,
-      listing.additional_info ? `Fitur utama: ${listing.additional_info}` : '',
+      'Property to narrate:',
+      `Title: ${listing.title}`,
+      `Location: ${listing.location}`,
+      `Type: ${listing.property_type || 'Rumah'}`,
+      specLine ? `Specs: ${specLine}` : '',
+      `Price: about Rp ${priceText}`,
+      listing.additional_info ? `Key features: ${listing.additional_info}` : '',
       '',
-      `Tulis narasi voice over per scene dengan struktur ini (${plan.length} scene):`,
+      `Write the English voice-over narration per scene with this structure (${plan.length} scenes):`,
       ...plan.map((s) => `  - Scene ${s.scene} "${s.title}" (~${s.durationSeconds}s)`),
     ];
 
     if (generatedScript) {
-      lines.push('', 'Sebagai referensi, berikut video prompt yang sudah dibuat untuk properti ini:', '');
+      lines.push('', 'For reference, here is the video prompt already created for this property:', '');
       lines.push(generatedScript);
     }
 
-    lines.push('', 'Keluarkan hanya naskah voice over, tanpa komentar tambahan.');
+    lines.push('', 'Output only the English voice-over script, with no extra commentary.');
     return lines.join('\n');
   }
 
@@ -624,20 +678,10 @@ Rules:
   }
 
   /**
-   * Multi-scene structured JSON document matching user specification:
-   * {
-   *   "project": "...",
-   *   "settings": { "total_duration_seconds": 30, "resolution": "1080x1920", "aspect_ratio": "9:16" },
-   *   "scenes": [
-   *     {
-   *       "scene_number": 1,
-   *       "duration_seconds": 3,
-   *       "transition": { "in": "...", "out": "..." },
-   *       "visuals": { "description": "...", "camera": "...", "on_screen_text": { ... } | null },
-   *       "audio": { "ambient": "...", "effects": "...", "voice_over": { "text": "...", "style": "..." } }
-   *     }
-   *   ]
-   * }
+   * Per-scene structured JSON aligned with the official Gemini Omni Flash prompt
+   * framework. Each scene exposes the six prompt dimensions (shot framing &
+   * motion, style, lighting, location, action, text rendering) plus audio,
+   * preservation and negative rules, and a ready-to-paste `prompt` string.
    */
   private buildSceneJson(
     listing: Listing,
@@ -651,65 +695,73 @@ Rules:
     const type = listing.property_type || 'Rumah';
     const totalDuration = plan.reduce((acc, s) => acc + s.durationSeconds, 0);
     const aspectInfo = ASPECT_RATIO_MAP[aspectRatio] || ASPECT_RATIO_MAP['16:9'];
+    const styleInfo = VIDEO_STYLES[style];
 
     const genderLabel = voiceOver.gender === 'pria' ? 'Male' : 'Female';
-    const langLabel = voiceOver.language === 'inggris' ? 'English' : 'Indonesian';
+    const langLabel = 'English';
     const ageMapLabel: Record<string, string> = {
       anak: 'Child',
-      remaja: 'Teenager',
-      dewasa_muda: 'Young Adult (20-30)',
-      dewasa: 'Adult (30-45)',
-      senior: 'Senior (>50)',
+      remaja: 'Teen',
+      dewasa_muda: '20-30',
+      dewasa: '30-45',
+      senior: '50+',
     };
     const ageLabel = ageMapLabel[voiceOver.ageRange || 'dewasa'] || 'Adult';
-    const voiceOverStyle = `${langLabel} ${genderLabel} voice (${ageLabel}), clear cinematic tone, warm narration`;
-
-    const transitions: VideoTransition[] = [
-      { in: 'Fade from pitch black with smooth lighting entry', out: 'Fast whip pan right' },
-      { in: 'Fast whip pan right, matching scene 1 speed', out: 'Cross dissolve through soft daylight blur' },
-      { in: 'Cut on action through doorway arch', out: 'Speed ramp acceleration blur' },
-      { in: 'Speed ramp deceleration into smooth gimbal glide', out: 'Match cut on architectural line' },
-      { in: 'Soft crossfade into wide establishing view', out: 'Fade to quiet elegant dark frame' },
-    ];
+    const speaker = `${genderLabel} (${ageLabel})`;
+    const dialogueDelivery = `${langLabel}, natural conversational delivery, warm and clear`;
+    const music = MUSIC_BY_STYLE[style];
 
     const onScreenTexts: Array<VideoOnScreenText | null> = [
       { content: `${listing.title.toUpperCase()}`, style: 'Bold elegant sans-serif font, stark white glow', animation: 'Flicker on, smooth tracking' },
-      { content: `LOKASI: ${listing.location.toUpperCase()}`, style: 'Minimalist clean typography, subtle cyan accent', animation: 'Pop up sharply on beat, stays centered' },
-      { content: listing.bedrooms ? `${listing.bedrooms} KAMAR TIDUR | ${listing.bathrooms || 1} KAMAR MANDI` : 'DESAIN MODERN & SIAP HUNI', style: 'Italic bold modern font, neon white glow', animation: 'Fades in smoothly from bottom third' },
+      { content: `LOCATION: ${listing.location.toUpperCase()}`, style: 'Minimalist clean typography, subtle cyan accent', animation: 'Pop up sharply on beat, stays centered' },
+      { content: listing.bedrooms ? `${listing.bedrooms} BEDROOMS | ${listing.bathrooms || 1} BATHROOMS` : 'MODERN DESIGN & READY TO MOVE IN', style: 'Italic bold modern font, neon white glow', animation: 'Fades in smoothly from bottom third' },
       null,
-      { content: `HUBUNGI AGEN SEKARANG`, style: 'Cinematic elegant serif font, glowing gold, large scale', animation: 'Expands slowly from center (zoom in)' },
+      { content: `CONTACT THE AGENT NOW`, style: 'Cinematic elegant serif font, glowing gold, large scale', animation: 'Expands slowly from center (zoom in)' },
     ];
 
     const scenes: VideoScriptScene[] = plan.map((s, idx) => {
-      const narration = narrationsByScene.get(s.scene);
       const visual = this.buildSceneVisual(s.scene, listing, style, type);
-      const trans = transitions[idx] || { in: 'Soft crossfade', out: 'Fade to black' };
+      const narration = narrationsByScene.get(s.scene)
+        || (voiceOver.enabled ? this.fallbackNarration(listing, s.scene, voiceOver) : null);
       const ost = onScreenTexts[idx] || null;
 
+      const shot = `${visual.camera}, ${visual.lens}`;
+      const action = `${visual.subject}. ${visual.action}.`;
+      const sceneStyle = `${styleInfo.label} — ${styleInfo.description}`;
       const audio: VideoSceneAudio = {
         ambient: visual.ambient,
-        effects: visual.effects,
+        music,
+        dialogue: voiceOver.enabled && narration
+          ? { speaker, text: narration, delivery: dialogueDelivery }
+          : null,
       };
-
-      if (voiceOver.enabled) {
-        audio.voice_over = {
-          text: narration && narration.length > 0
-            ? narration
-            : this.fallbackNarration(listing, s.scene, voiceOver),
-          style: voiceOverStyle,
-        };
-      }
+      const preservation = this.buildPreservation(style);
+      const negative = this.buildNegative();
+      const prompt = this.buildOmniScenePrompt({
+        shot,
+        action,
+        location: visual.setting,
+        lighting: visual.lighting,
+        sceneStyle,
+        audio,
+        onScreenText: ost,
+        preservation,
+        negative,
+      });
 
       return {
         scene_number: s.scene,
         duration_seconds: s.durationSeconds,
-        transition: trans,
-        visuals: {
-          description: `${visual.subject}. ${visual.action}.`,
-          camera: `${visual.camera}, ${visual.lens}`,
-          on_screen_text: ost,
-        },
+        shot_framing_and_motion: shot,
+        style: sceneStyle,
+        lighting: visual.lighting,
+        location: visual.setting,
+        action,
+        text_rendering: ost,
         audio,
+        preservation,
+        negative,
+        prompt,
       };
     });
 
@@ -720,34 +772,197 @@ Rules:
 
     return {
       project: `${slugTitle || 'property'}_video_campaign_${aspectRatio.replace(':', 'x')}`,
+      model: model === 'veo' ? 'gemini-omni-flash' : VIDEO_MODELS[model].label,
       settings: {
-        total_duration_seconds: totalDuration,
-        resolution: aspectInfo.resolution,
+        video_style: styleInfo.label,
         aspect_ratio: aspectRatio,
+        resolution: aspectInfo.resolution,
+        total_duration_seconds: totalDuration,
+        voice_over: {
+          enabled: voiceOver.enabled,
+          gender: voiceOver.enabled ? (voiceOver.gender || 'wanita') : null,
+          language: langLabel,
+          age_range: voiceOver.enabled ? ageLabel : null,
+        },
+      },
+      constraints: {
+        reference_identity: this.REFERENCE_IDENTITY_CONSTRAINT,
+        voice_over: this.VOICE_OVER_CONSTRAINT,
       },
       scenes,
     };
   }
 
-  private buildSceneVisual(sceneNumber: number, listing: Listing, style: VideoStyle, type: string) {
-    const mood = {
+  private readonly REFERENCE_IDENTITY_CONSTRAINT =
+    'Do not change the model, objects, or faces from the reference images. Preserve identity, facial features, body shape, clothing, and every object exactly as shown in the reference photos.';
+
+  private readonly VOICE_OVER_CONSTRAINT =
+    'Do not rewrite, paraphrase, translate, or replace the defined voice-over. Speak the voice-over text exactly as written, in English.';
+
+  /** Presenter identity/outfit must stay stable in presenter-led styles. */
+  private buildPreservation(style: VideoStyle): string {
+    const identity = this.REFERENCE_IDENTITY_CONSTRAINT;
+    const voice = this.VOICE_OVER_CONSTRAINT;
+    const property = 'Keep the property layout, materials, colors, and fixtures exactly unchanged.';
+    if (style === 'talking_head' || style === 'ugc') {
+      return `${identity} ${property} Keep the same presenter identity, face, hairstyle, and outfit across all scenes. ${voice}`;
+    }
+    return `${identity} ${property} ${voice}`;
+  }
+
+  private buildNegative(): string {
+    return 'Do not alter the model, objects, or faces from the reference images. Do not change the defined English voice-over. No readable text, no logos, no watermarks, no extra people, no distorted architecture, no invented property features, no scene cuts.';
+  }
+
+  private buildOmniScenePrompt(args: {
+    shot: string;
+    action: string;
+    location: string;
+    lighting: string;
+    sceneStyle: string;
+    audio: VideoSceneAudio;
+    onScreenText: VideoOnScreenText | null;
+    preservation: string;
+    negative: string;
+  }): string {
+    const { shot, action, location, lighting, sceneStyle, audio, onScreenText, preservation, negative } = args;
+    const audioLine = audio.dialogue
+      ? `${audio.music}; ${audio.ambient}; dialogue (${audio.dialogue.speaker}): "${audio.dialogue.text}"`
+      : `${audio.music}; ${audio.ambient}; no dialogue`;
+    const parts = [
+      `In a single continuous shot, ${action} in ${location}.`,
+      `Camera: ${shot}.`,
+      `Style: ${sceneStyle}.`,
+      `Lighting: ${lighting}.`,
+      `Audio: ${audioLine}.`,
+    ];
+    if (onScreenText) {
+      parts.push(`On-screen text: "${onScreenText.content}" (${onScreenText.style}, ${onScreenText.animation}).`);
+    }
+    parts.push(`Preservation: ${preservation}.`);
+    parts.push(`Avoid: ${negative}.`);
+    return parts.join(' ');
+  }
+
+  private buildSceneVisual(sceneNumber: number, listing: Listing, style: VideoStyle, type: string): SceneVisual {
+    const maps = this.styleMaps(style);
+    if (style === 'talking_head') return this.talkingHeadVisual(sceneNumber, listing, maps);
+    if (style === 'ugc') return this.ugcVisual(sceneNumber, listing, maps);
+    return this.propertyBrollVisual(sceneNumber, listing, style, type, maps);
+  }
+
+  private styleMaps(style: VideoStyle): { mood: string; light: string; atmosphere: string } {
+    const mood: Record<VideoStyle, string> = {
       cinematic: 'premium and inviting',
       aerial: 'spacious and cinematic',
       lifestyle: 'warm and welcoming',
       walkthrough: 'clean and inviting',
-    }[style];
-    const light = {
+      ugc: 'authentic and energetic',
+      talking_head: 'confident and trustworthy',
+    };
+    const light: Record<VideoStyle, string> = {
       cinematic: 'soft golden-hour sunlight with gentle shadows',
       aerial: 'bright natural daylight, even exposure',
       lifestyle: 'warm natural light streaming through the windows',
       walkthrough: 'even, soft interior light with natural highlights',
-    }[style];
-    const atmosphere = {
+      ugc: 'natural daylight or soft ring light, casual smartphone exposure',
+      talking_head: 'soft key light on the presenter with gentle fill and clean background separation',
+    };
+    const atmosphere: Record<VideoStyle, string> = {
       cinematic: 'serene, high-end real estate ambience',
       aerial: 'open, elevated, neighborhood-wide perspective',
       lifestyle: 'cozy, lived-in and family friendly',
       walkthrough: 'organized, easy to follow, no clutter',
-    }[style];
+      ugc: 'raw, friendly, unpolished-but-real vibe',
+      talking_head: 'professional, approachable, presenter-led',
+    };
+    return { mood: mood[style], light: light[style], atmosphere: atmosphere[style] };
+  }
+
+  private talkingHeadVisual(
+    sceneNumber: number,
+    listing: Listing,
+    maps: { mood: string; light: string; atmosphere: string }
+  ): SceneVisual {
+    const presenter = 'a friendly Indonesian property agent';
+    if (sceneNumber === 1) {
+      return {
+        subject: `${presenter} standing in front of ${listing.title}`,
+        action: 'the presenter looks straight into the lens and delivers a short, punchy hook about the property',
+        expression: 'confident and welcoming',
+        setting: `Front yard of ${listing.title} in ${listing.location}`,
+        lighting: maps.light,
+        atmosphere: maps.atmosphere,
+        camera: 'locked-off medium close-up with a subtle handheld drift',
+        lens: '50mm',
+        ambient: 'quiet outdoor room tone, light breeze',
+        effects: 'none, clean audio for dialogue',
+      };
+    }
+    if (sceneNumber >= 5) {
+      return {
+        subject: `${presenter} framed in medium close-up`,
+        action: 'the presenter smiles, delivers the call to action, and gestures invitingly toward the property',
+        expression: 'warm and inviting',
+        setting: `Interior of ${listing.title} in ${listing.location}`,
+        lighting: maps.light,
+        atmosphere: maps.atmosphere,
+        camera: 'gentle push-in on a medium close-up',
+        lens: '50mm',
+        ambient: 'soft indoor room tone',
+        effects: 'none, clean audio for dialogue',
+      };
+    }
+    return this.propertyBrollVisual(sceneNumber, listing, 'talking_head', listing.property_type || 'Rumah', maps);
+  }
+
+  private ugcVisual(
+    sceneNumber: number,
+    listing: Listing,
+    maps: { mood: string; light: string; atmosphere: string }
+  ): SceneVisual {
+    if (sceneNumber === 1) {
+      return {
+        subject: `a young property agent filming a handheld selfie video at ${listing.title}`,
+        action: 'the presenter holds the phone at arm\'s length, talks to the front camera, and points at the property behind them',
+        expression: 'energetic and casual',
+        setting: `Driveway of ${listing.title} in ${listing.location}`,
+        lighting: maps.light,
+        atmosphere: maps.atmosphere,
+        camera: 'handheld selfie POV with natural smartphone zoom',
+        lens: 'smartphone wide',
+        ambient: 'outdoor ambience, faint traffic',
+        effects: 'slight handheld shake, natural phone microphone',
+      };
+    }
+    if (sceneNumber >= 5) {
+      return {
+        subject: 'the same presenter back on a handheld selfie shot',
+        action: 'the presenter gives a quick call to action to camera and invites viewers to book a viewing',
+        expression: 'friendly and direct',
+        setting: `Interior of ${listing.title} in ${listing.location}`,
+        lighting: maps.light,
+        atmosphere: maps.atmosphere,
+        camera: 'handheld selfie close-up with a slight walking motion',
+        lens: 'smartphone wide',
+        ambient: 'indoor room tone',
+        effects: 'natural handheld shake',
+      };
+    }
+    return this.propertyBrollVisual(sceneNumber, listing, 'ugc', listing.property_type || 'Rumah', maps);
+  }
+
+  private propertyBrollVisual(
+    sceneNumber: number,
+    listing: Listing,
+    style: VideoStyle,
+    type: string,
+    maps: { mood: string; light: string; atmosphere: string }
+  ): SceneVisual {
+    const { mood, light, atmosphere } = maps;
+    const handheld = style === 'ugc';
+    const cameraPrefix = handheld ? 'handheld phone camera' : '';
+    const cam = (base: string) => (cameraPrefix ? `${cameraPrefix}, ${base}` : base);
 
     switch (sceneNumber) {
       case 1:
@@ -758,8 +973,8 @@ Rules:
           setting: `Quiet residential street frontage in ${listing.location}`,
           lighting: light,
           atmosphere,
-          camera: 'slow drone push-in descending from above the roofline to eye level',
-          lens: '24mm',
+          camera: cam('slow push-in descending from above the roofline to eye level'),
+          lens: handheld ? 'smartphone wide' : '24mm',
           ambient: 'distant city hum, light wind, faint birdsong',
           effects: 'gentle breeze, leaves rustling softly',
         };
@@ -771,8 +986,8 @@ Rules:
           setting: `Combined living and dining area of ${listing.title} in ${listing.location}`,
           lighting: light,
           atmosphere,
-          camera: 'smooth gimbal dolly through the entrance door into the living room',
-          lens: '35mm',
+          camera: cam('smooth dolly through the entrance door into the living room'),
+          lens: handheld ? 'smartphone wide' : '35mm',
           ambient: 'quiet indoor room tone',
           effects: 'front door opening, soft footsteps on the floor',
         };
@@ -784,8 +999,8 @@ Rules:
           setting: `Master bedroom interior with warm natural finishes`,
           lighting: light,
           atmosphere,
-          camera: 'slow lateral slider shot across the bed towards the window',
-          lens: '35mm',
+          camera: cam('slow lateral slider shot across the bed towards the window'),
+          lens: handheld ? 'smartphone wide' : '35mm',
           ambient: 'quiet, soft interior ambience',
           effects: 'soft footsteps on the floor, faint fabric movement',
         };
@@ -797,8 +1012,8 @@ Rules:
           setting: `Bathroom and amenities area`,
           lighting: light,
           atmosphere,
-          camera: 'slow slider across the vanity, tilting to the shower area',
-          lens: '35mm',
+          camera: cam('slow slider across the vanity, tilting to the shower area'),
+          lens: handheld ? 'smartphone wide' : '35mm',
           ambient: 'soft water echo in the tiled space',
           effects: 'faucet trickling gently',
         };
@@ -810,8 +1025,8 @@ Rules:
           setting: `Elevated overview of ${listing.title} and its surroundings in ${listing.location}`,
           lighting: 'soft dusk light with warm interior glow',
           atmosphere,
-          camera: 'crane up and backward reveal ending on a wide aerial of the neighborhood',
-          lens: '24mm',
+          camera: cam('crane up and backward reveal ending on a wide aerial of the neighborhood'),
+          lens: handheld ? 'smartphone wide' : '24mm',
           ambient: 'calm evening ambience, faint neighborhood sounds',
           effects: 'none, music bed reserved for the end card',
         };

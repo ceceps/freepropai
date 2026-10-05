@@ -1,5 +1,5 @@
 import { db, listings, listingPhotos, listingDescriptions, listingVideoPrompts, listingAnalyses } from '../db';
-import { eq, desc, isNull, and, or, ilike, count } from 'drizzle-orm';
+import { eq, desc, isNull, and, or, ilike, count, sql } from 'drizzle-orm';
 import type {
   Listing,
   ListingPhoto,
@@ -56,11 +56,26 @@ export class ListingModel {
   }
 
   // Build the shared WHERE conditions for listing list/count queries
-  private buildListConditions(filters?: { status?: string; q?: string }) {
+  private buildListConditions(filters?: { 
+    status?: string; 
+    q?: string;
+    region?: string;
+    priceMin?: number;
+    priceMax?: number;
+    priceExact?: number;
+    location?: string;
+    origin?: string;
+  }) {
     const conditions = [isNull(listings.deletedAt)];
 
     if (filters?.status) {
       conditions.push(eq(listings.status, filters.status));
+    }
+
+    if (filters?.origin === 'mine') {
+      conditions.push(sql`${listings.sourceUrl} IS NULL`);
+    } else if (filters?.origin === 'sourced') {
+      conditions.push(sql`${listings.sourceUrl} IS NOT NULL`);
     }
 
     if (filters?.q) {
@@ -70,6 +85,25 @@ export class ListingModel {
       )!);
     }
 
+    if (filters?.location) {
+      conditions.push(ilike(listings.location, `%${filters.location}%`));
+    }
+
+    if (filters?.region) {
+      conditions.push(ilike(listings.region, `%${filters.region}%`));
+    }
+
+    if (filters?.priceExact !== undefined) {
+      conditions.push(eq(listings.price, String(filters.priceExact)));
+    } else {
+      if (filters?.priceMin !== undefined) {
+        conditions.push(sql`${listings.price}::numeric >= ${filters.priceMin}`);
+      }
+      if (filters?.priceMax !== undefined) {
+        conditions.push(sql`${listings.price}::numeric <= ${filters.priceMax}`);
+      }
+    }
+
     return and(...conditions);
   }
 
@@ -77,6 +111,7 @@ export class ListingModel {
   async findAll(filters?: {
     status?: string;
     q?: string;
+    origin?: string;
     limit?: number;
     offset?: number;
   }): Promise<Listing[]> {
@@ -97,7 +132,7 @@ export class ListingModel {
   }
 
   // Count listings matching the same filters as findAll
-  async countListings(filters?: { status?: string; q?: string }): Promise<number> {
+  async countListings(filters?: { status?: string; q?: string; origin?: string }): Promise<number> {
     const [row] = await db
       .select({ value: count() })
       .from(listings)
@@ -442,6 +477,7 @@ export class ListingModel {
       property_type: data.propertyType,
       region: data.region ?? undefined,
       source_url: data.sourceUrl ?? undefined,
+      origin: data.sourceUrl ? 'sourced' : 'mine',
       additional_info: data.additionalInfo,
       status: data.status,
       created_at: data.createdAt,

@@ -20,13 +20,14 @@ import leadRoutes from './routes/lead.routes';
 import followUpRoutes from './routes/followUp.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import pipelineRoutes from './routes/pipeline.routes';
+import notificationRoutes from './routes/notification.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: process.env.CORS_ORIGIN || true,
   credentials: true,
 }));
 
@@ -42,6 +43,15 @@ app.use('/uploads', express.static(path.join(__dirname, '..', uploadDir)));
 const posterBaseDir = process.env.POSTER_BASE_DIR;
 if (posterBaseDir) {
   app.use('/posters', express.static(posterBaseDir));
+}
+
+// Static files for listing assets produced by the CSCORP listing agent.
+// The pipeline DB stores web-relative paths (e.g. assets/listings/x.jpg) which
+// live outside this project, so without this mount the frontend dev server
+// answers those URLs with its SPA fallback (HTML) and every <img> fails.
+const assetsBaseDir = process.env.ASSETS_BASE_DIR;
+if (assetsBaseDir) {
+  app.use('/assets', express.static(assetsBaseDir));
 }
 
 // Health check
@@ -64,6 +74,7 @@ app.get('/api', (req, res) => {
       listings: '/api/listings',
       dashboard: '/api/dashboard',
       pipeline: '/api/pipeline',
+      notifications: '/api/notifications',
     },
   });
 });
@@ -76,6 +87,23 @@ app.use('/api/leads', leadRoutes);
 app.use('/api/followups', followUpRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/pipeline', pipelineRoutes);
+app.use('/api/notifications', notificationRoutes);
+
+const frontendDist = process.env.FRONTEND_DIST || path.join(__dirname, '..', 'public');
+app.use(express.static(frontendDist));
+app.get('*', (req, res, next) => {
+  if (
+    req.path.startsWith('/api') ||
+    req.path.startsWith('/uploads') ||
+    req.path.startsWith('/posters') ||
+    req.path.startsWith('/health')
+  ) {
+    return next();
+  }
+  res.sendFile(path.join(frontendDist, 'index.html'), (err) => {
+    if (err) next();
+  });
+});
 
 // Error handling
 app.use(notFound);

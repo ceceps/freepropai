@@ -1,4 +1,3 @@
-import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 
@@ -33,6 +32,7 @@ export async function generateThumbnail(
   }
 
   try {
+    const { default: sharp } = await import('sharp');
     await sharp(originalPath)
       .resize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, {
         fit: 'cover',

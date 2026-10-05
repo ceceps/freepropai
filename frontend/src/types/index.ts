@@ -54,6 +54,7 @@ export interface Listing {
   property_type?: string;
   region?: string;
   source_url?: string;
+  origin?: 'mine' | 'sourced';
   additional_info?: string;
   status: string;
   created_at: string;
@@ -85,7 +86,7 @@ export interface ListingWithDetails extends Listing {
 }
 
 // Video Script Generator Types
-export type VideoStyle = 'cinematic' | 'aerial' | 'lifestyle' | 'walkthrough';
+export type VideoStyle = 'cinematic' | 'aerial' | 'lifestyle' | 'walkthrough' | 'ugc' | 'talking_head';
 export type VideoModel = 'runway' | 'veo' | 'pika' | 'kling' | 'sora';
 export type AspectRatio = '16:9' | '9:16' | '4:5';
 export type VOGender = 'pria' | 'wanita';
@@ -113,40 +114,51 @@ export interface VideoOnScreenText {
   animation: string;
 }
 
-export interface VideoTransition {
-  in: string;
-  out: string;
-}
-
-export interface VideoSceneVisuals {
-  description: string;
-  camera: string;
-  on_screen_text: VideoOnScreenText | null;
+export interface VideoSceneDialogue {
+  speaker: string;
+  text: string;
+  delivery: string;
 }
 
 export interface VideoSceneAudio {
-  ambient?: string;
-  effects?: string;
-  voice_over?: {
-    text: string;
-    style: string;
-  };
+  ambient: string;
+  music: string;
+  dialogue: VideoSceneDialogue | null;
 }
 
 export interface VideoScriptScene {
   scene_number: number;
   duration_seconds: number;
-  transition: VideoTransition;
-  visuals: VideoSceneVisuals;
+  shot_framing_and_motion: string;
+  style: string;
+  lighting: string;
+  location: string;
+  action: string;
+  text_rendering: VideoOnScreenText | null;
   audio: VideoSceneAudio;
+  preservation: string;
+  negative: string;
+  prompt: string;
 }
 
 export interface VideoScriptJson {
   project: string;
+  model: string;
   settings: {
-    total_duration_seconds: number;
-    resolution: string;
+    video_style: string;
     aspect_ratio: string;
+    resolution: string;
+    total_duration_seconds: number;
+    voice_over: {
+      enabled: boolean;
+      gender: string | null;
+      language: string;
+      age_range: string | null;
+    };
+  };
+  constraints: {
+    reference_identity: string;
+    voice_over: string;
   };
   scenes: VideoScriptScene[];
 }
@@ -260,6 +272,8 @@ export interface ListingSummary {
   bedrooms?: number;
   bathrooms?: number;
   status: string;
+  origin?: 'mine' | 'sourced';
+  source_url?: string;
   photoCount: number;
   hasDescriptions: boolean;
   created_at: string;
@@ -668,6 +682,22 @@ export type PipelineListResponse<T> = ApiResponse<T[]> & {
   limit: number;
   offset: number;
 };
+
+export interface AppNotification {
+  id: string;
+  type: 'storyboard_images' | 'scrape_complete' | 'scrape_failed' | string;
+  title: string;
+  message: string;
+  link: string | null;
+  metadata: Record<string, unknown> | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationListData {
+  items: AppNotification[];
+  unreadCount: number;
+}
 
 export const allContentTypes = [
   'aboutus',

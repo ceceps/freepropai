@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ZoomIn, X, Download, Check } from 'lucide-react';
+import { downloadFile } from '../../utils/download';
 
 interface ZoomableImageProps {
   src: string;
@@ -104,16 +105,18 @@ export default function ZoomableImage({
           >
             <X className="w-6 h-6" />
           </button>
-          <a
-            href={src}
-            download={downloadName}
-            onClick={(e) => e.stopPropagation()}
-            className="absolute bottom-4 right-4 btn btn-primary flex items-center gap-2"
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              downloadFile(src, downloadName);
+            }}
+            className="absolute bottom-4 right-4 btn btn-primary flex items-center gap-2 cursor-pointer z-10"
             title="Download image"
           >
             <Download className="w-4 h-4" />
             Download
-          </a>
+          </button>
           <img
             src={src}
             alt={alt}

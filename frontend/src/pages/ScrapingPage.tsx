@@ -1,11 +1,51 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { scrapingApi } from '../services/api';
 import ZoomableImage from '../components/common/ZoomableImage';
 import type { ScrapingJob, ScrapedListing } from '../types';
 
 const JOBS_PAGE_SIZE = 5;
 
-export default function ScrapingPage() {
+type ScrapeSource = {
+  value: string;
+  label: string;
+  defaultUrl?: string;
+  placeholder?: string;
+  disabled?: boolean;
+};
+
+const SCRAPE_SOURCES: ScrapeSource[] = [
+  {
+    value: 'acehome',
+    label: 'Acehome.com',
+    defaultUrl: 'https://www.acehome.co.id/?reg=BBR&kat=rumah',
+    placeholder: 'https://www.acehome.co.id/?reg=BBR&kat=rumah',
+  },
+  {
+    value: 'prolov',
+    label: 'Prolov.id',
+    defaultUrl: 'https://prolov.id',
+    placeholder: 'https://prolov.id/...',
+  },
+  {
+    value: 'hepihos',
+    label: 'Hepihos.com',
+    defaultUrl: 'https://hepihos.com/cecep-saefulloh',
+    placeholder: 'https://hepihos.com/cecep-saefulloh or /project/detail/{id}',
+  },
+  { value: 'rumah123', label: 'Rumah123 (Coming Soon)', disabled: true },
+  { value: 'olx', label: 'OLX (Coming Soon)', disabled: true },
+];
+
+function sourceMeta(name: string) {
+  return SCRAPE_SOURCES.find((s) => s.value === name);
+}
+
+interface ScrapingPageProps {
+  embedded?: boolean;
+}
+
+export default function ScrapingPage({ embedded = false }: ScrapingPageProps) {
   const [jobs, setJobs] = useState<ScrapingJob[]>([]);
   const [jobsTotal, setJobsTotal] = useState(0);
   const [jobsLoading, setJobsLoading] = useState(false);
@@ -19,14 +59,41 @@ export default function ScrapingPage() {
   const hasMoreJobs = jobs.length < jobsTotal;
   
   // Form state
-  const [sourceUrl, setSourceUrl] = useState('https://www.acehome.co.id/?reg=BBR&kat=rumah');
+  const [sourceUrl, setSourceUrl] = useState(sourceMeta('acehome')?.defaultUrl ?? '');
   const [sourceName, setSourceName] = useState('acehome');
   const [maxPages, setMaxPages] = useState(5);
+  const [searchParams] = useSearchParams();
+  const jobFromQuery = searchParams.get('job');
 
-  // Fetch jobs on mount
+  const handleSourceChange = (next: string) => {
+    const previous = sourceMeta(sourceName);
+    const nextMeta = sourceMeta(next);
+    setSourceName(next);
+    if (!nextMeta || nextMeta.disabled) return;
+    if (!sourceUrl.trim() || sourceUrl === previous?.defaultUrl) {
+      setSourceUrl(nextMeta.defaultUrl ?? '');
+    }
+  };
+
   useEffect(() => {
     fetchJobs();
   }, []);
+
+  useEffect(() => {
+    if (!jobFromQuery) return;
+    const match = jobs.find((job) => job.id === jobFromQuery);
+    if (match) {
+      setSelectedJob(match);
+      return;
+    }
+    scrapingApi.getJob(jobFromQuery)
+      .then((res) => {
+        if (res.success && res.data) setSelectedJob(res.data);
+      })
+      .catch(() => {
+        /* keep current selection if the job id is stale */
+      });
+  }, [jobFromQuery, jobs]);
 
   // Fetch scraped listings when job is selected
   useEffect(() => {
@@ -110,7 +177,7 @@ export default function ScrapingPage() {
 
       if (response.success) {
         alert('Scraping job started! Check the jobs list for progress.');
-        setSourceUrl('');
+        setSourceUrl(sourceMeta(sourceName)?.defaultUrl ?? '');
         fetchJobs();
       }
     } catch (err: any) {
@@ -174,8 +241,8 @@ export default function ScrapingPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-8 animate-fade-in">
-      <h1 className="text-3xl font-bold text-text-primary">Property Scraping</h1>
+    <div className={embedded ? 'space-y-6' : 'container mx-auto px-4 py-8 space-y-8 animate-fade-in'}>
+      {!embedded && <h1 className="text-3xl font-bold text-text-primary">Property Scraping</h1>}
 
       {error && (
         <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg">
@@ -193,13 +260,15 @@ export default function ScrapingPage() {
             </label>
             <select
               value={sourceName}
-              onChange={(e) => setSourceName(e.target.value)}
+              onChange={(e) => handleSourceChange(e.target.value)}
               className="input"
+              aria-label="Source website"
             >
-              <option value="acehome">Acehome.com</option>
-              <option value="prolov">Prolov.id</option>
-              <option value="rumah123" disabled>Rumah123 (Coming Soon)</option>
-              <option value="olx" disabled>OLX (Coming Soon)</option>
+              {SCRAPE_SOURCES.map((source) => (
+                <option key={source.value} value={source.value} disabled={source.disabled}>
+                  {source.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -211,7 +280,7 @@ export default function ScrapingPage() {
               type="url"
               value={sourceUrl}
               onChange={(e) => setSourceUrl(e.target.value)}
-              placeholder="https://www.acehome.co.id/?reg=BBR&kat=rumah"
+              placeholder={sourceMeta(sourceName)?.placeholder ?? 'https://...'}
               className="input"
               required
             />

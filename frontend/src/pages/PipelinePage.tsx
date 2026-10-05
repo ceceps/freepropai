@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Database, Home, Sparkles, Megaphone, CalendarDays, AlertTriangle, Clock } from 'lucide-react';
 import { pipelineApi } from '../services/api';
 import type { PipelineOverview } from '../types';
@@ -6,18 +7,31 @@ import ScrapedListingsTab from '../components/pipeline/ScrapedListingsTab';
 import AnalysesTab from '../components/pipeline/AnalysesTab';
 import PromoContentTab from '../components/pipeline/PromoContentTab';
 import ContentCalendarTab from '../components/pipeline/ContentCalendarTab';
+import ScrapingPage from '../pages/ScrapingPage';
 
-type TabId = 'listings' | 'analyses' | 'promo' | 'calendar';
+type TabId = 'jobs' | 'listings' | 'analyses' | 'promo' | 'calendar';
 
 const TABS: { id: TabId; label: string }[] = [
+  { id: 'jobs', label: 'Jobs' },
   { id: 'listings', label: 'Scraped Listings' },
   { id: 'analyses', label: 'Listing Analysis' },
   { id: 'promo', label: 'Promo Content' },
   { id: 'calendar', label: 'Content Calendar' },
 ];
 
+const VALID_TABS = new Set<TabId>(TABS.map((t) => t.id));
+
 export default function PipelinePage() {
-  const [tab, setTab] = useState<TabId>('listings');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const tab: TabId = tabParam && VALID_TABS.has(tabParam as TabId) ? (tabParam as TabId) : 'jobs';
+
+  const setTab = (next: TabId) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('tab', next);
+    if (next !== 'jobs') nextParams.delete('job');
+    setSearchParams(nextParams, { replace: true });
+  };
   const [overview, setOverview] = useState<PipelineOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [notConfigured, setNotConfigured] = useState(false);
@@ -62,11 +76,56 @@ export default function PipelinePage() {
           Content Pipeline
         </h2>
         <p className="text-sm text-text-tertiary mt-0.5">
-          Read-only view of the scraping and marketing pipeline database.
+          Run scrape jobs, review sourced listings, and manage marketing content.
         </p>
       </div>
 
-      {notConfigured ? (
+      {!notConfigured && !error && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {loading
+            ? Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="card p-4 animate-pulse">
+                  <div className="h-3 bg-grey-100 dark:bg-grey-800 rounded w-2/3 mb-3" />
+                  <div className="h-6 bg-grey-100 dark:bg-grey-800 rounded w-1/3" />
+                </div>
+              ))
+            : stats.map((stat) => (
+                <div key={stat.label} className="card p-4">
+                  <div className="flex items-center gap-2 text-text-tertiary mb-1">
+                    <stat.icon className="w-4 h-4" />
+                    <span className="text-xs font-medium">{stat.label}</span>
+                  </div>
+                  <p className="text-2xl font-bold text-text-primary">{stat.value.toLocaleString('id-ID')}</p>
+                </div>
+              ))}
+        </div>
+      )}
+
+      <div
+        role="tablist"
+        aria-label="Pipeline sections"
+        className="flex w-fit max-w-full rounded-lg border border-border bg-grey-100 dark:bg-grey-900 p-1 gap-1 overflow-x-auto scrollbar-hide"
+      >
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex-shrink-0 whitespace-nowrap px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              tab === t.id
+                ? 'bg-surface text-text-primary shadow-sm'
+                : 'text-text-tertiary hover:text-text-secondary'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'jobs' ? (
+        <ScrapingPage embedded />
+      ) : notConfigured ? (
         <div className="card border-warning-200 bg-warning-50 dark:bg-warning-950/20 text-warning-700 p-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
           <div className="text-sm space-y-1">
@@ -81,55 +140,12 @@ export default function PipelinePage() {
       ) : error ? (
         <div className="card border-danger-200 bg-danger-50 dark:bg-danger-950/20 text-danger-700 p-4 text-sm">{error}</div>
       ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            {loading
-              ? Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="card p-4 animate-pulse">
-                    <div className="h-3 bg-grey-100 dark:bg-grey-800 rounded w-2/3 mb-3" />
-                    <div className="h-6 bg-grey-100 dark:bg-grey-800 rounded w-1/3" />
-                  </div>
-                ))
-              : stats.map((stat) => (
-                  <div key={stat.label} className="card p-4">
-                    <div className="flex items-center gap-2 text-text-tertiary mb-1">
-                      <stat.icon className="w-4 h-4" />
-                      <span className="text-xs font-medium">{stat.label}</span>
-                    </div>
-                    <p className="text-2xl font-bold text-text-primary">{stat.value.toLocaleString('id-ID')}</p>
-                  </div>
-                ))}
-          </div>
-
-          <div
-            role="tablist"
-            aria-label="Pipeline sections"
-            className="flex w-fit max-w-full rounded-lg border border-border bg-grey-100 dark:bg-grey-900 p-1 gap-1 overflow-x-auto scrollbar-hide"
-          >
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                role="tab"
-                aria-selected={tab === t.id}
-                onClick={() => setTab(t.id)}
-                className={`flex-shrink-0 whitespace-nowrap px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  tab === t.id
-                    ? 'bg-surface text-text-primary shadow-sm'
-                    : 'text-text-tertiary hover:text-text-secondary'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          <div>
-            {tab === 'listings' && <ScrapedListingsTab />}
-            {tab === 'analyses' && <AnalysesTab />}
-            {tab === 'promo' && <PromoContentTab />}
-            {tab === 'calendar' && <ContentCalendarTab />}
-          </div>
-        </>
+        <div>
+          {tab === 'listings' && <ScrapedListingsTab />}
+          {tab === 'analyses' && <AnalysesTab />}
+          {tab === 'promo' && <PromoContentTab />}
+          {tab === 'calendar' && <ContentCalendarTab />}
+        </div>
       )}
     </div>
   );

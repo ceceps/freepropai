@@ -2,46 +2,20 @@ import * as cheerio from 'cheerio';
 import axios from 'axios';
 
 /**
- * acehome.co.id "Wilayah" region codes -> readable names.
- * Harvested from the live homepage region pill selector (?reg=CODE buttons).
+ * hepihos.com agent listing scraper
+ * Agent page: https://hepihos.com/cecep-saefulloh
+ * Detail page: https://hepihos.com/project/detail/{uuid}?page=cecep-saefulloh
+ * Pagination: POST form with page parameter (same as acehome)
  */
-const REGION_MAP: Record<string, string> = {
-  BTM: 'Bandung Timur',
-  BBR: 'Bandung Barat',
-  BSL: 'Bandung Selatan',
-  BUT: 'Bandung Utara',
-  BTG: 'Bandung Tengah',
-  KWG: 'Karawang',
-  BKS: 'Bekasi',
-  PWK: 'Purwakarta',
-};
 
-/**
- * acehome.co.id "Kategori" tokens (?kat=) -> normalized property type label.
- */
-const KAT_MAP: Record<string, string> = {
-  rumah: 'rumah',
-  tanah: 'tanah',
-  rukost: 'rukost',
-  kost: 'rukost',
-  apartemen: 'apartement',
-  apartement: 'apartement',
-  komersil: 'komersil',
-};
-
-/** Per-page counters written back by scrapePage (cards seen vs cards skipped). */
 interface PageStats {
   skipped: number;
   cardsSeen: number;
 }
 
-interface AcehomeScrapeOptions {
+interface HepihosScrapeOptions {
   url: string;
   maxPages?: number;
-  /**
-   * Source ids already stored in the DB. Their cards are skipped without a
-   * detail fetch, and paging continues to the next page instead of stopping.
-   */
   skipSourceIds?: Set<string>;
   filters?: {
     location?: string;
@@ -51,10 +25,10 @@ interface AcehomeScrapeOptions {
   };
 }
 
-/** Category + region derived once from the source listing URL, stamped on every row. */
 interface ScrapeMeta {
   propertyType: string;
   region: string | null;
+  agentHandle: string;
 }
 
 interface ScrapedProperty {
@@ -81,64 +55,71 @@ interface ScrapedProperty {
   roadAccess?: string | null;
   electricity?: string | null;
   waterSource?: string | null;
+  marketStatus?: string | null;
 }
 
-export class AcehomeScraperService {
-  private baseUrl = 'https://www.acehome.co.id';
+export class HepihosScraperService {
+  private baseUrl = 'https://hepihos.com';
+  private agentHandle: string;
+
+  constructor(agentHandle: string = 'cecep-saefulloh') {
+    this.agentHandle = agentHandle;
+  }
 
   /**
-   * Scrape property listings from acehome.co.id using cheerio
+   * Scrape property listings from hepihos.com agent page
    */
-  async scrapeListings(options: AcehomeScrapeOptions): Promise<ScrapedProperty[]> {
+  async scrapeListings(options: HepihosScrapeOptions): Promise<ScrapedProperty[]> {
     const { url, maxPages = 1 } = options;
     const allListings: ScrapedProperty[] = [];
 
-    // Derive category + region once from the source URL; stamp on every row.
-    const meta = this.deriveMeta(url);
+    // Derive agent handle from URL
+    const agentHandle = this.extractAgentHandle(url) || this.agentHandle;
+    const listingBaseUrl = `${this.baseUrl}/${agentHandle}`;
 
     // Copy: ids found in this run are added below so one listing can't be stored
     // twice when pages reorder between fetches.
     const skipSourceIds = new Set(options.skipSourceIds ?? []);
     const knownCount = skipSourceIds.size;
 
-    console.log(`[AcehomeScraperService] Starting scrape for ${url}, max pages: ${maxPages} (type=${meta.propertyType}, region=${meta.region}, skipping ${knownCount} known id(s))`);
+    console.log(`[HepihosScraperService] Starting scrape for ${listingBaseUrl}, max pages: ${maxPages} (agent=${agentHandle}, skipping ${knownCount} known id(s))`);
 
     try {
       // Scrape first page
       const stats1: PageStats = { skipped: 0, cardsSeen: 0 };
-      const first = await this.scrapePage(url, meta, skipSourceIds, stats1);
+      const first = await this.scrapePage(listingBaseUrl, agentHandle, skipSourceIds, stats1);
       allListings.push(...first);
       first.forEach(l => l.sourceId && skipSourceIds.add(l.sourceId));
-      console.log(`[AcehomeScraperService] Page 1: ${first.length} new, ${stats1.skipped} already stored`);
+      console.log(`[HepihosScraperService] Page 1: ${first.length} new, ${stats1.skipped} already stored`);
 
       // Scrape additional pages if maxPages > 1
       if (maxPages > 1) {
         for (let page = 2; page <= maxPages; page++) {
           await this.delay(2000);
 
-          const pageUrl = this.buildPageUrl(url, page);
+          const pageUrl = this.buildPageUrl(listingBaseUrl, page);
           const stats: PageStats = { skipped: 0, cardsSeen: 0 };
-          const result = await this.scrapePage(pageUrl, meta, skipSourceIds, stats);
+          const result = await this.scrapePage(pageUrl, agentHandle, skipSourceIds, stats);
 
           // Stop only when the page held no cards at all. A page whose cards were
           // all already stored must NOT end the run — walk on to the next page.
           if (stats.cardsSeen === 0) {
-            console.log(`[AcehomeScraperService] Page ${page}: No cards found, stopping`);
+            console.log(`[HepihosScraperService] Page ${page}: No cards found, stopping`);
             break;
           }
 
           allListings.push(...result);
           result.forEach(l => l.sourceId && skipSourceIds.add(l.sourceId));
-          console.log(`[AcehomeScraperService] Page ${page}: ${result.length} new, ${stats.skipped} already stored`);
+          console.log(`[HepihosScraperService] Page ${page}: ${result.length} new, ${stats.skipped} already stored`);
         }
       }
 
-      console.log(`[AcehomeScraperService] Scraping completed. New listings: ${allListings.length}`);
+      console.log(`[HepihosScraperService] Scraping completed. New listings: ${allListings.length}`);
       return allListings;
 
     } catch (error: any) {
-      console.error(`[AcehomeScraperService] Scraping failed:`, error);
-      throw new Error(`Failed to scrape acehome.co.id: ${error.message}`);
+      console.error(`[HepihosScraperService] Scraping failed:`, error);
+      throw new Error(`Failed to scrape hepihos.com: ${error.message}`);
     }
   }
 
@@ -151,14 +132,14 @@ export class AcehomeScraperService {
    */
   private async scrapePage(
     url: string,
-    meta?: ScrapeMeta,
+    agentHandle: string,
     skipSourceIds?: Set<string>,
     stats?: PageStats
   ): Promise<ScrapedProperty[]> {
-    const resolvedMeta = meta ?? this.deriveMeta(url);
+    const resolvedAgentHandle = agentHandle;
     if (stats) { stats.skipped = 0; stats.cardsSeen = 0; }
     try {
-      console.log(`[AcehomeScraperService] Fetching page: ${url}`);
+      console.log(`[HepihosScraperService] Fetching page: ${url}`);
 
       const response = await axios.get(url, {
         headers: {
@@ -174,24 +155,25 @@ export class AcehomeScraperService {
       let skipped = 0;
       let cardsSeen = 0;
 
-      // Each listing is in div.col-6.mb-3 > div.card.h-100
-      $('div.col-6.mb-3').each((_, element) => {
+      // Each listing is in div.card with data attributes
+      // The page has: <a href="/project/detail/{uuid}?page=cecep-saefulloh" target="_blank" rel="noopener noreferrer">
+      // Inside: <div class="card h-100"> with img.card-img-top, h5.card-title, span.card-text
+      $('div.card.h-100').each((_, element) => {
         try {
           const $card = $(element);
 
-          // Title and detail URL
-          const $titleLink = $card.find('h5.card-title a');
-          const title = $titleLink.text().trim();
-          const detailUrl = $titleLink.attr('href') || '';
+          // Find detail link: inside the card or wrapping parent
+          const $foundLink = $card.find('a[href*="/project/detail/"]').first();
+          const $link = $foundLink.length ? $foundLink : $card.closest('a[href*="/project/detail/"]');
+          const detailUrl = $link.attr('href') || '';
 
-          if (!title || !detailUrl) return;
+          if (!detailUrl) return;
           cardsSeen++;
 
           // Extract property ID from URL
           const sourceId = this.extractIdFromUrl(detailUrl);
 
-          // Already stored -> skip this card entirely, no detail fetch. The
-          // caller keeps paging, so the job advances instead of stopping.
+          // Already stored -> skip this card entirely, no detail fetch.
           if (sourceId && skipSourceIds?.has(sourceId)) {
             skipped++;
             return;
@@ -200,12 +182,20 @@ export class AcehomeScraperService {
           // Image URL
           const imageUrl = $card.find('img.card-img-top').attr('src') || '';
 
-          // Price
+          // Title
+          const title = $card.find('h5.card-title').text().trim();
+
+          // Price - first card-text span
           const priceText = $card.find('span.card-text').first().text().trim();
           const price = this.parsePrice(priceText);
 
-          // Location
+          // Location - small font-size span
           const locationText = $card.find('span.card-text[style*="font-size:10px"]').text().trim();
+
+          // Ribbon/market status
+          const ribbonText = $card.find('.ribbon span').text().trim();
+
+          if (!title || !detailUrl) return;
 
           listings.push({
             title: this.clamp(title, 255),
@@ -215,28 +205,46 @@ export class AcehomeScraperService {
             buildingArea: null,
             bedrooms: null,
             bathrooms: null,
-            propertyType: resolvedMeta.propertyType,
-            region: resolvedMeta.region,
+            propertyType: 'rumah', // default, will be refined in detail
+            region: resolvedAgentHandle, // use agent handle as region
             description: '',
             imageUrls: imageUrl ? [imageUrl] : [],
             contactInfo: null,
-            listingUrl: detailUrl,
+            listingUrl: detailUrl.startsWith('http') ? detailUrl : `${this.baseUrl}${detailUrl}`,
             sourceId: this.clamp(sourceId, 255),
+            certificate: null,
+            yearBuilt: null,
+            floors: null,
+            garage: null,
+            features: [],
+            nearbyPlaces: [],
+            roadAccess: null,
+            electricity: null,
+            waterSource: null,
+            marketStatus: ribbonText || null,
           });
         } catch (err) {
-          console.warn(`[AcehomeScraperService] Error parsing card element:`, err);
+          console.warn(`[HepihosScraperService] Error parsing card element:`, err);
         }
       });
 
-      console.log(`[AcehomeScraperService] Page: ${cardsSeen} cards, ${skipped} already stored, ${listings.length} new`);
+      console.log(`[HepihosScraperService] Page: ${cardsSeen} cards, ${skipped} already stored, ${listings.length} new`);
 
       // Enrich with detail page data — only the new ones; skipped cards cost no fetch.
       const enrichedListings: ScrapedProperty[] = [];
       for (const listing of listings) {
         await this.delay(1500);
         try {
-          const detail = await this.scrapeListingDetail(listing.listingUrl, resolvedMeta);
-          enrichedListings.push(detail || listing);
+          const detail = await this.scrapeListingDetail(listing.listingUrl, {
+            propertyType: 'rumah',
+            region: resolvedAgentHandle,
+            agentHandle: resolvedAgentHandle,
+          });
+          enrichedListings.push(
+            detail
+              ? { ...detail, marketStatus: listing.marketStatus ?? detail.marketStatus }
+              : listing
+          );
         } catch {
           enrichedListings.push(listing);
         }
@@ -246,7 +254,7 @@ export class AcehomeScraperService {
       return enrichedListings;
 
     } catch (error: any) {
-      console.error(`[AcehomeScraperService] Error scraping page ${url}:`, error);
+      console.error(`[HepihosScraperService] Error scraping page ${url}:`, error);
       return [];
     }
   }
@@ -255,10 +263,9 @@ export class AcehomeScraperService {
    * Scrape detailed information from a single listing page
    */
   async scrapeListingDetail(url: string, meta?: ScrapeMeta): Promise<ScrapedProperty | null> {
-    // Fall back to deriving category/region from the URL if not passed in.
-    const resolvedMeta = meta ?? this.deriveMeta(url);
+    const resolvedMeta = meta ?? { propertyType: 'rumah', region: 'cecep-saefulloh', agentHandle: 'cecep-saefulloh' };
     try {
-      console.log(`[AcehomeScraperService] Scraping listing detail: ${url}`);
+      console.log(`[HepihosScraperService] Scraping listing detail: ${url}`);
 
       const response = await axios.get(url, {
         headers: {
@@ -272,9 +279,9 @@ export class AcehomeScraperService {
       const $ = cheerio.load(response.data);
 
       // Title
-      const title = $('h4').first().text().trim() || $('title').text().replace(' - Acehome', '').trim();
+      const title = $('h4').first().text().trim() || $('title').text().replace(' - Hepihos', '').trim();
 
-      // Price - look for "Harga" section or price-like text
+      // Price
       let price: number | null = null;
       const bodyText = $('body').text();
       const priceMatch = bodyText.match(/Rp[\d.,]+/);
@@ -293,17 +300,22 @@ export class AcehomeScraperService {
         if (src) imageUrls.push(src);
       });
 
-      // Detail fields from "Detail" section
+      // Also check for other image containers
+      if (imageUrls.length === 0) {
+        $('.card-img-top, .property-image, .gallery img').each((_, el) => {
+          const src = $(el).attr('src') || $(el).attr('data-src');
+          if (src && src.startsWith('http')) imageUrls.push(src);
+        });
+      }
+
+      // Detail fields - look for strong labels
       const detailText = $('body').text();
       const bedrooms = this.extractNumber(detailText, /Kamar Tidur:\s*(\d+)/);
       const bathrooms = this.extractNumber(detailText, /Kamar Mandi:\s*(\d+)/);
       const landArea = this.extractNumber(detailText, /Luas Tanah:\s*(\d+)/);
       const buildingArea = this.extractNumber(detailText, /Luas Bangunan:\s*(\d+)/);
 
-      // Location - exact <strong>Lokasi</strong> label only.
-      // NOTE: descriptions can contain sentences starting with "Lokasi ...", so a
-      // substring match (:contains) wrongly grabs the whole paragraph. Match the
-      // label exactly, then read the parent's remaining text (e.g. "pondok hijau").
+      // Location
       let location = '';
       $('strong').each((_, el) => {
         if (location) return;
@@ -314,8 +326,7 @@ export class AcehomeScraperService {
         location = text;
       });
 
-      // Description - after <strong>Deskripsi</strong>, collect following siblings
-      // until the next section label (typically <strong>Lokasi</strong>).
+      // Description
       let description = '';
       $('strong').each((_, el) => {
         if (description) return;
@@ -323,7 +334,7 @@ export class AcehomeScraperService {
         description = this.extractDescriptionAfter($(el), $);
       });
 
-      // Certificate - look for "Sertifikat" or "Sertif"
+      // Certificate
       let certificate: string | null = null;
       $('strong').each((_, el) => {
         const text = $(el).text().trim().toLowerCase();
@@ -335,7 +346,7 @@ export class AcehomeScraperService {
         }
       });
 
-      // Year built / property age
+      // Year built
       let yearBuilt: number | null = null;
       $('strong').each((_, el) => {
         const text = $(el).text().trim().toLowerCase();
@@ -347,7 +358,7 @@ export class AcehomeScraperService {
         }
       });
 
-      // Floor count
+      // Floors
       let floors: number | null = null;
       $('strong').each((_, el) => {
         const text = $(el).text().trim().toLowerCase();
@@ -359,7 +370,7 @@ export class AcehomeScraperService {
         }
       });
 
-      // Garage / carport
+      // Garage
       let garage: number | null = null;
       $('strong').each((_, el) => {
         const text = $(el).text().trim().toLowerCase();
@@ -371,7 +382,7 @@ export class AcehomeScraperService {
         }
       });
 
-      // Features / Fasilitas - from the "Fasilitas" section
+      // Features / Fasilitas
       const features: string[] = [];
       $('strong').each((_, el) => {
         const text = $(el).text().trim().toLowerCase();
@@ -382,7 +393,6 @@ export class AcehomeScraperService {
             const featText = $(li).text().trim();
             if (featText && featText.length < 100) features.push(featText);
           });
-          // Also check if it's a <p> or <div> with comma-separated features
           if (features.length === 0) {
             const featText = parent.next().text().trim();
             if (featText) {
@@ -395,7 +405,7 @@ export class AcehomeScraperService {
         }
       });
 
-      // Nearby places / Tempat Terdekat
+      // Nearby places
       const nearbyPlaces: string[] = [];
       $('strong').each((_, el) => {
         const text = $(el).text().trim().toLowerCase();
@@ -409,7 +419,7 @@ export class AcehomeScraperService {
         }
       });
 
-      // Access / Akses Jalan
+      // Road access
       let roadAccess: string | null = null;
       $('strong').each((_, el) => {
         const text = $(el).text().trim().toLowerCase();
@@ -421,7 +431,7 @@ export class AcehomeScraperService {
         }
       });
 
-      // Electricity / Listrik
+      // Electricity
       let electricity: string | null = null;
       $('strong').each((_, el) => {
         const text = $(el).text().trim().toLowerCase();
@@ -433,7 +443,7 @@ export class AcehomeScraperService {
         }
       });
 
-      // Water / Air
+      // Water source
       let waterSource: string | null = null;
       $('strong').each((_, el) => {
         const text = $(el).text().trim().toLowerCase();
@@ -472,7 +482,7 @@ export class AcehomeScraperService {
       };
 
     } catch (error: any) {
-      console.error(`[AcehomeScraperService] Error scraping listing detail:`, error);
+      console.error(`[HepihosScraperService] Error scraping listing detail:`, error);
       return null;
     }
   }
@@ -480,10 +490,6 @@ export class AcehomeScraperService {
   /**
    * Collect description text after the Deskripsi label until the next section
    * heading (Lokasi / Harga / Detail / Share). List items become "- " lines.
-   *
-   * Walks raw DOM siblings and wraps each with $(node): re-parsing a node via
-   * cheerio.load(node) detaches it from the tree (nextSibling becomes null),
-   * which silently ended the walk after the first element.
    */
   private extractDescriptionAfter(
     $label: cheerio.Cheerio<any>,
@@ -545,8 +551,6 @@ export class AcehomeScraperService {
       return false;
     };
 
-    // A wrapped <strong>Deskripsi</strong> has no sibling of its own, so fall
-    // back to the parent's next sibling to reach the description text.
     const labelNode: any = $label.get(0);
     let sibling: any = labelNode?.nextSibling ?? labelNode?.parent?.nextSibling ?? null;
 
@@ -560,8 +564,6 @@ export class AcehomeScraperService {
 
   /**
    * Parse Indonesian price string to number
-   * e.g., "Rp850.000.000" -> 850000000
-   * e.g., "Rp1.600.000.000" -> 1600000000
    */
   private parsePrice(priceStr: string): number | null {
     if (!priceStr) return null;
@@ -578,43 +580,11 @@ export class AcehomeScraperService {
   }
 
   /**
-   * Clamp a string to a max length so it never overflows a VARCHAR column.
-   * DB columns: title/location/sourceId = 255, propertyType = 100, sourceUrl = 500.
+   * Clamp a string to a max length
    */
   private clamp(value: string, max: number): string {
     if (!value) return value;
     return value.length > max ? value.slice(0, max) : value;
-  }
-
-  /**
-   * Derive category (propertyType) + readable region from a listing-page URL.
-   * acehome URL shape: ?reg=BUT&kat=rumah[&status=jual|sewa]
-   * - status=sewa  -> propertyType 'sewa'
-   * - otherwise    -> KAT_MAP[kat] (rumah/tanah/rukost/apartement/komersil), default 'rumah'
-   * - region       -> REGION_MAP[reg] readable name, or null if unknown/absent
-   */
-  private deriveMeta(url: string): ScrapeMeta {
-    let propertyType = 'rumah';
-    let region: string | null = null;
-    try {
-      const params = new URL(url).searchParams;
-      const kat = (params.get('kat') || '').toLowerCase();
-      const status = (params.get('status') || '').toLowerCase();
-      const reg = (params.get('reg') || '').toUpperCase();
-
-      if (status === 'sewa') {
-        propertyType = 'sewa';
-      } else if (kat && KAT_MAP[kat]) {
-        propertyType = KAT_MAP[kat];
-      }
-
-      if (reg && REGION_MAP[reg]) {
-        region = REGION_MAP[reg];
-      }
-    } catch {
-      // malformed URL -> keep defaults
-    }
-    return { propertyType, region };
   }
 
   /**
@@ -628,13 +598,18 @@ export class AcehomeScraperService {
   }
 
   /**
-   * Extract ID from acehome URL
-   * e.g., "https://www.acehome.co.id/project/detail/c6c20d4b-..." -> "c6c20d4b-..."
+   * Extract ID from hepihos URL
+   * e.g., "https://hepihos.com/project/detail/c6c20d4b-...?page=cecep-saefulloh" -> "c6c20d4b-..."
    */
   private extractIdFromUrl(url: string): string {
     try {
       const urlObj = new URL(url);
       const parts = urlObj.pathname.split('/').filter(Boolean);
+      // URL format: /project/detail/{uuid}
+      const detailIdx = parts.indexOf('detail');
+      if (detailIdx >= 0 && detailIdx + 1 < parts.length) {
+        return parts[detailIdx + 1] || '';
+      }
       return parts[parts.length - 1] || '';
     } catch {
       return '';
@@ -642,42 +617,47 @@ export class AcehomeScraperService {
   }
 
   /**
-   * Build URL for pagination
-   * acehome.co.id uses /page/N?reg=BBR&kat=rumah format
+   * Extract agent handle from URL
    */
-  private buildPageUrl(baseUrl: string, page: number): string {
+  private extractAgentHandle(url: string): string | null {
     try {
-      const url = new URL(baseUrl);
-
-      // Check if it's the root URL with query params
-      if (url.pathname === '/' || url.pathname === '') {
-        // Build paginated URL: /page/N?reg=BBR&kat=rumah
-        const params = url.searchParams.toString();
-        return `${this.baseUrl}/page/${page}${params ? '?' + params : ''}`;
+      const urlObj = new URL(url);
+      const path = urlObj.pathname.split('/').filter(Boolean);
+      // Agent page: /cecep-saefulloh
+      if (path.length === 1) {
+        return path[0];
       }
-
-      // If already has /page/N, replace it
-      const pageMatch = url.pathname.match(/\/page\/(\d+)/);
-      if (pageMatch) {
-        url.pathname = url.pathname.replace(/\/page\/\d+/, `/page/${page}`);
-        return url.toString();
-      }
-
-      // Append page param
-      url.searchParams.set('page', page.toString());
-      return url.toString();
+      return null;
     } catch {
-      return baseUrl;
+      return null;
     }
   }
 
   /**
-   * Validate acehome.co.id URL
+   * Build URL for pagination
+   * hepihos uses POST form like acehome: ?page=cecep-saefulloh with form data
+   * But for initial page, it's just /agent-handle
    */
-  isValidAcehomeUrl(url: string): boolean {
+  private buildPageUrl(baseUrl: string, page: number): string {
+    if (page <= 1) {
+      return baseUrl;
+    }
+    // hepihos uses the same pattern as acehome: POST form with page parameter
+    // But we can try GET with page parameter first
+    const u = new URL(baseUrl);
+    // Add agent handle as page parameter
+    u.searchParams.set('page', u.searchParams.get('page') || 'cecep-saefulloh');
+    // Note: actual pagination uses POST form, but we'll try this first
+    return u.toString();
+  }
+
+  /**
+   * Validate hepihos.com URL
+   */
+  isValidHepihosUrl(url: string): boolean {
     try {
       const urlObj = new URL(url);
-      return urlObj.hostname.includes('acehome.co.id');
+      return urlObj.hostname.includes('hepihos.com');
     } catch {
       return false;
     }

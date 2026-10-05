@@ -28,6 +28,11 @@ export interface ScrapedListingFilters extends Pagination {
   search?: string;
   marketStatus?: string;
   isActive?: boolean;
+  region?: string;
+  location?: string;
+  priceMin?: number;
+  priceMax?: number;
+  propertyType?: string;
 }
 
 export interface AnalysisFilters extends Pagination {
@@ -260,13 +265,31 @@ export class PipelineService {
     const db = getPipelineDb();
     const conditions: SQL[] = [];
     if (filters.sourceId) conditions.push(eq(pipelineListings.sourceId, filters.sourceId));
-    if (filters.marketStatus) conditions.push(eq(pipelineListings.marketStatus, filters.marketStatus));
+    if (filters.marketStatus) {
+      conditions.push(sql`lower(${pipelineListings.marketStatus}) = ${filters.marketStatus.trim().toLowerCase()}`);
+    }
     if (typeof filters.isActive === 'boolean') conditions.push(eq(pipelineListings.isActive, filters.isActive));
     if (filters.search) {
       const pattern = `%${filters.search}%`;
       conditions.push(
         or(ilike(pipelineListings.title, pattern), ilike(pipelineListings.description, pattern))!
       );
+    }
+    if (filters.region) {
+      conditions.push(ilike(sources.code, `%${filters.region}%`));
+    }
+    if (filters.location) {
+      // address is JSONB with 'kota' field
+      conditions.push(sql`${pipelineListings.address}->>'kota' ILIKE ${`%${filters.location}%`}`);
+    }
+    if (filters.priceMin !== undefined) {
+      conditions.push(sql`${pipelineListings.price}::numeric >= ${filters.priceMin}`);
+    }
+    if (filters.priceMax !== undefined) {
+      conditions.push(sql`${pipelineListings.price}::numeric <= ${filters.priceMax}`);
+    }
+    if (filters.propertyType) {
+      conditions.push(ilike(pipelineListings.propertyType, `%${filters.propertyType}%`));
     }
     const where = conditions.length ? and(...conditions) : undefined;
     const limit = clampLimit(filters.limit);
@@ -281,7 +304,11 @@ export class PipelineService {
         .orderBy(desc(pipelineListings.scrapedAt))
         .limit(limit)
         .offset(offset),
-      db.select({ value: count() }).from(pipelineListings).where(where),
+      db
+        .select({ value: count() })
+        .from(pipelineListings)
+        .leftJoin(sources, eq(pipelineListings.sourceId, sources.id))
+        .where(where),
     ]);
 
     const imported = await resolveImportedListings(data.map((row) => row.sourceUrl));
@@ -517,10 +544,19 @@ export class PipelineService {
     const clean = (rows: { value: string | null }[]) =>
       rows.map((r) => r.value).filter((v): v is string => Boolean(v));
 
+    const cleanMarketStatuses = (rows: { value: string | null }[]) => {
+      const canonical = new Set<string>();
+      for (const row of rows) {
+        const value = row.value?.trim();
+        if (value) canonical.add(value.toUpperCase());
+      }
+      return [...canonical].sort();
+    };
+
     return {
       platforms: clean(platforms),
       approvalStatuses: clean(approvalStatuses),
-      marketStatuses: clean(marketStatuses),
+      marketStatuses: cleanMarketStatuses(marketStatuses),
       contentTypes: clean(contentTypes),
     };
   }

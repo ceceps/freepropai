@@ -3,11 +3,14 @@ import { scrapingJobs, scrapedListings, listings, listingPhotos } from '../db/sc
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import { AcehomeScraperService } from './acehomeScraper.service';
 import { ProlovScraperService } from './prolovScraper.service';
+import { HepihosScraperService } from './hepihosScraper.service';
 import descriptionGenerator from './descriptionGenerator.service';
 import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { notificationService } from './notification.service';
+import { qualifiesForAutoImport } from './scrapeImportGate';
 
 interface CreateJobOptions {
   sourceUrl: string;
@@ -39,11 +42,13 @@ interface BatchImportResult {
 export class ScrapingOrchestratorService {
   private acehomeScraper: AcehomeScraperService;
   private prolovScraper: ProlovScraperService;
+  private hepihosScraper: HepihosScraperService;
   private uploadDir: string;
 
   constructor() {
     this.acehomeScraper = new AcehomeScraperService();
     this.prolovScraper = new ProlovScraperService();
+    this.hepihosScraper = new HepihosScraperService();
     this.uploadDir = process.env.UPLOAD_DIR || './uploads';
 
     // Ensure upload directory exists
@@ -65,8 +70,7 @@ export class ScrapingOrchestratorService {
         status: 'pending',
       }).returning();
 
-      // Start processing in background (don't await)
-      this.processJob(job.id).catch(error => {
+      this.processJob(job.id, options).catch(error => {
         console.error(`[ScrapingOrchestrator] Background job processing failed:`, error);
       });
 
@@ -80,7 +84,7 @@ export class ScrapingOrchestratorService {
   /**
    * Process a scraping job
    */
-  async processJob(jobId: string): Promise<void> {
+  async processJob(jobId: string, options?: CreateJobOptions): Promise<void> {
     try {
       console.log(`[ScrapingOrchestrator] Processing job ${jobId}`);
 
@@ -118,7 +122,7 @@ export class ScrapingOrchestratorService {
           const known = await this.loadKnownSourceIds();
           scrapedData = await this.acehomeScraper.scrapeListings({
             url: job.sourceUrl,
-            maxPages: 3, // Default to 3 pages for testing
+            maxPages: options?.maxPages || 3,
             skipSourceIds: known,
           });
         }
@@ -126,6 +130,22 @@ export class ScrapingOrchestratorService {
         const detail = await this.prolovScraper.scrapeListingDetail(job.sourceUrl);
         if (detail) {
           scrapedData = [detail];
+        }
+      } else if (job.sourceName === 'hepihos') {
+        // If the URL is a direct detail link, scrape just that detail item!
+        if (job.sourceUrl.includes('/project/detail/')) {
+          const detail = await this.hepihosScraper.scrapeListingDetail(job.sourceUrl);
+          if (detail) {
+            scrapedData = [detail];
+          }
+        } else {
+          // Agent listing page - scrape all pages
+          const known = await this.loadKnownSourceIds();
+          scrapedData = await this.hepihosScraper.scrapeListings({
+            url: job.sourceUrl,
+            maxPages: options?.maxPages || 3,
+            skipSourceIds: known,
+          });
         }
       } else {
         throw new Error(`Unsupported source: ${job.sourceName}`);
@@ -163,6 +183,16 @@ export class ScrapingOrchestratorService {
           description: item.description || null,
           imageUrls: item.imageUrls || [],
           contactInfo: item.contactInfo || null,
+          // New detailed fields from scraping
+          certificate: item.certificate || null,
+          yearBuilt: item.yearBuilt || null,
+          floors: item.floors || null,
+          garage: item.garage || null,
+          features: item.features || [],
+          nearbyPlaces: item.nearbyPlaces || [],
+          roadAccess: item.roadAccess || null,
+          electricity: item.electricity || null,
+          waterSource: item.waterSource || null,
           rawData: item,
           importStatus: 'pending',
         }));
@@ -190,7 +220,18 @@ export class ScrapingOrchestratorService {
             `[ScrapingOrchestrator] Per-row insert stored ${inserted}/${listingsToInsert.length} listings`
           );
         }
+
+        const autoImport = await this.autoImportQualifying(jobId);
+        if (autoImport.imported > 0 || autoImport.skipped > 0) {
+          console.log(
+            `[ScrapingOrchestrator] Auto-import job ${jobId}: ${autoImport.imported} imported, ${autoImport.skipped} skipped`
+          );
+        }
       }
+
+      const [jobAfter] = await db.select()
+        .from(scrapingJobs)
+        .where(eq(scrapingJobs.id, jobId));
 
       // Update job as completed
       await db.update(scrapingJobs)
@@ -204,6 +245,25 @@ export class ScrapingOrchestratorService {
 
       console.log(`[ScrapingOrchestrator] Job ${jobId} completed successfully`);
 
+      const sourceLabel = job.sourceName || 'source';
+      const importedCount = jobAfter?.totalListingsImported ?? 0;
+      await notificationService.create({
+        type: 'scrape_complete',
+        title: 'Scraping complete',
+        message: `${scrapedData.length} listing${scrapedData.length === 1 ? '' : 's'} scraped from ${sourceLabel}`
+          + (importedCount > 0 ? `, ${importedCount} added to listings` : ''),
+        link: `/pipeline?tab=jobs&job=${jobId}`,
+        metadata: {
+          jobId,
+          sourceName: job.sourceName,
+          sourceUrl: job.sourceUrl,
+          totalListingsFound: scrapedData.length,
+          totalListingsImported: importedCount,
+        },
+      }).catch((notifyError) => {
+        console.warn(`[ScrapingOrchestrator] Failed to create scrape notification: ${notifyError.message}`);
+      });
+
     } catch (error: any) {
       console.error(`[ScrapingOrchestrator] Job ${jobId} failed:`, error);
 
@@ -216,6 +276,16 @@ export class ScrapingOrchestratorService {
           updatedAt: new Date(),
         })
         .where(eq(scrapingJobs.id, jobId));
+
+      await notificationService.create({
+        type: 'scrape_failed',
+        title: 'Scraping failed',
+        message: error.message || 'Scraping job failed',
+        link: `/pipeline?tab=jobs&job=${jobId}`,
+        metadata: { jobId },
+      }).catch((notifyError) => {
+        console.warn(`[ScrapingOrchestrator] Failed to create scrape failure notification: ${notifyError.message}`);
+      });
     }
   }
 
@@ -238,8 +308,33 @@ export class ScrapingOrchestratorService {
         throw new Error('Scraped listing not found');
       }
 
-      if (scraped.importStatus === 'imported') {
-        throw new Error('Listing already imported');
+      if (scraped.importStatus === 'imported' && scraped.importedListingId) {
+        return {
+          scrapedListingId,
+          listingId: scraped.importedListingId,
+          importedAt: scraped.importedAt,
+          imagesDownloaded: 0,
+          descriptionsGenerated: false,
+        };
+      }
+
+      const existing = await this.findListingBySourceUrl(scraped.sourceUrl);
+      if (existing) {
+        await db.update(scrapedListings)
+          .set({
+            importStatus: 'imported',
+            importedListingId: existing.id,
+            importedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(scrapedListings.id, scrapedListingId));
+        return {
+          scrapedListingId,
+          listingId: existing.id,
+          importedAt: new Date(),
+          imagesDownloaded: 0,
+          descriptionsGenerated: false,
+        };
       }
 
       // Create listing
@@ -257,6 +352,16 @@ export class ScrapingOrchestratorService {
         propertyType: scraped.propertyType,
         sourceUrl: scraped.sourceUrl,
         additionalInfo: options.additionalInfo || this.buildAdditionalInfo(scraped),
+        // New detailed fields from scraping
+        certificate: scraped.certificate,
+        yearBuilt: scraped.yearBuilt,
+        floors: scraped.floors,
+        garage: scraped.garage,
+        features: scraped.features || [],
+        nearbyPlaces: scraped.nearbyPlaces || [],
+        roadAccess: scraped.roadAccess,
+        electricity: scraped.electricity,
+        waterSource: scraped.waterSource,
         status: 'active',
       }).returning();
 
@@ -510,6 +615,60 @@ export class ScrapingOrchestratorService {
         updatedAt: new Date(),
       })
       .where(eq(scrapedListings.id, scrapedListingId));
+  }
+
+  private async findListingBySourceUrl(sourceUrl: string | null): Promise<{ id: string } | null> {
+    if (!sourceUrl) return null;
+    const [existing] = await db
+      .select({ id: listings.id })
+      .from(listings)
+      .where(eq(listings.sourceUrl, sourceUrl))
+      .limit(1);
+    return existing ?? null;
+  }
+
+  /**
+   * Auto-import scraped rows that pass the quality gate (OPEN, price, photos,
+   * title, location, source URL). Failures stay pending/skipped in scraped_listings.
+   */
+  private async autoImportQualifying(
+    jobId: string
+  ): Promise<{ imported: number; skipped: number }> {
+    const pending = await this.getScrapedListings(jobId, { importStatus: 'pending' });
+    let imported = 0;
+    let skipped = 0;
+
+    for (const row of pending) {
+      const gate = qualifiesForAutoImport({
+        title: row.title,
+        location: row.location,
+        price: row.price,
+        imageUrls: row.imageUrls,
+        sourceUrl: row.sourceUrl,
+        description: row.description,
+        rawData: row.rawData,
+      });
+
+      if (!gate.ok) {
+        await db.update(scrapedListings)
+          .set({
+            importStatus: 'skipped',
+            updatedAt: new Date(),
+          })
+          .where(eq(scrapedListings.id, row.id));
+        skipped++;
+        continue;
+      }
+
+      try {
+        await this.importScrapedListing(row.id, { downloadImages: true });
+        imported++;
+      } catch (error: any) {
+        console.warn(`[ScrapingOrchestrator] Auto-import failed for ${row.id}: ${error.message}`);
+      }
+    }
+
+    return { imported, skipped };
   }
 
   /**

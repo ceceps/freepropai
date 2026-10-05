@@ -110,6 +110,16 @@ export const listings = pgTable('listings', {
   region: varchar('region', { length: 100 }),
   sourceUrl: varchar('source_url', { length: 500 }),
   additionalInfo: text('additional_info'),
+  // New detailed fields from scraping
+  certificate: varchar('certificate', { length: 100 }),
+  yearBuilt: integer('year_built'),
+  floors: integer('floors'),
+  garage: integer('garage'),
+  features: text('features').array(),
+  nearbyPlaces: text('nearby_places').array(),
+  roadAccess: varchar('road_access', { length: 255 }),
+  electricity: varchar('electricity', { length: 100 }),
+  waterSource: varchar('water_source', { length: 100 }),
   status: varchar('status', { length: 50 }).default('draft'),
   deletedAt: timestamp('deleted_at'),
   createdAt: timestamp('created_at').defaultNow(),
@@ -211,6 +221,16 @@ export const scrapedListings = pgTable('scraped_listings', {
   description: text('description'),
   imageUrls: text('image_urls').array(),
   contactInfo: jsonb('contact_info'),
+  // New detailed fields from scraping
+  certificate: varchar('certificate', { length: 100 }),
+  yearBuilt: integer('year_built'),
+  floors: integer('floors'),
+  garage: integer('garage'),
+  features: text('features').array(),
+  nearbyPlaces: text('nearby_places').array(),
+  roadAccess: varchar('road_access', { length: 255 }),
+  electricity: varchar('electricity', { length: 100 }),
+  waterSource: varchar('water_source', { length: 100 }),
   rawData: jsonb('raw_data'),
   importStatus: varchar('import_status', { length: 50 }).default('pending'),
   importedListingId: uuid('imported_listing_id').references(() => listings.id, { onDelete: 'set null' }),
@@ -240,4 +260,20 @@ export const scrapingConfigs = pgTable('scraping_configs', {
 }, (table) => ({
   sourceIdx: index('idx_scraping_configs_source').on(table.sourceName),
   activeIdx: index('idx_scraping_configs_active').on(table.isActive),
+}));
+
+export const notifications = pgTable('notifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  type: varchar('type', { length: 50 }).notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  message: text('message').notNull(),
+  link: varchar('link', { length: 500 }),
+  metadata: jsonb('metadata'),
+  readAt: timestamp('read_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  typeIdx: index('idx_notifications_type').on(table.type),
+  createdIdx: index('idx_notifications_created').on(table.createdAt),
+  unreadIdx: index('idx_notifications_unread').on(table.readAt),
 }));
