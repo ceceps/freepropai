@@ -11,6 +11,8 @@ import ListingsPage from './pages/ListingsPage';
 import PipelinePage from './pages/PipelinePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/SettingsPage';
 
@@ -29,6 +31,8 @@ function AppRoutes() {
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       {/* Protected routes wrapped in Layout */}
       <Route element={<PrivateRoute><Layout /></PrivateRoute>}>

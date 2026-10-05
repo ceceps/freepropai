@@ -1,21 +1,25 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { authApi } from '../services/api';
 
-const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(1, 'Password is required'),
+const schema = z.object({
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ['confirmPassword'],
 });
 
-type LoginFormData = z.infer<typeof loginSchema>;
+type FormData = z.infer<typeof schema>;
 
-export default function LoginPage() {
+export default function ResetPasswordPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token') || '';
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -24,22 +28,28 @@ export default function LoginPage() {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: { password: '', confirmPassword: '' },
   });
 
-  const onSubmit = async (data: LoginFormData) => {
+  const onSubmit = async (data: FormData) => {
     setError(null);
+    if (!token) {
+      setError('This reset link is missing a token. Request a new one.');
+      return;
+    }
     setIsLoading(true);
     try {
-      await login(data);
-      navigate('/dashboard');
-    } catch (err: any) {
-      setError(err.message || 'Login failed. Please try again.');
+      const response = await authApi.resetPassword(token, data.password);
+      if (!response.success) {
+        throw new Error(response.error || 'Could not reset password');
+      }
+      navigate('/login');
+    } catch (err: unknown) {
+      const fallback = 'Could not reset password. The link may be invalid or expired.';
+      const axiosError = err as { response?: { data?: { error?: string } }; message?: string };
+      setError(axiosError.response?.data?.error || axiosError.message || fallback);
     } finally {
       setIsLoading(false);
     }
@@ -48,7 +58,6 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg-primary dark:bg-bg-primary-dark px-4 py-12">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="text-center mb-8">
           <Link to="/login" className="inline-flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-primary-600 flex items-center justify-center">
@@ -60,10 +69,18 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        {/* Login Card */}
         <div className="bg-surface dark:bg-surface border border-border dark:border-border rounded-xl p-8 shadow-sm">
-          <h1 className="text-2xl font-semibold text-text-primary dark:text-text-primary mb-2">Welcome back</h1>
-          <p className="text-text-secondary dark:text-text-secondary mb-8">Sign in to your account to continue</p>
+          <h1 className="text-2xl font-semibold text-text-primary dark:text-text-primary mb-2">Create a new password</h1>
+          <p className="text-text-secondary dark:text-text-secondary mb-8">
+            Choose a new password for your account.
+          </p>
+
+          {!token && (
+            <div className="mb-6 p-4 bg-danger-50 dark:bg-danger-900/30 border border-danger-200 dark:border-danger-800 rounded-lg text-danger-600 dark:text-danger-400 text-sm">
+              This page needs a valid reset link. Request a new one from{' '}
+              <Link to="/forgot-password" className="font-medium underline">Forgot password</Link>.
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 p-4 bg-danger-50 dark:bg-danger-900/30 border border-danger-200 dark:border-danger-800 rounded-lg text-danger-600 dark:text-danger-400 text-sm">
@@ -72,47 +89,22 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            {/* Email */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-text-primary dark:text-text-primary mb-1.5">
-                Email
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary dark:text-text-tertiary" />
-                <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  {...register('email')}
-                  className={`w-full pl-10 pr-4 py-3 bg-secondary-100 dark:bg-secondary-800 border border-border dark:border-border rounded-lg text-text-primary dark:text-text-primary placeholder-text-tertiary dark:placeholder-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all ${
-                    errors.email ? 'border-danger-500 focus:ring-danger-500' : ''
-                  }`}
-                  placeholder="you@example.com"
-                  disabled={isLoading}
-                />
-                {errors.email && (
-                  <p className="mt-1.5 text-sm text-danger-500 dark:text-danger-400">{errors.email.message}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Password */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-text-primary dark:text-text-primary mb-1.5">
-                Password
+                New password
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary dark:text-text-tertiary" />
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   {...register('password')}
                   className={`w-full pl-10 pr-12 py-3 bg-secondary-100 dark:bg-secondary-800 border border-border dark:border-border rounded-lg text-text-primary dark:text-text-primary placeholder-text-tertiary dark:placeholder-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all ${
                     errors.password ? 'border-danger-500 focus:ring-danger-500' : ''
                   }`}
                   placeholder="••••••••"
-                  disabled={isLoading}
+                  disabled={isLoading || !token}
                 />
                 <button
                   type="button"
@@ -126,44 +118,48 @@ export default function LoginPage() {
                   <p className="mt-1.5 text-sm text-danger-500 dark:text-danger-400">{errors.password.message}</p>
                 )}
               </div>
-              <div className="mt-2 text-right">
-                <Link
-                  to="/forgot-password"
-                  className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
-                >
-                  Forgot password?
-                </Link>
+            </div>
+
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-text-primary dark:text-text-primary mb-1.5">
+                Confirm password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary dark:text-text-tertiary" />
+                <input
+                  id="confirmPassword"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  {...register('confirmPassword')}
+                  className={`w-full pl-10 pr-4 py-3 bg-secondary-100 dark:bg-secondary-800 border border-border dark:border-border rounded-lg text-text-primary dark:text-text-primary placeholder-text-tertiary dark:placeholder-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all ${
+                    errors.confirmPassword ? 'border-danger-500 focus:ring-danger-500' : ''
+                  }`}
+                  placeholder="••••••••"
+                  disabled={isLoading || !token}
+                />
+                {errors.confirmPassword && (
+                  <p className="mt-1.5 text-sm text-danger-500 dark:text-danger-400">{errors.confirmPassword.message}</p>
+                )}
               </div>
             </div>
 
-            {/* Submit */}
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !token}
               className="w-full py-3 px-4 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
             >
-              {isLoading ? (
+              {isLoading ? 'Updating...' : (
                 <>
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  Sign in
+                  Save new password
                   <ArrowRight className="w-5 h-5" />
                 </>
               )}
             </button>
           </form>
 
-          {/* Register link */}
           <p className="mt-6 text-center text-text-secondary dark:text-text-secondary">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
-              Sign up
+            <Link to="/login" className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
+              Back to sign in
             </Link>
           </p>
         </div>

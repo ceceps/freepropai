@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import * as authService from '../services/auth.service';
+import * as passwordResetService from '../services/passwordReset.service';
 import { authConfig } from '../config/auth';
 import { db, users } from '../db';
 import { eq } from 'drizzle-orm';
@@ -64,6 +65,39 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   res.json({
     success: true,
     data: { user, accessToken }
+  });
+});
+
+export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+  if (!email) {
+    throw new AppError('Email is required', 400);
+  }
+
+  await passwordResetService.requestPasswordReset(email);
+
+  res.json({
+    success: true,
+    message: passwordResetService.getGenericForgotMessage(),
+  });
+});
+
+export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+  const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+
+  if (!token) {
+    throw new AppError('Reset token is required', 400);
+  }
+  if (!password || password.length < 8) {
+    throw new AppError('Password must be at least 8 characters', 400);
+  }
+
+  await passwordResetService.resetPasswordWithToken(token, password);
+
+  res.json({
+    success: true,
+    message: 'Password updated. You can sign in with your new password.',
   });
 });
 

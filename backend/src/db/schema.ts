@@ -262,6 +262,18 @@ export const scrapingConfigs = pgTable('scraping_configs', {
   activeIdx: index('idx_scraping_configs_active').on(table.isActive),
 }));
 
+export const passwordResetTokens = pgTable('password_reset_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: varchar('token_hash', { length: 64 }).notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  usedAt: timestamp('used_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  tokenHashIdx: uniqueIndex('password_reset_tokens_hash_idx').on(table.tokenHash),
+  userIdx: index('password_reset_tokens_user_idx').on(table.userId),
+}));
+
 export const notifications = pgTable('notifications', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
