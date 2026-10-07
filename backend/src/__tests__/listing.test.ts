@@ -702,7 +702,12 @@ describe('Listing API Endpoints', () => {
       expect(response.body.data.script).toBe(mockScript);
       expect(response.body.data.style).toBe('aerial');
       expect(response.body.data.model).toBe('veo');
-      expect(response.body.data.voiceOver).toEqual({ enabled: true, language: 'inggris' });
+      expect(response.body.data.voiceOver).toMatchObject({
+        enabled: true,
+        language: 'indonesia',
+        gender: 'wanita',
+        ageRange: 'dewasa',
+      });
       expect(response.body.data.voiceOverScript).toBe(mockScript);
       vi.restoreAllMocks();
     });
@@ -723,26 +728,27 @@ describe('Listing API Endpoints', () => {
       vi.restoreAllMocks();
     });
 
-    it('should generate an English voice over when requested', async () => {
+    it('should generate a voice over in the requested language', async () => {
       const mockScript = 'Cinematic walkthrough of the villa...';
-      const mockVoiceOver = '[Scene 1] Welcome to this property...';
+      const mockVoiceOver = '[Scene 1] Selamat datang di properti ini...';
       vi.spyOn(llmClient, 'generateCompletion')
         .mockResolvedValueOnce(mockScript)
         .mockResolvedValueOnce(mockVoiceOver);
 
       const response = await request(app)
         .post(`/api/listings/${listingWithPhotosId}/generate-video-script`)
-        .send({ style: 'walkthrough', includeVoiceOver: true })
+        .send({ style: 'walkthrough', includeVoiceOver: true, voiceOver: { enabled: true, language: 'indonesia' } })
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.script).toBe(mockScript);
       expect(response.body.data.voiceOverScript).toBe(mockVoiceOver);
+      expect(response.body.data.voiceOver.language).toBe('indonesia');
       expect(llmClient.generateCompletion).toHaveBeenCalledTimes(2);
       vi.restoreAllMocks();
     });
 
-    it('should fall back to an English voice over template when LLM fails', async () => {
+    it('should fall back to an Indonesian voice over template when LLM fails', async () => {
       vi.spyOn(llmClient, 'generateCompletion').mockRejectedValue(new Error('LLM API Error'));
 
       const response = await request(app)
@@ -753,6 +759,7 @@ describe('Listing API Endpoints', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data.script).toContain('Cinematic real estate video showcase');
       expect(response.body.data.voiceOverScript).toContain('[Scene 1');
+      expect(response.body.data.voiceOverScript).toContain('Selamat datang');
       expect(response.body.data.voiceOverScript).toContain('Listing With Photos');
       vi.restoreAllMocks();
     });
@@ -813,9 +820,9 @@ describe('Listing API Endpoints', () => {
       vi.restoreAllMocks();
     });
 
-    it('should embed English voice over text inside the JSON scenes when requested', async () => {
+    it('should embed Indonesian voice over text inside the JSON scenes when requested', async () => {
       const mockScript = 'Cinematic showcase...';
-      const mockVoiceOver = '[Scene 1: Establishing Shot]\nWelcome to this comfortable property.\n\n[Scene 2: Interior]\nThe rooms are spacious and bright.';
+      const mockVoiceOver = '[Scene 1: Establishing Shot]\nSelamat datang di properti yang nyaman ini.\n\n[Scene 2: Interior]\nRuangannya luas dan terang.';
       vi.spyOn(llmClient, 'generateCompletion')
         .mockResolvedValueOnce(mockScript)
         .mockResolvedValueOnce(mockVoiceOver);
@@ -828,11 +835,11 @@ describe('Listing API Endpoints', () => {
       const json = response.body.data.scriptJson;
       const scenes = json.scenes;
       expect(scenes).toHaveLength(5);
-      expect(json.settings.voice_over.language).toBe('English');
+      expect(json.settings.voice_over.language).toBe('Bahasa Indonesia');
       expect(json.constraints.reference_identity).toMatch(/Do not change the model, objects, or faces/);
-      expect(json.constraints.voice_over).toMatch(/English/);
-      expect(scenes[0].audio.dialogue.text).toContain('Welcome to this comfortable property');
-      expect(scenes[1].audio.dialogue.text).toContain('The rooms are spacious and bright');
+      expect(json.constraints.voice_over).toMatch(/Bahasa Indonesia/);
+      expect(scenes[0].audio.dialogue.text).toContain('Selamat datang di properti yang nyaman ini');
+      expect(scenes[1].audio.dialogue.text).toContain('Ruangannya luas dan terang');
       expect(scenes[0].audio.dialogue.speaker).toEqual(expect.any(String));
       expect(scenes[0].audio.dialogue.delivery).toEqual(expect.any(String));
 
@@ -902,7 +909,7 @@ describe('Listing API Endpoints', () => {
       const scenes = response.body.data.scriptJson.scenes;
       expect(scenes).toHaveLength(5);
       expect(scenes[0].audio.dialogue.text).toContain('Listing With Photos');
-      expect(scenes[4].audio.dialogue.text).toContain('contact our agent');
+      expect(scenes[4].audio.dialogue.text).toMatch(/hubungi agen|contact our agent/i);
       vi.restoreAllMocks();
     });
 
@@ -946,7 +953,7 @@ describe('Listing API Endpoints', () => {
       const script = response.body.data.script as string;
       expect(script.match(/\[Visual:/g)).toHaveLength(5);
       expect(script.match(/\nVO: /g)).toHaveLength(5);
-      expect(script).toContain('Welcome to Listing With Photos');
+      expect(script).toMatch(/Selamat datang di Listing With Photos|Welcome to Listing With Photos/);
       vi.restoreAllMocks();
     });
 
