@@ -65,6 +65,23 @@ describe('Listing API Endpoints', () => {
       expect(response.body.data.photos).toBeDefined();
     });
 
+    it('should reject more than 10 photos on manual create', async () => {
+      const req = request(app)
+        .post('/api/listings')
+        .field('title', 'Too many photos')
+        .field('location', 'Bandung')
+        .field('price', '900000000');
+
+      for (let i = 0; i < 11; i += 1) {
+        req.attach('photos', Buffer.from(`fake-image-${i}`), `photo-${i}.jpg`);
+      }
+
+      const response = await req.expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(String(response.body.error)).toMatch(/10/i);
+    });
+
     it('should fail without required fields', async () => {
       const response = await request(app)
         .post('/api/listings')
@@ -354,6 +371,25 @@ describe('Listing API Endpoints', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data.title).toBe('Only Title Updated');
       expect(response.body.data.location).toBe('Jakarta'); // unchanged
+    });
+
+    it('should update a listing that already has more than 10 photos', async () => {
+      await db.insert(listingPhotos).values(
+        Array.from({ length: 12 }, (_, i) => ({
+          listingId: testListingId,
+          photoUrl: `/uploads/scrape-${i}.avif`,
+          photoOrder: i,
+        }))
+      );
+
+      const response = await request(app)
+        .patch(`/api/listings/${testListingId}`)
+        .send({ title: 'Scraped listing with many photos' })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.title).toBe('Scraped listing with many photos');
+      expect(response.body.data.photos.length).toBe(12);
     });
   });
 

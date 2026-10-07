@@ -4,6 +4,7 @@ import axios from 'axios';
 import llmClient from '../utils/llmClient';
 import { llmConfig } from '../config/llm';
 import type { ListingWithDetails } from '../types';
+import { convertToAvifOrKeep } from '../utils/image';
 
 export interface StoryboardFormOptions {
   video_style?: string;
@@ -155,7 +156,13 @@ class StoryboardPlannerService {
       if (!fs.existsSync(filePath)) return null;
       const buf = fs.readFileSync(filePath);
       const ext = path.extname(filePath).toLowerCase();
-      const mime = ext === '.png' ? 'image/png' : ext === '.jpeg' ? 'image/jpeg' : 'image/jpeg';
+      const mime = ext === '.png'
+        ? 'image/png'
+        : ext === '.avif'
+          ? 'image/avif'
+          : ext === '.webp'
+            ? 'image/webp'
+            : 'image/jpeg';
       return `data:${mime};base64,${buf.toString('base64')}`;
     } catch {
       return null;
@@ -201,13 +208,13 @@ class StoryboardPlannerService {
         const prefix = `scene_${listing.id.slice(0, 8)}_${sc.scene_no}_`;
         const reuseExisting = (): boolean => {
           const existing = fs.readdirSync(uploadDir)
-            .filter(f => f.startsWith(prefix) && f.endsWith('.png'))
+            .filter(f => f.startsWith(prefix) && (f.endsWith('.avif') || f.endsWith('.png')))
             .sort()
             .pop();
           if (!existing) return false;
           sc.generated_image_url = `/uploads/storyboards/${existing}`;
-          console.log(`♻️ Reusing scene ${sc.scene_no} PNG → ${sc.generated_image_url}`);
-          result.warnings.push(`scene ${sc.scene_no}: reused previously rendered PNG (fresh render unavailable)`);
+          console.log(`Reusing scene ${sc.scene_no} frame → ${sc.generated_image_url}`);
+          result.warnings.push(`scene ${sc.scene_no}: reused previously rendered frame (fresh render unavailable)`);
           return true;
         };
 
@@ -312,8 +319,9 @@ class StoryboardPlannerService {
             const filename = `scene_${listing.id.slice(0, 8)}_${sc.scene_no}_${Date.now()}.png`;
             const filePath = path.join(uploadDir, filename);
             fs.writeFileSync(filePath, Buffer.from(imageB64, 'base64'));
-            sc.generated_image_url = `/uploads/storyboards/${filename}`;
-            console.log(`✅ Saved scene ${sc.scene_no} PNG → ${sc.generated_image_url}`);
+            const converted = await convertToAvifOrKeep(filePath, { publicPrefix: '/uploads/storyboards' });
+            sc.generated_image_url = converted.avifUrl;
+            console.log(`Saved scene ${sc.scene_no} AVIF → ${sc.generated_image_url}`);
           } else {
             console.warn(`⚠️ Scene ${sc.scene_no}: no image data in response`);
             if (!reuseExisting()) {

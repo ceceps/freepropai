@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
+import path from 'path';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import * as authService from '../services/auth.service';
+import { convertToAvifOrKeep } from '../utils/image';
 import { authConfig } from '../config/auth';
 import { db, users } from '../db';
 import { eq } from 'drizzle-orm';
@@ -166,16 +168,19 @@ export const uploadProfilePhoto = asyncHandler(async (req: Request, res: Respons
   }
 
   // Validate format (png & jpg/jpeg only) and size max 5MB
-  const allowedMimetypes = ['image/jpeg', 'image/png', 'image/jpg'];
+  const allowedMimetypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/avif'];
   if (!allowedMimetypes.includes(req.file.mimetype)) {
-    throw new AppError('Hanya format PNG dan JPG/JPEG yang diperbolehkan', 400);
+    throw new AppError('Hanya format PNG, JPG/JPEG, dan AVIF yang diperbolehkan', 400);
   }
 
   if (req.file.size > 5 * 1024 * 1024) {
     throw new AppError('Ukuran file maksimal 5MB', 400);
   }
 
-  const photoUrl = `/uploads/${req.file.filename}`;
+  const uploadDir = process.env.UPLOAD_DIR || './uploads';
+  const originalPath = path.join(uploadDir, req.file.filename);
+  const converted = await convertToAvifOrKeep(originalPath, { publicPrefix: '/uploads' });
+  const photoUrl = converted.avifUrl;
 
   res.json({
     success: true,
