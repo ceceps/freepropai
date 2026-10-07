@@ -174,31 +174,32 @@ class VideoScriptGeneratorService {
     const model = this.resolveModel(options.model);
     const aspectRatio = options.aspectRatio && options.aspectRatio in ASPECT_RATIO_MAP ? options.aspectRatio : '16:9';
     let voiceOver: VoiceOverConfig = options.voiceOver && options.voiceOver.enabled ? options.voiceOver : { enabled: false };
-    // Talking Head is presenter-led: a narrator (with a gender) is mandatory.
     if (style === 'talking_head') {
       voiceOver = { ...voiceOver, enabled: true, gender: voiceOver.gender || 'wanita' };
+    }
+    if (voiceOver.enabled) {
+      voiceOver = {
+        ...voiceOver,
+        language: voiceOver.language === 'inggris' ? 'inggris' : 'indonesia',
+        gender: voiceOver.gender === 'pria' ? 'pria' : 'wanita',
+        ageRange: voiceOver.ageRange || 'dewasa',
+      };
     }
     const customInstructions = (options.customInstructions || '').trim();
 
     const plan = this.buildScenePlan(listing);
 
-    // Veo / Omni use a dedicated [Visual]/VO alternating prompt so the native
-    // audio voice-over is embedded directly in the generation prompt.
     const isVeo = model === 'veo';
-    if (voiceOver.enabled) {
-      voiceOver = { ...voiceOver, language: 'inggris' };
-    }
-    const promptLanguage: 'indonesia' | 'inggris' = voiceOver.enabled ? 'inggris' : 'indonesia';
 
     let script = '';
     let scriptFromLlm = false;
     try {
       script = await llmClient.generateCompletion(
         isVeo
-          ? this.buildVeoSystemPrompt(style, model, plan, voiceOver, promptLanguage)
+          ? this.buildVeoSystemPrompt(style, model, plan, voiceOver)
           : this.buildSystemPrompt(style, model, plan),
         isVeo
-          ? this.buildVeoUserPrompt(listing, style, model, aspectRatio, voiceOver, customInstructions, plan, promptLanguage)
+          ? this.buildVeoUserPrompt(listing, style, model, aspectRatio, voiceOver, customInstructions, plan)
           : this.buildUserPrompt(listing, style, model, aspectRatio, voiceOver, customInstructions, plan),
         { temperature: isVeo ? 0.75 : 0.7, maxTokens: 2500 }
       );
@@ -209,7 +210,7 @@ class VideoScriptGeneratorService {
     } catch (error) {
       console.warn('⚠️ LLM video prompt generation failed, using template-based fallback:', error);
       script = isVeo
-        ? this.buildVeoFallbackScript(listing, aspectRatio, voiceOver, customInstructions, plan, promptLanguage)
+        ? this.buildVeoFallbackScript(listing, aspectRatio, voiceOver, customInstructions, plan, 'inggris')
         : this.buildFallbackScript(listing, style, model, aspectRatio, voiceOver, customInstructions, plan);
     }
 
@@ -219,7 +220,7 @@ class VideoScriptGeneratorService {
       try {
         voiceOverScript = await llmClient.generateCompletion(
           this.buildVoiceOverSystemPrompt(style, voiceOver, plan),
-          this.buildVoiceOverUserPrompt(listing, scriptFromLlm ? script : '', plan),
+          this.buildVoiceOverUserPrompt(listing, scriptFromLlm ? script : '', plan, voiceOver),
           { temperature: 0.7, maxTokens: 2000 }
         );
         if (!voiceOverScript || voiceOverScript.trim().length === 0) {
@@ -348,31 +349,32 @@ Rules:
     style: VideoStyle,
     model: VideoModel,
     plan: ScenePlan[],
-    voiceOver: VoiceOverConfig,
-    language: 'indonesia' | 'inggris'
+    voiceOver: VoiceOverConfig
   ): string {
-    const langLabel = language === 'inggris' ? 'English' : 'Bahasa Indonesia';
+    const spokenLang = this.spokenLanguageLabel(voiceOver);
+    const ageStr = this.ageLabelEn(voiceOver.ageRange);
+    const genderStr = voiceOver.gender === 'pria' ? 'male' : 'female';
     const styleInfo = VIDEO_STYLES[style];
     const modelInfo = VIDEO_MODELS[model];
     const scenes = plan
       .map((s) => `Scene ${s.scene}: "${s.title}" (target ~${s.durationSeconds} seconds)`)
       .join('\n');
     const voiceRule = voiceOver.enabled
-      ? `Narator: ${voiceOver.gender === 'pria' ? 'pria' : 'wanita'}, bahasa ${langLabel}, usia ${voiceOver.ageRange || 'dewasa'}.`
-      : 'Tidak ada preferensi narator; gunakan suara netral yang ramah.';
+      ? `Narrator: ${genderStr}, ${ageStr}, speaking ${spokenLang}. Write every VO line in ${spokenLang}.`
+      : 'No narrator preference; keep audio ambient only.';
 
     const structureRule = voiceOver.enabled
       ? `The prompt MUST alternate a visual block and a spoken line for every scene, using EXACTLY these labels:
 
-[Visual: <camera, subject, movement, lighting and mood — 1-2 sentences>]
-VO: <spoken narration for that scene — 1-2 sentences that fit the scene duration>`
+[Visual: <camera, subject, movement, lighting and mood — 1-2 sentences in English>]
+VO: <spoken narration for that scene in ${spokenLang} — 1-2 sentences that fit the scene duration>`
       : `The prompt MUST contain one visual block per scene, using EXACTLY this label:
 
-[Visual: <camera, subject, movement, lighting and mood — 1-2 sentences>]`;
+[Visual: <camera, subject, movement, lighting and mood — 1-2 sentences in English>]`;
 
     return `You are an expert AI video prompt engineer for real estate listings, writing a ready-to-paste prompt for ${modelInfo.label} (${modelInfo.note}).
 
-Write the prompt in ${langLabel}.
+Write every [Visual: ...] block in English. ${voiceOver.enabled ? `Write every VO: line in ${spokenLang}.` : ''}
 
 ${structureRule}
 
@@ -384,10 +386,10 @@ ${scenes}
 Rules:
 - Start directly with the first [Visual: ...] block — no title, no heading.
 - Follow every [Visual: ...] block immediately with its line, in scene order.${voiceOver.enabled ? '' : ' Do not add VO lines.'}
-- In each [Visual] block, describe cinematic camera work (handheld POV, drone, gimbal, slide, tilt) and what is on screen.
-- ${voiceOver.enabled ? 'The VO must sound like a real person speaking naturally (casual, engaging, not a stiff ad read) and must fit the scene duration. ' : ''}Never invent rooms, fixtures, specs, or numbers that are not present in the property details.
+- In each [Visual] block, describe cinematic camera work (handheld POV, drone, gimbal, slide, tilt) and what is on screen, in English.
+- ${voiceOver.enabled ? `The VO must sound like a real ${genderStr} ${ageStr} speaking naturally in ${spokenLang} (casual, engaging, not a stiff ad read) and must fit the scene duration. ` : ''}Never invent rooms, fixtures, specs, or numbers that are not present in the property details.
 - ${voiceRule}
-- ${voiceOver.enabled ? 'End the last scene\'s VO with a friendly call to action.' : 'Keep the visuals grounded in the provided property details.'}
+- ${voiceOver.enabled ? 'End the last scene\'s VO with a friendly call to action in the same spoken language.' : 'Keep the visuals grounded in the provided property details.'}
 - Output only the prompt blocks ([Visual]${voiceOver.enabled ? '/VO' : ''}). No commentary, no extra headings.`;
   }
 
@@ -398,10 +400,9 @@ Rules:
     aspectRatio: string,
     voiceOver: VoiceOverConfig,
     customInstructions: string,
-    plan: ScenePlan[],
-    language: 'indonesia' | 'inggris'
+    plan: ScenePlan[]
   ): string {
-    const langLabel = language === 'inggris' ? 'English' : 'Bahasa Indonesia';
+    const spokenLang = this.spokenLanguageLabel(voiceOver);
     const lines: string[] = [
       'Property Details:',
       `Title: ${listing.title}`,
@@ -435,34 +436,43 @@ Rules:
 
     lines.push(
       '',
-      `Write the prompt in ${langLabel} using ${voiceOver.enabled ? 'alternating [Visual: ...] and VO: ... blocks' : 'one [Visual: ...] block per scene'}, in scene order.`,
+      `Write the [Visual: ...] blocks in English using ${voiceOver.enabled ? 'alternating [Visual: ...] and VO: ... blocks' : 'one [Visual: ...] block per scene'}, in scene order.`,
+      voiceOver.enabled ? `Write every VO: line in ${spokenLang}.` : 'Do not add VO lines.',
       'Output only the [Visual]/blocks prompt.'
     );
     return lines.join('\n');
   }
 
-  private buildVoiceOverSystemPrompt(style: VideoStyle, voiceOver: VoiceOverConfig, plan: ScenePlan[]): string {
-    const scenes = plan.map((s) => `Scene ${s.scene}: "${s.title}"`).join('\n');
-    const langStr = voiceOver.language === 'inggris' ? 'English' : 'Bahasa Indonesia';
-    const genderStr = voiceOver.gender === 'pria' ? 'male' : 'female';
+  private spokenLanguageLabel(voiceOver: VoiceOverConfig): string {
+    return voiceOver.language === 'inggris' ? 'English' : 'Bahasa Indonesia';
+  }
+
+  private ageLabelEn(ageRange?: VoiceOverConfig['ageRange']): string {
     const ageMap: Record<string, string> = {
       anak: 'child',
       remaja: 'teen',
-      dewasa_muda: 'young adult (20-30 yo)',
-      dewasa: 'adult (30-45 yo)',
-      senior: 'senior (> 50 yo)',
+      dewasa_muda: 'young adult (20-30)',
+      dewasa: 'adult (30-45)',
+      senior: 'senior (50+)',
     };
-    const ageStr = ageMap[voiceOver.ageRange || 'dewasa'] || 'adult';
+    return ageMap[ageRange || 'dewasa'] || 'adult (30-45)';
+  }
 
-    return `You are a professional real estate voice-over narrator (${genderStr}, ${ageStr}) speaking in English.
+  private buildVoiceOverSystemPrompt(style: VideoStyle, voiceOver: VoiceOverConfig, plan: ScenePlan[]): string {
+    const scenes = plan.map((s) => `Scene ${s.scene}: "${s.title}"`).join('\n');
+    const langStr = this.spokenLanguageLabel(voiceOver);
+    const genderStr = voiceOver.gender === 'pria' ? 'male' : 'female';
+    const ageStr = this.ageLabelEn(voiceOver.ageRange);
 
-Write a voice-over narration script in English for a ${VIDEO_STYLES[style].label.toLowerCase()} property video. The narration must match the exact scene structure below, one narration per scene:
+    return `You are a professional real estate voice-over narrator (${genderStr}, ${ageStr}) speaking in ${langStr}.
+
+Write a voice-over narration script in ${langStr} for a ${VIDEO_STYLES[style].label.toLowerCase()} property video. The narration must match the exact scene structure below, one narration per scene:
 
 ${scenes}
 
 Rules:
 - Speak in natural, warm, professional tone suitable for a ${genderStr} ${ageStr} narrator.
-- Always write the spoken lines in English, even if the property details are in Indonesian.
+- Always write the spoken lines in ${langStr}. Camera/visual notes stay in English and must not be read aloud.
 - Each scene block starts with [Scene N — Scene Title] then 1-2 short spoken sentences that fit the scene duration.
 - Do not read out camera directions or timing; those are visual notes, not narration.
 - Never invent specs or numbers not present in the property details.
@@ -471,7 +481,7 @@ Rules:
 - Output only the narration script, no commentary.`;
   }
 
-  private buildVoiceOverUserPrompt(listing: Listing, generatedScript: string, plan: ScenePlan[]): string {
+  private buildVoiceOverUserPrompt(listing: Listing, generatedScript: string, plan: ScenePlan[], voiceOver: VoiceOverConfig): string {
     const specLine = [
       listing.bedrooms ? `${listing.bedrooms} kamar tidur` : '',
       listing.bathrooms ? `${listing.bathrooms} kamar mandi` : '',
@@ -494,7 +504,7 @@ Rules:
       `Price: about Rp ${priceText}`,
       listing.additional_info ? `Key features: ${listing.additional_info}` : '',
       '',
-      `Write the English voice-over narration per scene with this structure (${plan.length} scenes):`,
+      `Write the ${this.spokenLanguageLabel(voiceOver)} voice-over narration per scene with this structure (${plan.length} scenes):`,
       ...plan.map((s) => `  - Scene ${s.scene} "${s.title}" (~${s.durationSeconds}s)`),
     ];
 
@@ -503,7 +513,7 @@ Rules:
       lines.push(generatedScript);
     }
 
-    lines.push('', 'Output only the English voice-over script, with no extra commentary.');
+    lines.push('', `Output only the ${this.spokenLanguageLabel(voiceOver)} voice-over script, with no extra commentary.`);
     return lines.join('\n');
   }
 
@@ -698,7 +708,7 @@ Rules:
     const styleInfo = VIDEO_STYLES[style];
 
     const genderLabel = voiceOver.gender === 'pria' ? 'Male' : 'Female';
-    const langLabel = 'English';
+    const langLabel = this.spokenLanguageLabel(voiceOver);
     const ageMapLabel: Record<string, string> = {
       anak: 'Child',
       remaja: 'Teen',
@@ -735,8 +745,8 @@ Rules:
           ? { speaker, text: narration, delivery: dialogueDelivery }
           : null,
       };
-      const preservation = this.buildPreservation(style);
-      const negative = this.buildNegative();
+      const preservation = this.buildPreservation(style, voiceOver);
+      const negative = this.buildNegative(voiceOver);
       const prompt = this.buildOmniScenePrompt({
         shot,
         action,
@@ -787,7 +797,7 @@ Rules:
       },
       constraints: {
         reference_identity: this.REFERENCE_IDENTITY_CONSTRAINT,
-        voice_over: this.VOICE_OVER_CONSTRAINT,
+        voice_over: this.voiceOverConstraint(voiceOver),
       },
       scenes,
     };
@@ -796,13 +806,14 @@ Rules:
   private readonly REFERENCE_IDENTITY_CONSTRAINT =
     'Do not change the model, objects, or faces from the reference images. Preserve identity, facial features, body shape, clothing, and every object exactly as shown in the reference photos.';
 
-  private readonly VOICE_OVER_CONSTRAINT =
-    'Do not rewrite, paraphrase, translate, or replace the defined voice-over. Speak the voice-over text exactly as written, in English.';
+  private voiceOverConstraint(voiceOver: VoiceOverConfig): string {
+    const lang = this.spokenLanguageLabel(voiceOver);
+    return `Do not rewrite, paraphrase, translate, or replace the defined voice-over. Speak the voice-over text exactly as written, in ${lang}.`;
+  }
 
-  /** Presenter identity/outfit must stay stable in presenter-led styles. */
-  private buildPreservation(style: VideoStyle): string {
+  private buildPreservation(style: VideoStyle, voiceOver: VoiceOverConfig): string {
     const identity = this.REFERENCE_IDENTITY_CONSTRAINT;
-    const voice = this.VOICE_OVER_CONSTRAINT;
+    const voice = this.voiceOverConstraint(voiceOver);
     const property = 'Keep the property layout, materials, colors, and fixtures exactly unchanged.';
     if (style === 'talking_head' || style === 'ugc') {
       return `${identity} ${property} Keep the same presenter identity, face, hairstyle, and outfit across all scenes. ${voice}`;
@@ -810,8 +821,9 @@ Rules:
     return `${identity} ${property} ${voice}`;
   }
 
-  private buildNegative(): string {
-    return 'Do not alter the model, objects, or faces from the reference images. Do not change the defined English voice-over. No readable text, no logos, no watermarks, no extra people, no distorted architecture, no invented property features, no scene cuts.';
+  private buildNegative(voiceOver: VoiceOverConfig): string {
+    const lang = this.spokenLanguageLabel(voiceOver);
+    return `Do not alter the model, objects, or faces from the reference images. Do not change the defined ${lang} voice-over. No readable text, no logos, no watermarks, no extra people, no distorted architecture, no invented property features, no scene cuts.`;
   }
 
   private buildOmniScenePrompt(args: {
