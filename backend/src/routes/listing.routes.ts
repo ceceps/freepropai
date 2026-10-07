@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import listingController from '../controllers/listing.controller';
-import upload from '../middleware/upload';
+import upload, { uploadUpdate } from '../middleware/upload';
 
 const router = Router();
 
@@ -31,8 +31,8 @@ router.get('/:id', listingController.getListingById);
  * @desc    Update listing details with optional photo uploads
  * @access  Public (should be protected in production)
  */
-router.patch('/:id', upload.array('photos', 10), listingController.updateListing);
-router.put('/:id', upload.array('photos', 10), listingController.updateListing);
+router.patch('/:id', uploadUpdate.array('photos'), listingController.updateListing);
+router.put('/:id', uploadUpdate.array('photos'), listingController.updateListing);
 
 /**
  * @route   DELETE /api/listings/:id

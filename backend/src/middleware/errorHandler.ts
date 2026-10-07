@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 
 export class AppError extends Error {
   statusCode: number;
@@ -29,6 +30,13 @@ export const errorHandler = (
     return res.status(err.statusCode).json({
       success: false,
       error: err.message,
+    });
+  }
+
+  if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_COUNT') {
+    return res.status(400).json({
+      success: false,
+      error: 'Jumlah total foto melebihi batas maksimal 10 foto',
     });
   }
 

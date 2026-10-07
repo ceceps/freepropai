@@ -81,11 +81,12 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
     const selectedFiles = Array.from(e.target.files || []);
     if (selectedFiles.length === 0) return;
 
-    // Check 1: Max total photos count (existing + already selected + newly selected)
-    const totalCount = existingPhotos.length + photos.length + selectedFiles.length;
-    if (totalCount > MAX_TOTAL_PHOTOS) {
-      setWarningMessage(`⚠️ Peringatan: Total foto (${totalCount} foto) melebihi batas maksimal ${MAX_TOTAL_PHOTOS} foto. Maksimal 10 foto diperbolehkan.`);
-      return;
+    if (!isEditMode) {
+      const totalCount = existingPhotos.length + photos.length + selectedFiles.length;
+      if (totalCount > MAX_TOTAL_PHOTOS) {
+        setWarningMessage(`Total photos (${totalCount}) exceed the maximum of ${MAX_TOTAL_PHOTOS} for a new listing.`);
+        return;
+      }
     }
 
     // Check 2: Max total upload size (5 MB) across all newly selected files
@@ -126,9 +127,9 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
     setPhotos(updatedPhotos);
     setPhotoPreviews(updatedPreviews);
 
-    // Reset warning if now within limits
     const totalSize = updatedPhotos.reduce((sum, f) => sum + f.size, 0);
-    if (totalSize <= MAX_TOTAL_SIZE_BYTES && (existingPhotos.length + updatedPhotos.length) <= MAX_TOTAL_PHOTOS) {
+    const withinPhotoCount = isEditMode || (existingPhotos.length + updatedPhotos.length) <= MAX_TOTAL_PHOTOS;
+    if (totalSize <= MAX_TOTAL_SIZE_BYTES && withinPhotoCount) {
       setWarningMessage(null);
     }
 
@@ -174,11 +175,12 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
       return;
     }
 
-    // Client-side Validation Checks before submission
-    const totalCount = existingPhotos.length + photos.length;
-    if (totalCount > MAX_TOTAL_PHOTOS) {
-      setWarningMessage(`⚠️ Peringatan: Total foto (${totalCount} foto) melebihi batas maksimal ${MAX_TOTAL_PHOTOS} foto.`);
-      return;
+    if (!isEditMode) {
+      const totalCount = existingPhotos.length + photos.length;
+      if (totalCount > MAX_TOTAL_PHOTOS) {
+        setWarningMessage(`Total photos (${totalCount}) exceed the maximum of ${MAX_TOTAL_PHOTOS} for a new listing.`);
+        return;
+      }
     }
 
     const totalSize = photos.reduce((sum, file) => sum + file.size, 0);
@@ -365,13 +367,15 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold text-text-primary dark:text-text-primary-dark">Property Photos</h3>
           <span className="text-sm font-medium text-text-tertiary dark:text-text-tertiary-dark">
-            {totalCurrentPhotos} / {MAX_TOTAL_PHOTOS} photos ({ (currentTotalNewSize / (1024 * 1024)).toFixed(2) } MB / 5 MB)
+            {isEditMode
+              ? `${totalCurrentPhotos} photos (${(currentTotalNewSize / (1024 * 1024)).toFixed(2)} MB / 5 MB)`
+              : `${totalCurrentPhotos} / ${MAX_TOTAL_PHOTOS} photos (${(currentTotalNewSize / (1024 * 1024)).toFixed(2)} MB / 5 MB)`}
           </span>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="label">Upload Photos (Max 10 Photos, Total Size Max 5 MB)</label>
+            <label className="label">{isEditMode ? 'Upload Photos (Total Size Max 5 MB)' : 'Upload Photos (Max 10 Photos, Total Size Max 5 MB)'}</label>
             <div className="mt-2">
               <label className="flex items-center justify-center w-full h-32 border-2 border-dashed border-border dark:border-border-dark rounded-xl cursor-pointer hover:border-primary-500 transition-colors bg-accent/50 dark:bg-accent-dark/50">
                 <div className="text-center">
@@ -379,7 +383,9 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
                   <p className="mt-2 text-sm text-text-secondary dark:text-text-secondary-dark">
                     Click to select photos or drag & drop here
                   </p>
-                  <p className="text-xs text-text-tertiary dark:text-text-tertiary-dark">PNG, JPG, WEBP • Max total 5 MB • Max 10 Photos</p>
+                  <p className="text-xs text-text-tertiary dark:text-text-tertiary-dark">
+                    {isEditMode ? 'PNG, JPG, WEBP, AVIF • Max total 5 MB' : 'PNG, JPG, WEBP, AVIF • Max total 5 MB • Max 10 Photos'}
+                  </p>
                 </div>
                 <input
                   type="file"
@@ -387,7 +393,7 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
                   multiple
                   onChange={handlePhotoChange}
                   className="hidden"
-                  disabled={totalCurrentPhotos >= MAX_TOTAL_PHOTOS}
+                  disabled={!isEditMode && totalCurrentPhotos >= MAX_TOTAL_PHOTOS}
                 />
               </label>
             </div>
