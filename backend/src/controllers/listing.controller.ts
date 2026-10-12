@@ -276,9 +276,6 @@ class ListingController {
     if (data.bathrooms && typeof data.bathrooms === 'string') data.bathrooms = parseInt(data.bathrooms);
 
     const newFiles = req.files && Array.isArray(req.files) ? req.files : [];
-    if (existingListing.photos.length + newFiles.length > 10) {
-      throw new AppError('Jumlah total foto melebihi batas maksimal 10 foto', 400);
-    }
 
     // Update listing text fields
     await ListingModel.update(id, data);
@@ -358,12 +355,11 @@ class ListingController {
     // Clear existing descriptions before saving new ones
     await ListingModel.clearDescriptions(id);
 
-    // Save descriptions to database
-    const savedDescriptions = await Promise.all([
-      ListingModel.addDescription(id, 'formal', descriptions.formal),
-      ListingModel.addDescription(id, 'casual_1', descriptions.casual_1),
-      ListingModel.addDescription(id, 'casual_2', descriptions.casual_2),
-    ]);
+    const savedDescriptions = [
+      await ListingModel.addDescription(id, 'formal', descriptions.formal),
+      await ListingModel.addDescription(id, 'casual_1', descriptions.casual_1),
+      await ListingModel.addDescription(id, 'casual_2', descriptions.casual_2),
+    ];
 
     const response: ApiResponse = {
       success: true,

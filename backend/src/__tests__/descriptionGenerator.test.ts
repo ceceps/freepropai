@@ -28,19 +28,51 @@ describe('DescriptionGeneratorService Unit Tests', () => {
     expect(result).toHaveProperty('casual_1');
     expect(result).toHaveProperty('casual_2');
 
-    // Check Formal variant rules
     expect(result.formal).toContain('Rumah di Ngamprah Bandung Barat');
     expect(result.formal).toContain('Rp975 Juta');
     expect(result.formal).toContain('Spesifikasi:');
-    expect(result.formal).not.toMatch(/\p{Extended_Pictographic}/u); // No emojis in formal
+    expect(result.formal).not.toMatch(/\p{Extended_Pictographic}/u);
 
-    // Check Casual 1 (PAS) variant rules
     expect(result.casual_1).toContain('Ngamprah Bandung Barat');
     expect(result.casual_1).toContain('Rp975 Juta');
 
-    // Check Casual 2 (SHORT) variant rules
     expect(result.casual_2).toContain('Ngamprah Bandung Barat');
     expect(result.casual_2).toContain('Rp975 Juta');
+  });
+
+  it('strips markdown bold markers from all description variants', async () => {
+    const result = await descriptionGeneratorService.generateDescriptions(sampleListing);
+
+    expect(result.formal).not.toMatch(/\*\*/);
+    expect(result.casual_1).not.toMatch(/\*\*/);
+    expect(result.casual_2).not.toMatch(/\*\*/);
+  });
+
+  it('writes PAS copy in Marketing 2.0-4.0 voice instead of stiff spec dump', async () => {
+    const result = await descriptionGeneratorService.generateDescriptions(sampleListing);
+
+    expect(result.casual_1).not.toMatch(/^\s*-\s*Spesifikasi:/m);
+    expect(result.casual_1).not.toMatch(/Lagi cari hunian strategis/);
+    expect(result.casual_1).toMatch(/kamu|kita|rumah yang|pagi|pulang|keluarga|weekend|cerita|hidup/i);
+  });
+
+  it('writes Short copy in Marketing 2.0-4.0 voice instead of stiff caption template', async () => {
+    const result = await descriptionGeneratorService.generateDescriptions(sampleListing);
+
+    expect(result.casual_2).not.toMatch(/Klik link di bio & hubungi kami untuk survey/i);
+    expect(result.casual_2).toMatch(/kamu|cerita|pulang|pagi|DM|chat|survey/i);
+  });
+
+  it('instructs the LLM to strip markdown and write PAS/Short in Marketing 2.0-4.0 voice', () => {
+    const buildSystemPrompt = (descriptionGeneratorService as any).buildSystemPrompt.bind(descriptionGeneratorService);
+    const buildUserPrompt = (descriptionGeneratorService as any).buildUserPrompt.bind(descriptionGeneratorService);
+    const systemPrompt = buildSystemPrompt(sampleListing);
+    const userPrompt = buildUserPrompt(sampleListing);
+
+    expect(systemPrompt).toMatch(/tanpa markdown|jangan pakai \*\*|plain text/i);
+    expect(systemPrompt + userPrompt).toMatch(/Marketing (2|3|4)\.0/);
+    expect(userPrompt).not.toMatch(/\*\*\[Jenis properti\]/);
+    expect(userPrompt).not.toMatch(/\*\*Spesifikasi:\*\*/);
   });
 
   it('should correctly format compact price for millions and billions', () => {

@@ -5,7 +5,7 @@ import { Request } from 'express';
 import { AppError } from './errorHandler';
 
 export const MAX_TOTAL_UPLOAD_SIZE = 5 * 1024 * 1024; // 5MB total upload limit
-export const MAX_PHOTO_COUNT = 10; // Max 10 photos
+export const MAX_PHOTO_COUNT = 10;
 
 // Configure storage
 const storage = multer.diskStorage({
@@ -36,13 +36,20 @@ const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilt
   }
 };
 
-// Configure multer
 const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB per single file limit
-    files: 10, // Max 10 files per request
+    fileSize: 10 * 1024 * 1024,
+    files: MAX_PHOTO_COUNT,
+  },
+});
+
+export const uploadUpdate = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024,
   },
 });
 

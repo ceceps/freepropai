@@ -124,9 +124,7 @@ function postProcessDescription(text: string): string {
     .replace(/^\s*\*{0,2}(?:Hook|Problem|Agitate|Solution|CTA)\*{0,2}\s*:?\s*$/gim, '')
     .replace(/^\s*\{(?:HOOK|PROBLEM|AGITATE|SOLUTION|CTA)\}\s*:?\s*$/gim, '')
     .replace(/\{(?:HOOK|PROBLEM|AGITATE|SOLUTION|CTA)\}/gi, '')
-    // Fix markdown bold label trailing spaces, e.g. "**Spesifikasi: **" -> "**Spesifikasi:** "
-    .replace(/\*\*\s*([^*:]+):\s*\*\*\s*/g, '**$1:** ')
-    // Fix multiple spaces/newlines
+    .replace(/\*\*/g, '')
     .replace(/ {2,}/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -209,9 +207,9 @@ class DescriptionGeneratorService {
 
 Return ONLY valid JSON format (no markdown code fence, no explanation):
 {
-  "formal": "Deskripsi formal sesuai FORMAT OUTPUT KETAT di bawah.",
-  "casual_1": "Konten Instagram feed shareable (Problem -> Agitate -> Solution -> CTA) dengan humor/kedekatan khas Indo. Sebutkan harga HANYA SEKALI. 2-3 emoji.",
-  "casual_2": "Instagram Story / WhatsApp Status super singkat dan punchy. Sebutkan harga HANYA SEKALI. 3-5 emoji."
+  "formal": "Deskripsi formal sesuai FORMAT OUTPUT KETAT di bawah. Plain text, tanpa markdown.",
+  "casual_1": "PAS feed Instagram. Voice Marketing 3.0/4.0: cerita hidup, kamu/kita, bukan dump spek. Harga HANYA SEKALI. 2-3 emoji.",
+  "casual_2": "Short caption. Voice Marketing 2.0/4.0: punchy, percakapan, ajak chat. Harga HANYA SEKALI. 3-5 emoji."
 }
 
 ATURAN FAKTA (berlaku untuk semua versi):
@@ -228,20 +226,21 @@ ATURAN FORMAT & HARGA:
 9. Jika ada keterbatasan yang relevan bagi pembeli (misalnya akses 1 mobil), jangan disembunyikan. Sebut secara netral sesuai format masing-masing versi.
 10. Jika data harga atau luas terlihat tidak wajar (misalnya harga jauh di luar pola untuk jumlah kamar dan luasnya), tetap tulis sesuai data, tapi tambahkan satu baris di paling akhir output: "PERIKSA DATA: [alasan singkat]".
 11. Keluarkan HANYA tiga versi dalam JSON (formal, casual_1, casual_2) tanpa pembuka, penjelasan, atau penutup tambahan.
+12. Plain text saja. Dilarang markdown: jangan pakai **, __, ##, atau asterisk bold di isi JSON.
 
-FORMAT OUTPUT 'formal' (WAJIB ikuti struktur persis ini):
+FORMAT OUTPUT 'formal' (WAJIB ikuti struktur persis ini, TANPA markdown):
 
-**[Jenis properti] di [Nama perumahan/area], [Kota/Kecamatan] – [Harga]**
+[Jenis properti] di [Nama perumahan/area], [Kota/Kecamatan] – [Harga]
 
 [Pembuka 1-2 kalimat]
 
-**Spesifikasi:** [KT, KM, LT, LB, lebar muka, listrik, air, legalitas, dipisah koma]
+Spesifikasi: [KT, KM, LT, LB, lebar muka, listrik, air, legalitas, dipisah koma]
 
-**Akses terdekat:** [Tempat + waktu tempuh, urut dari yang terdekat]
+Akses terdekat: [Tempat + waktu tempuh, urut dari yang terdekat]
 
-**Pembayaran:** [Metode]. **Survey:** [Aturan survey].
+Pembayaran: [Metode]. Survey: [Aturan survey].
 
-**Catatan:** [Opsional, hanya jika ada keterbatasan]`;
+Catatan: [Opsional, hanya jika ada keterbatasan]`;
   }
 
   /**
@@ -253,7 +252,7 @@ FORMAT OUTPUT 'formal' (WAJIB ikuti struktur persis ini):
     const kontakWa = (listing as any).agentPhone || (listing as any).agent_phone || 'Hubungi Agen';
     const linkListing = listing.source_url || '-';
 
-    return `Buat 3 deskripsi dari data listing berikut, dengan struktur berbeda.
+    return `Buat 3 deskripsi dari data listing berikut, dengan struktur berbeda. Plain text, jangan pakai **.
 
 === DATA LISTING ===
 Judul: ${normalizeText(listing.title || 'Properti')}
@@ -270,54 +269,47 @@ Link: ${linkListing}
 Tulis persis dengan penanda di bawah (atau sebagai nilai key JSON: formal, casual_1, casual_2).
 
 [[FORMAL]]
-Nada: ramah dan profesional, tanpa emoji. Untuk portal dan website.
+Nada: ramah dan profesional, tanpa emoji. Untuk portal dan website. Plain text, tanpa markdown.
 Format:
-**[Jenis properti] di [Nama perumahan/area], [Kota/Kecamatan] – [Harga]**
+[Jenis properti] di [Nama perumahan/area], [Kota/Kecamatan] – [Harga]
 
 [Pembuka 1-2 kalimat: kedekatan utama dan siapa yang cocok membeli, hanya jika didukung data]
 
-**Spesifikasi:** [KT, KM, LT, LB, lebar muka, listrik, air, legalitas, dipisah koma]
+Spesifikasi: [KT, KM, LT, LB, lebar muka, listrik, air, legalitas, dipisah koma]
 
-**Akses terdekat:** [Tempat + waktu tempuh]
+Akses terdekat: [Tempat + waktu tempuh]
 
-**Pembayaran:** [Metode]. **Survey:** [Aturan survey].
+Pembayaran: [Metode]. Survey: [Aturan survey].
 
-**Catatan:** [Opsional, keterbatasan relevan]
+Catatan: [Opsional, keterbatasan relevan]
 [[/FORMAL]]
 
 [[PAS]]
-Nada: hangat dan percaya diri. Emoji maksimal 3, hanya di bagian Solution. Untuk Instagram, Facebook, WhatsApp broadcast.
-Struktur Problem, Agitate, Solution:
+Voice Marketing 3.0/4.0: human-centric, percakapan kamu/kita, cerita hidup sehari-hari. Bukan dump spek, bukan template kaku. Emoji maksimal 3. Untuk Instagram, Facebook, WhatsApp broadcast.
+Struktur Problem, Agitate, Solution dalam prosa:
 - Pilih SATU masalah pembeli yang paling cocok dengan keunggulan terkuat listing. Jangan menumpuk masalah.
-- Problem dan Agitate boleh bersifat umum, tapi tidak boleh berisi klaim faktual palsu tentang pasar, kompetitor, atau properti lain.
+- Problem dan Agitate boleh bersifat umum (pagi, pulang, keluarga, weekend), tapi tidak boleh berisi klaim faktual palsu tentang pasar, kompetitor, atau properti lain.
+- Spek dan akses dijalin ke kalimat, jangan bullet "- Spesifikasi:".
 Format:
-[Hook satu baris berupa pertanyaan atau pernyataan tentang masalah]
+[Hook satu baris: pertanyaan atau pernyataan hidup, pakai kamu]
 
-[Problem + Agitate, 3-4 kalimat berisi situasi sehari-hari]
+[Problem + Agitate, 3-4 kalimat situasi sehari-hari]
 
-[Kalimat transisi ke solusi, satu baris]
+[Transisi ke solusi + jenis properti di area – harga, satu-dua kalimat]
 
-**[Jenis properti] di [Perumahan/Area] – [Harga]**
-- Spesifikasi: [KT, KM, LT, LB, lebar muka, listrik, air, legalitas]
-- Akses terdekat: [Tempat + waktu tempuh]
-- Pembayaran: [Metode]
+[Fakta terkuat dalam 2-3 kalimat: KT/KM/luas, akses, cara bayar]
 
-**Survey:** [Aturan survey]. [CTA satu kalimat ajak chat untuk survey]
-
-**Catatan:** [Opsional]
+[CTA: ajak chat/DM untuk survey. Sebut aturan survey jika ada.]
 [[/PAS]]
 
 [[SHORT]]
-Nada: santai tapi sopan. Untuk caption Instagram, mengajak klik dan menghubungi. Batas: maksimal 600 karakter tidak termasuk hashtag, emoji maksimal 4 sebagai penanda baris. Hook maksimal 100 karakter dan wajib memuat harga atau area. Pilih 3-4 fakta terkuat saja.
+Voice Marketing 2.0/4.0: punchy, percakapan, ajak klik. Santai tapi sopan. Caption Instagram. Maksimal 600 karakter tidak termasuk hashtag, emoji maksimal 4. Hook maksimal 100 karakter dan wajib memuat harga atau area. Pilih 3-4 fakta terkuat. Jangan CTA kaku "Klik link di bio & hubungi kami".
 Format:
-[Hook]
+[Hook percakapan: kamu + harga atau area]
 
-[Emoji] [Harga] | [KT] KT, [KM] KM | LT [x] m² / LB [x] m²
-[Emoji] [Akses terdekat 1 + waktu]
-[Emoji] [Akses terdekat 2 + waktu]
-[Emoji] [Legalitas + cara bayar]
+[1-3 baris fakta terkuat, bukan daftar spek kaku]
 
-[CTA 1-2 kalimat: ajak klik link di bio untuk foto dan detail lengkap, DAN chat/DM/WhatsApp untuk jadwalkan survey. Sebut aturan survey jika ada. Keterbatasan relevan cukup disebut singkat di sini.]
+[CTA: ajak DM/chat untuk survey, sebut aturan survey jika ada]
 
 [5-8 hashtag: 2 area, 2 jenis/segmen properti, 2 umum]
 [[/SHORT]]`;
@@ -368,43 +360,43 @@ Format:
     if (listing.building_area) specsList.push(`LB ${listing.building_area} m²`);
     const specsStr = specsList.join(', ');
 
-    // 1. FORMAL
     const formalLines: string[] = [];
-    formalLines.push(`**${typeTitle} di ${loc} – ${compactPrice}**\n`);
+    formalLines.push(`${typeTitle} di ${loc} – ${compactPrice}\n`);
     formalLines.push(`${titleStr}. Hunian nyaman di lokasi strategis ${loc}.\n`);
-    if (specsStr) formalLines.push(`**Spesifikasi:** ${specsStr}`);
-    if (sellingPoints) formalLines.push(`**Akses terdekat:** ${sellingPoints}`);
-    formalLines.push(`**Pembayaran:** ${caraBayar}. **Survey:** ${surveyRules}.`);
-    if (catatan) formalLines.push(`\n**Catatan:** ${catatan}`);
+    if (specsStr) formalLines.push(`Spesifikasi: ${specsStr}`);
+    if (sellingPoints) formalLines.push(`Akses terdekat: ${sellingPoints}`);
+    formalLines.push(`Pembayaran: ${caraBayar}. Survey: ${surveyRules}.`);
+    if (catatan) formalLines.push(`\nCatatan: ${catatan}`);
     const formal = formalLines.join('\n');
 
-    // 2. PAS (CASUAL 1)
     const pasLines: string[] = [];
-    pasLines.push(`Lagi cari hunian strategis di ${loc} yang dekat akses transportasi?\n`);
-    pasLines.push(`Mencari properti dengan spesifikasi lengkap dan lokasi berkembang memang butuh kecermatan. Unit berkualitas di area ini selalu diminati pembeli gercep.\n`);
-    pasLines.push(`Solusinya ${titleStr}! ✨\n`);
-    pasLines.push(`**${typeTitle} di ${loc} – ${compactPrice}**`);
-    if (specsStr) pasLines.push(`- Spesifikasi: ${specsStr}`);
-    if (sellingPoints) pasLines.push(`- Akses terdekat: ${sellingPoints}`);
-    pasLines.push(`- Pembayaran: ${caraBayar}`);
-    pasLines.push(`\n**Survey:** ${surveyRules}. Hubungi kami sekarang untuk jadwal survey! 🔑`);
-    if (catatan) pasLines.push(`\n**Catatan:** ${catatan}`);
+    pasLines.push(`Kamu pulang malam, lalu masih pikir "rumah yang pas di ${loc} itu yang mana?"\n`);
+    pasLines.push(`Banyak keluarga capek pindah-pindah. Yang dicari bukan listing kaku, tapi rumah yang jadi cerita hidup: pagi berangkat gampang, weekend dekat yang penting.\n`);
+    pasLines.push(`${titleStr} di ${loc} – ${compactPrice}.`);
+    if (specsStr) {
+      pasLines.push(sellingPoints
+        ? `${specsStr}. ${sellingPoints}. Cara bayar ${caraBayar}.`
+        : `${specsStr}. Cara bayar ${caraBayar}.`);
+    } else if (sellingPoints) {
+      pasLines.push(`${sellingPoints}. Cara bayar ${caraBayar}.`);
+    } else {
+      pasLines.push(`Cara bayar ${caraBayar}.`);
+    }
+    pasLines.push(`\nSurvey: ${surveyRules}. Chat kami, kita atur jadwalnya.`);
+    if (catatan) pasLines.push(`\nCatatan: ${catatan}`);
     const casual_1 = pasLines.join('\n');
 
-    // 3. SHORT (CASUAL 2)
     const locClean = loc.replace(/\s+Bandung\s+Barat/i, '');
     const shortLines: string[] = [];
-    shortLines.push(`🔥 ${titleStr} – ${loc}!`);
-    shortLines.push(`\n🏠 ${compactPrice} | ${specsStr.replace(/,/g, ' |')}`);
+    shortLines.push(`${titleStr} di ${loc} – ${compactPrice}.`);
+    shortLines.push(`\nBukan spek kaku. Ini rumah yang tinggal kamu isi cerita pagi-pagi.`);
+    if (specsStr) shortLines.push(specsStr.replace(/,/g, ' ·'));
     if (sellingPoints) {
-      const spParts = sellingPoints.split(',');
-      if (spParts[0]) shortLines.push(`📍 ${spParts[0].trim()}`);
-      if (spParts[1]) shortLines.push(`📍 ${spParts[1].trim()}`);
-    } else {
-      shortLines.push(`📍 Lokasi strategis ${loc}`);
+      const firstPoint = sellingPoints.split(',')[0]?.trim();
+      if (firstPoint) shortLines.push(firstPoint);
     }
-    shortLines.push(`💳 ${caraBayar}`);
-    shortLines.push(`\nKlik link di bio & hubungi kami untuk survey (${surveyRules}). 📲`);
+    shortLines.push(`Cara bayar ${caraBayar}.`);
+    shortLines.push(`\nDM/chat kita untuk survey (${surveyRules}).`);
     shortLines.push(`\n#rumah${locClean.toLowerCase().replace(/\s+/g, '')} #propertibandung #rumahdijual #rumahsiaphuni #investasiproperti`);
     const casual_2 = shortLines.join('\n');
 

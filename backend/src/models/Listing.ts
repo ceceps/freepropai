@@ -292,14 +292,21 @@ export class ListingModel {
       .where(eq(listingDescriptions.listingId, listingId));
   }
 
-  // Get descriptions for listing
   async getDescriptions(listingId: string): Promise<ListingDescription[]> {
     const descriptions = await db
       .select()
       .from(listingDescriptions)
       .where(eq(listingDescriptions.listingId, listingId));
 
-    return descriptions.map(this.mapToDescription);
+    const variantOrder: Record<string, number> = {
+      formal: 0,
+      casual_1: 1,
+      casual_2: 2,
+    };
+
+    return descriptions
+      .map(this.mapToDescription)
+      .sort((a, b) => (variantOrder[a.variant_type] ?? 99) - (variantOrder[b.variant_type] ?? 99));
   }
 
   // Select a description variant
