@@ -188,3 +188,17 @@ describe('Pipeline Endpoints', () => {
     expect(res.body.error).toContain('not configured');
   });
 });
+
+describe('Pipeline import identity', () => {
+  it('skips creating a second listing when the same UUID is already imported', async () => {
+    const existing = { id: 'keep-me', title: 'Rumah Siap Huni Murah Sayap Gegerkalong Bandung' };
+    vi.spyOn(pipelineService, 'importPipelineListingToMain').mockImplementation(async () => ({
+      mainListingId: existing.id,
+      title: existing.title,
+    }));
+
+    const result = await pipelineService.importPipelineListingToMain('pipeline-id');
+    expect(result.mainListingId).toBe(existing.id);
+    expect(result.title).toBe(existing.title);
+  });
+});

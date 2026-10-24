@@ -45,6 +45,81 @@ describe('ProlovScraperService', () => {
 </html>
       `;
 
+  const labelledDescriptionHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="og:description" content="  Rumah Apik Full Furnish SHM di Sariwangi 30 menit ke Pintu Tol Pasteur    Note:    1,5 Lantai SHM   One Gate System    Lokasi Strategis ke :    5 - 7 menit ke Kampus P" />
+  <title>Turun Harga Rumah Apik Full Furnish SHM di Sariwangi - Prolov</title>
+</head>
+<body>
+  <div class="mobile-view">
+    <div class="dinding">
+      <h4>Turun Harga Rumah Apik Full Furnish SHM di Sariwangi 30 menit ke Pintu Tol Pasteur </h4>
+      <ul id="imageGallery" class="gallery">
+        <li data-src="https://content.prolov.id/app/project/202511/original/img1.jpeg"><img src="img1" /></li>
+      </ul>
+      <div class="row">
+        <div class="col-md-12">
+          <strong>Harga</strong><br>Rp1.399.000.000<br><br>
+          <strong>Detail</strong><br>
+          Jumlah Lantai: 1<br>
+          Luas Tanah: 132<br>
+          Luas Bangunan: 118<br>
+          Kamar Tidur: 3<br>
+          Kamar Mandi: 3<br>
+          Sertifikat: shm<br><br>
+          <strong>Deskripsi</strong>
+          <p><strong>Rumah Apik Full Furnish SHM di Sariwangi 30 menit ke Pintu Tol Pasteur&nbsp;</strong></p>
+          <p><strong>Note:</strong></p>
+          <ul><li>1,5 Lantai SHM&nbsp;</li><li>One Gate System</li></ul>
+          <p><strong>Lokasi Strategis ke :</strong></p>
+          <ul><li>5 - 7 menit ke Kampus Politeknik Bandung (POLBAN)</li><li>20 - 25 menit ke Pintu Tol Pasteur</li></ul>
+          <p><strong>CARA BAYAR : CASH DAN KPR</strong></p>
+          <p><strong>AKSES LOKASI : 2 MOBIL</strong></p>
+          <br><p><strong>Lokasi</strong><br>Jl. Bukit Raya</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+      `;
+
+  const projectHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="og:description" content="Botanical View Residence Merupakan hunian dengan mengusung konsep Rumah Villa" />
+  <title>Botanical View Residence - Prolov</title>
+</head>
+<body>
+  <div class="mobile-view">
+    <div class="dinding">
+      <div class="row mt-3">
+        <div class="col-md-12">
+          <h4>Botanical View Residence </h4>
+        </div>
+      </div>
+      <ul id="imageGallery" class="gallery">
+        <li data-src="https://content.prolov.id/assets/dist/img/img1.png"><img src="img1" /></li>
+      </ul>
+      <div class="row">
+        <div class="col-md-12">
+          <p>Botanical View Residence Merupakan hunian dengan mengusung konsep Rumah Villa yang tidak hanya cocok untuk di tinggali namun juga cocok untuk investasi.</p>
+          <p>Lokasi ini berlokasi Strategis di jalan pasir embe . cijamil, ngamprah bandung barat</p>
+          <p></p>
+          <p>KEUNGGULAN</p>
+          <ul><li>Lokasi Strategis</li><li>Dekat IKEA</li></ul>
+          <p>Total Unit : 98 Unit</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+      `;
+
   beforeEach(() => {
     service = new ProlovScraperService();
   });
@@ -104,6 +179,34 @@ describe('ProlovScraperService', () => {
       expect(result!.bathrooms).toBe(5);
       expect(result!.imageUrls).toContain('https://content.prolov.id/app/project/202508/original/img1.jpeg');
       expect(result!.imageUrls).toContain('https://content.prolov.id/app/project/202508/original/img2.jpeg');
+    });
+
+    it('extracts the description from a project page that has no "Deskripsi" label', async () => {
+      vi.spyOn(axios, 'get').mockResolvedValue({ data: projectHtml });
+
+      const result = await service.scrapeListingDetail('https://prolov.id/find/project/adb4ae683d7d25a4e99e314bc779604f');
+
+      expect(result).not.toBeNull();
+      expect(result!.title).toBe('Botanical View Residence');
+      expect(result!.description).toContain('Merupakan hunian dengan mengusung konsep Rumah Villa');
+      expect(result!.description).toContain('KEUNGGULAN');
+      expect(result!.description).toContain('- Lokasi Strategis');
+      expect(result!.description).not.toBe(result!.title);
+    });
+
+    it('captures the full labelled description and keeps the Lokasi section out of it', async () => {
+      vi.spyOn(axios, 'get').mockResolvedValue({ data: labelledDescriptionHtml });
+
+      const result = await service.scrapeListingDetail('https://prolov.id/find/project/cbecbaec-f3c0-41a1-bb38-70fb891a5173');
+
+      expect(result).not.toBeNull();
+      expect(result!.description).toContain('Rumah Apik Full Furnish SHM di Sariwangi');
+      expect(result!.description).toContain('- 1,5 Lantai SHM');
+      expect(result!.description).toContain('- 5 - 7 menit ke Kampus Politeknik Bandung (POLBAN)');
+      expect(result!.description).toContain('CARA BAYAR : CASH DAN KPR');
+      expect(result!.description).not.toContain('Jl. Bukit Raya');
+      expect(result!.description).not.toBe(result!.title);
+      expect(result!.location).toBe('Jl. Bukit Raya');
     });
   });
 });

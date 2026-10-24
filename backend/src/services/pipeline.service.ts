@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, ilike, lte, or, sql, type SQL } from 'drizzle-orm';
 import {
   agents,
   analisaListing,
@@ -17,6 +17,7 @@ import {
   type Platform,
 } from './calendarContentGenerator.service';
 import { db, listings, listingPhotos } from '../db';
+import { findListingBySourceIdentity, resolveImportedListings } from '../utils/listingIdentity';
 
 export interface Pagination {
   limit?: number;
@@ -113,30 +114,7 @@ function matchPromoForCalendarItem(promos: PromoRow[], item: CalendarMatchSource
   );
 }
 
-/**
- * The read-only pipeline database has no import marker, so determine whether a
- * scraped listing already exists in the main `listings` table by matching its
- * source URL. Returns a lookup keyed by source URL.
- */
-async function resolveImportedListings(
-  sourceUrls: (string | null)[]
-): Promise<Map<string, { id: string; importedAt: Date | null }>> {
-  const urls = [...new Set(sourceUrls.filter((url): url is string => Boolean(url)))];
-  const imported = new Map<string, { id: string; importedAt: Date | null }>();
-  if (urls.length === 0) return imported;
 
-  const rows = await db
-    .select({ id: listings.id, sourceUrl: listings.sourceUrl, createdAt: listings.createdAt })
-    .from(listings)
-    .where(inArray(listings.sourceUrl, urls));
-
-  for (const row of rows) {
-    if (row.sourceUrl && !imported.has(row.sourceUrl)) {
-      imported.set(row.sourceUrl, { id: row.id, importedAt: row.createdAt ?? null });
-    }
-  }
-  return imported;
-}
 
 function withImportStatus<T extends { sourceUrl: string | null }>(
   listing: T,
@@ -726,9 +704,20 @@ export class PipelineService {
       throw new Error('Pipeline listing not found');
     }
 
+    const existing = await findListingBySourceIdentity(scraped.sourceUrl);
+    if (existing) {
+      return { mainListingId: existing.id, title: existing.title };
+    }
+
     const title = scraped.title || 'Untitled Scraped Property';
     const addressObj = scraped.address as any;
-    const locationStr = addressObj?.formatted_address || addressObj?.city || scraped.title || 'Indonesia';
+    const locationStr =
+      addressObj?.formatted_address ||
+      addressObj?.raw ||
+      addressObj?.city ||
+      addressObj?.kota ||
+      scraped.title ||
+      'Indonesia';
 
     // 2. Insert into main DB listings
     const [created] = await db

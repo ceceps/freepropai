@@ -113,12 +113,40 @@ export class ProlovScraperService {
         if (description) return;
         if ($(el).text().trim().toLowerCase() !== 'deskripsi') return;
         const parts: string[] = [];
-        $(el).nextAll('p, ul, ol').each((__, n) => {
-          const t = $(n).text().trim();
-          if (t) parts.push(t);
-        });
+        const nodes = $(el).nextAll('p, ul, ol');
+        for (let i = 0; i < nodes.length; i++) {
+          const node = nodes.eq(i);
+          // Stop at the next labelled section (e.g. "Lokasi") that follows the copy.
+          const label = node.find('strong').first().text().replace(/\s+/g, ' ').trim().toLowerCase();
+          if (label === 'lokasi') break;
+          const tag = (nodes[i] as { tagName?: string }).tagName?.toLowerCase();
+          if (tag === 'ul' || tag === 'ol') {
+            node.find('li').each((__, li) => {
+              const t = $(li).text().replace(/\s+/g, ' ').trim();
+              if (t) parts.push(`- ${t}`);
+            });
+          } else {
+            const t = node.text().replace(/\s+/g, ' ').trim();
+            if (t) parts.push(t);
+          }
+        }
         description = parts.join('\n').trim();
       });
+
+      // Project pages (e.g. /find/project/<id>) carry no "Deskripsi" label: the
+      // copy lives in free paragraphs inside the content column, followed by
+      // labelled sections (KEUNGGULAN, FASILITAS UMUM, ...). Capture that column.
+      if (!description) {
+        description = this.extractProjectDescription($);
+      }
+
+      // Last resort: social preview meta, which mirrors the project summary.
+      if (!description) {
+        description = $('meta[name="og:description"], meta[property="og:description"]')
+          .first()
+          .attr('content')
+          ?.trim() || '';
+      }
 
       // Property type fallback
       let propertyType = 'rumah';
@@ -151,6 +179,38 @@ export class ProlovScraperService {
       console.error(`[ProlovScraperService] Error scraping listing detail:`, error);
       return null;
     }
+  }
+
+  /**
+   * Prolov project pages keep their marketing copy in a content column as a
+   * run of free paragraphs and lists, without a "Deskripsi" label. Pick the
+   * column that actually holds paragraphs (the title column only has the h4)
+   * and flatten its paragraphs/lists into a readable block.
+   */
+  private extractProjectDescription($: cheerio.CheerioAPI): string {
+    const container = $('div.dinding div.col-md-12, .mobile-view div.col-md-12')
+      .filter((_, el) => $(el).find('p').length > 0)
+      .first();
+
+    if (!container.length) return '';
+
+    const lines: string[] = [];
+    container.children().each((_, el) => {
+      const node = $(el);
+      const tag = (el as { tagName?: string }).tagName?.toLowerCase();
+
+      if (tag === 'p') {
+        const text = node.text().replace(/\s+/g, ' ').trim();
+        if (text) lines.push(text);
+      } else if (tag === 'ul' || tag === 'ol') {
+        node.find('li').each((__, li) => {
+          const text = $(li).text().replace(/\s+/g, ' ').trim();
+          if (text) lines.push(`- ${text}`);
+        });
+      }
+    });
+
+    return lines.join('\n').trim();
   }
 
   private parsePrice(priceStr: string): number | null {
