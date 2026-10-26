@@ -45,6 +45,40 @@ export const ASPECT_RATIO_MAP: Record<string, { resolution: string; label: strin
 export type VideoStyle = keyof typeof VIDEO_STYLES;
 export type VideoModel = keyof typeof VIDEO_MODELS;
 
+/**
+ * Marketing-framework angles used to open scene 1 with a listing hook.
+ * Kotler-inspired: 2.0 = customer/benefit-centric, 3.0 = human/values-centric,
+ * 4.0 = digital/social-centric. Pick one at random unless the caller forces it.
+ */
+export type MarketingAngle = 'marketing2' | 'marketing3' | 'marketing4';
+export type HookStyle = 'auto' | MarketingAngle;
+
+export const MARKETING_ANGLES: Record<MarketingAngle, { label: string; guidance: string }> = {
+  marketing2: {
+    label: 'Marketing 2.0 — Benefit & Solusi',
+    guidance:
+      "customer-centric: open with the buyer's problem or desired benefit, then position the listing as the answer",
+  },
+  marketing3: {
+    label: 'Marketing 3.0 — Emosi & Nilai',
+    guidance:
+      'human-centric: open with an emotional, value-driven or lifestyle line about home, family and belonging',
+  },
+  marketing4: {
+    label: 'Marketing 4.0 — Sosial & Digital',
+    guidance:
+      'digital/social-centric: open with social proof, trendiness or community buzz in a digital-native tone',
+  },
+};
+
+const MARKETING_ANGLE_ORDER: MarketingAngle[] = ['marketing2', 'marketing3', 'marketing4'];
+
+export interface MarketingHook {
+  style: MarketingAngle;
+  label: string;
+  text: string;
+}
+
 export interface VoiceOverConfig {
   enabled: boolean;
   gender?: 'pria' | 'wanita';
@@ -58,6 +92,7 @@ export interface VideoScriptOptions {
   aspectRatio?: string;
   voiceOver?: VoiceOverConfig;
   customInstructions?: string;
+  hookStyle?: HookStyle;
 }
 
 export interface VideoOnScreenText {
@@ -118,6 +153,11 @@ export interface VideoScriptJson {
     reference_identity: string;
     voice_over: string;
   };
+  hook?: {
+    style: string;
+    label: string;
+    text: string;
+  };
   scenes: VideoScriptScene[];
 }
 
@@ -126,6 +166,7 @@ export interface VideoScriptResult {
   model: string;
   aspectRatio: string;
   voiceOver?: VoiceOverConfig;
+  hook?: MarketingHook;
   script: string;
   voiceOverScript: string | null;
   scriptJson: VideoScriptJson;
@@ -187,6 +228,8 @@ class VideoScriptGeneratorService {
     }
     const customInstructions = (options.customInstructions || '').trim();
 
+    const hook = voiceOver.enabled ? this.buildMarketingHook(listing, voiceOver, this.resolveHookStyle(options.hookStyle)) : undefined;
+
     const plan = this.buildScenePlan(listing);
 
     const isVeo = model === 'veo';
@@ -196,10 +239,10 @@ class VideoScriptGeneratorService {
     try {
       script = await llmClient.generateCompletion(
         isVeo
-          ? this.buildVeoSystemPrompt(style, model, plan, voiceOver)
+          ? this.buildVeoSystemPrompt(style, model, plan, voiceOver, hook)
           : this.buildSystemPrompt(style, model, plan),
         isVeo
-          ? this.buildVeoUserPrompt(listing, style, model, aspectRatio, voiceOver, customInstructions, plan)
+          ? this.buildVeoUserPrompt(listing, style, model, aspectRatio, voiceOver, customInstructions, plan, hook)
           : this.buildUserPrompt(listing, style, model, aspectRatio, voiceOver, customInstructions, plan),
         { temperature: isVeo ? 0.75 : 0.7, maxTokens: 2500 }
       );
@@ -210,16 +253,17 @@ class VideoScriptGeneratorService {
     } catch (error) {
       console.warn('⚠️ LLM video prompt generation failed, using template-based fallback:', error);
       script = isVeo
-        ? this.buildVeoFallbackScript(listing, aspectRatio, voiceOver, customInstructions, plan, 'inggris')
+        ? this.buildVeoFallbackScript(listing, aspectRatio, voiceOver, customInstructions, plan, 'inggris', hook)
         : this.buildFallbackScript(listing, style, model, aspectRatio, voiceOver, customInstructions, plan);
     }
+    script = this.ensurePropertyLock(script);
 
     let voiceOverScript: string | null = null;
     const narrationsByScene = new Map<number, string>();
     if (voiceOver.enabled) {
       try {
         voiceOverScript = await llmClient.generateCompletion(
-          this.buildVoiceOverSystemPrompt(style, voiceOver, plan),
+          this.buildVoiceOverSystemPrompt(style, voiceOver, plan, hook),
           this.buildVoiceOverUserPrompt(listing, scriptFromLlm ? script : '', plan, voiceOver),
           { temperature: 0.7, maxTokens: 2000 }
         );
@@ -229,17 +273,21 @@ class VideoScriptGeneratorService {
         this.applyNarrationsFromScript(voiceOverScript, narrationsByScene);
       } catch (error) {
         console.warn('⚠️ LLM voice over generation failed, using template-based fallback:', error);
-        voiceOverScript = this.buildFallbackVoiceOver(listing, voiceOver, plan);
+        voiceOverScript = this.buildFallbackVoiceOver(listing, voiceOver, plan, hook);
+      }
+      if (hook) {
+        this.ensureSceneOneHook(narrationsByScene, hook, listing, voiceOver);
       }
     }
 
-    const scriptJson = this.buildSceneJson(listing, style, model, aspectRatio, voiceOver, plan, narrationsByScene);
+    const scriptJson = this.buildSceneJson(listing, style, model, aspectRatio, voiceOver, plan, narrationsByScene, hook);
 
     return {
       style,
       model,
       aspectRatio,
       voiceOver: voiceOver.enabled ? voiceOver : undefined,
+      hook,
       script,
       voiceOverScript,
       scriptJson,
@@ -254,6 +302,87 @@ class VideoScriptGeneratorService {
   private resolveModel(value?: string): VideoModel {
     if (value && value in VIDEO_MODELS) return value as VideoModel;
     return DEFAULT_MODEL;
+  }
+
+  /**
+   * Resolve which marketing angle opens scene 1. An explicit non-`auto` value is
+   * honoured as-is; otherwise a random angle is chosen so successive generations
+   * vary the hook framing.
+   */
+  private resolveHookStyle(value?: HookStyle): MarketingAngle {
+    if (value && value !== 'auto' && value in MARKETING_ANGLES) return value as MarketingAngle;
+    const index = Math.floor(Math.random() * MARKETING_ANGLE_ORDER.length);
+    return MARKETING_ANGLE_ORDER[Math.min(index, MARKETING_ANGLE_ORDER.length - 1)];
+  }
+
+  /**
+   * Build the scene 1 hook from real listing facts, in the voice-over language,
+   * following the selected marketing angle's framing.
+   */
+  private buildMarketingHook(listing: Listing, voiceOver: VoiceOverConfig, angle: MarketingAngle): MarketingHook {
+    const isEn = voiceOver.language === 'inggris';
+    const typeEn = listing.property_type || 'Rumah';
+    const typeId = typeEn.toLowerCase();
+    const area = ((listing as any).region || listing.location || 'Bandung').split(',')[0].trim() || 'Bandung';
+    const specs = [
+      listing.bedrooms ? `${listing.bedrooms} ${isEn ? 'bed' : 'KT'}` : '',
+      listing.bathrooms ? `${listing.bathrooms} ${isEn ? 'bath' : 'KM'}` : '',
+    ].filter(Boolean).join(' ');
+
+    let text: string;
+    switch (angle) {
+      case 'marketing2':
+        text = isEn
+          ? `Still searching for the right ${typeEn} in ${area} that fits your needs?`
+          : `Masih cari ${typeId} di ${area} yang pas buat kebutuhan Anda?`;
+        break;
+      case 'marketing3':
+        text = isEn
+          ? `A home is more than a building — it's where your family's story begins.`
+          : `Rumah bukan sekadar bangunan — ini tempat cerita keluarga dimulai.`;
+        break;
+      case 'marketing4':
+      default:
+        text = isEn
+          ? `Trending in ${area}! Check out this ${specs || typeEn} before it's gone.`
+          : `Lagi banyak dicari di ${area}! Cek ${specs || typeId} ini sebelum kehabisan.`;
+        break;
+    }
+
+    return { style: angle, label: MARKETING_ANGLES[angle].label, text };
+  }
+
+  /**
+   * Guarantee scene 1's narration opens with the marketing hook, even when the
+   * LLM paraphrased it or the template fallback path was used.
+   */
+  private ensureSceneOneHook(
+    target: Map<number, string>,
+    hook: MarketingHook,
+    listing: Listing,
+    voiceOver: VoiceOverConfig
+  ): void {
+    const existing = (target.get(1) || '').trim();
+    const base = existing || this.fallbackNarration(listing, 1, voiceOver);
+    if (base.toLowerCase().startsWith(hook.text.toLowerCase())) {
+      target.set(1, base);
+      return;
+    }
+    target.set(1, `${hook.text} ${base}`.trim());
+  }
+
+  /** Narrate a scene, prefixing scene 1 with the marketing hook when present. */
+  private narrationForScene(
+    listing: Listing,
+    sceneNumber: number,
+    voiceOver: VoiceOverConfig,
+    hook?: MarketingHook
+  ): string {
+    const base = this.fallbackNarration(listing, sceneNumber, voiceOver);
+    if (sceneNumber === 1 && hook) {
+      return `${hook.text} ${base}`.trim();
+    }
+    return base;
   }
 
   /**
@@ -293,6 +422,7 @@ Rules:
 - For every scene write: [Scene N — Scene Title — mm:ss] followed by 1-2 detailed camera/shoot sentences (subject, movement, light, mood) in English.
 - Keep the whole prompt under ~220 words.
 - Never invent rooms, fixtures, or numbers that are not present in the property details.
+- ${this.PROPERTY_LOCK_CONSTRAINT}. Keep house design, interior, environment, and the model's face identical to the reference photos.
 - End with a "Style:" line describing resolution, fps, grade, and camera gear consistent with the chosen style.
 - Output only the prompt block, no commentary.`;
   }
@@ -337,7 +467,7 @@ Rules:
       lines.push('', `Additional User Instructions: ${customInstructions}`);
     }
 
-    lines.push('', 'Generate the video generation prompt in English for optimal AI video model performance.');
+    lines.push('', `${this.PROPERTY_LOCK_CONSTRAINT}.`, 'Generate the video generation prompt in English for optimal AI video model performance.');
     return lines.join('\n');
   }
 
@@ -349,7 +479,8 @@ Rules:
     style: VideoStyle,
     model: VideoModel,
     plan: ScenePlan[],
-    voiceOver: VoiceOverConfig
+    voiceOver: VoiceOverConfig,
+    hook?: MarketingHook
   ): string {
     const spokenLang = this.spokenLanguageLabel(voiceOver);
     const ageStr = this.ageLabelEn(voiceOver.ageRange);
@@ -362,6 +493,9 @@ Rules:
     const voiceRule = voiceOver.enabled
       ? `Narrator: ${genderStr}, ${ageStr}, speaking ${spokenLang}. Write every VO line in ${spokenLang}.`
       : 'No narrator preference; keep audio ambient only.';
+    const hookRule = voiceOver.enabled && hook
+      ? `\n- Scene 1's VO line MUST open with this exact hook (${hook.label}; ${MARKETING_ANGLES[hook.style].guidance}), used verbatim as the first sentence: "${hook.text}"`
+      : '';
 
     const structureRule = voiceOver.enabled
       ? `The prompt MUST alternate a visual block and a spoken line for every scene, using EXACTLY these labels:
@@ -385,12 +519,14 @@ ${scenes}
 
 Rules:
 - Start directly with the first [Visual: ...] block — no title, no heading.
-- Follow every [Visual: ...] block immediately with its line, in scene order.${voiceOver.enabled ? '' : ' Do not add VO lines.'}
+- Follow every [Visual: ...] block immediately with its line, in scene order.${voiceOver.enabled ? '' : ' Do not add VO lines.'}${hookRule}
 - In each [Visual] block, describe cinematic camera work (handheld POV, drone, gimbal, slide, tilt) and what is on screen, in English.
 - ${voiceOver.enabled ? `The VO must sound like a real ${genderStr} ${ageStr} speaking naturally in ${spokenLang} (casual, engaging, not a stiff ad read) and must fit the scene duration. ` : ''}Never invent rooms, fixtures, specs, or numbers that are not present in the property details.
 - ${voiceRule}
 - ${voiceOver.enabled ? 'End the last scene\'s VO with a friendly call to action in the same spoken language.' : 'Keep the visuals grounded in the provided property details.'}
-- Output only the prompt blocks ([Visual]${voiceOver.enabled ? '/VO' : ''}). No commentary, no extra headings.`;
+- ${this.PROPERTY_LOCK_CONSTRAINT}. Keep house design, interior, environment, and the model's face identical to the reference photos.
+- End with this exact constraint line: "${this.PROPERTY_LOCK_CONSTRAINT}."
+- Output only the prompt blocks ([Visual]${voiceOver.enabled ? '/VO' : ''}) plus the constraint line. No commentary, no extra headings.`;
   }
 
   private buildVeoUserPrompt(
@@ -400,7 +536,8 @@ Rules:
     aspectRatio: string,
     voiceOver: VoiceOverConfig,
     customInstructions: string,
-    plan: ScenePlan[]
+    plan: ScenePlan[],
+    hook?: MarketingHook
   ): string {
     const spokenLang = this.spokenLanguageLabel(voiceOver);
     const lines: string[] = [
@@ -425,6 +562,10 @@ Rules:
       lines.push('Voice Over: Tanpa VO');
     }
 
+    if (voiceOver.enabled && hook) {
+      lines.push(`Scene 1 hook (${hook.label}) — use verbatim as the first sentence of scene 1's VO: "${hook.text}"`);
+    }
+
     lines.push(
       `Scene structure to follow (${plan.length} scenes with durations):`,
       ...plan.map((s) => `  - Scene ${s.scene} "${s.title}" (~${s.durationSeconds}s)`)
@@ -438,6 +579,7 @@ Rules:
       '',
       `Write the [Visual: ...] blocks in English using ${voiceOver.enabled ? 'alternating [Visual: ...] and VO: ... blocks' : 'one [Visual: ...] block per scene'}, in scene order.`,
       voiceOver.enabled ? `Write every VO: line in ${spokenLang}.` : 'Do not add VO lines.',
+      `${this.PROPERTY_LOCK_CONSTRAINT}.`,
       'Output only the [Visual]/blocks prompt.'
     );
     return lines.join('\n');
@@ -458,11 +600,14 @@ Rules:
     return ageMap[ageRange || 'dewasa'] || 'adult (30-45)';
   }
 
-  private buildVoiceOverSystemPrompt(style: VideoStyle, voiceOver: VoiceOverConfig, plan: ScenePlan[]): string {
+  private buildVoiceOverSystemPrompt(style: VideoStyle, voiceOver: VoiceOverConfig, plan: ScenePlan[], hook?: MarketingHook): string {
     const scenes = plan.map((s) => `Scene ${s.scene}: "${s.title}"`).join('\n');
     const langStr = this.spokenLanguageLabel(voiceOver);
     const genderStr = voiceOver.gender === 'pria' ? 'male' : 'female';
     const ageStr = this.ageLabelEn(voiceOver.ageRange);
+    const hookRule = hook
+      ? `- Scene 1 MUST open with this exact hook, written in the ${hook.style.replace('marketing', 'Marketing ')}.0 style (${MARKETING_ANGLES[hook.style].guidance}). Use it verbatim as the first sentence of scene 1, then continue naturally: "${hook.text}"\n`
+      : '';
 
     return `You are a professional real estate voice-over narrator (${genderStr}, ${ageStr}) speaking in ${langStr}.
 
@@ -471,7 +616,7 @@ Write a voice-over narration script in ${langStr} for a ${VIDEO_STYLES[style].la
 ${scenes}
 
 Rules:
-- Speak in natural, warm, professional tone suitable for a ${genderStr} ${ageStr} narrator.
+${hookRule}- Speak in natural, warm, professional tone suitable for a ${genderStr} ${ageStr} narrator.
 - Always write the spoken lines in ${langStr}. Camera/visual notes stay in English and must not be read aloud.
 - Each scene block starts with [Scene N — Scene Title] then 1-2 short spoken sentences that fit the scene duration.
 - Do not read out camera directions or timing; those are visual notes, not narration.
@@ -568,7 +713,8 @@ Rules:
     voiceOver: VoiceOverConfig,
     customInstructions: string,
     plan: ScenePlan[],
-    language: 'indonesia' | 'inggris'
+    language: 'indonesia' | 'inggris',
+    hook?: MarketingHook
   ): string {
     const priceFormatted = IDR.format(listing.price);
     const type = listing.property_type || 'Rumah';
@@ -595,7 +741,7 @@ Rules:
     const blocks = plan.map((s) => {
       const visual = visuals[s.scene] || visuals[5];
       if (!withVoice) return `[Visual: ${visual}]`;
-      const narration = this.fallbackNarration(listing, s.scene, voiceOver);
+      const narration = this.narrationForScene(listing, s.scene, voiceOver, hook);
       return `[Visual: ${visual}]\nVO: ${narration}`;
     });
 
@@ -612,7 +758,7 @@ Rules:
     return `${header}\n\n${blocks.join('\n\n')}${note}`;
   }
 
-  private buildFallbackVoiceOver(listing: Listing, voiceOver: VoiceOverConfig, plan: ScenePlan[]): string {
+  private buildFallbackVoiceOver(listing: Listing, voiceOver: VoiceOverConfig, plan: ScenePlan[], hook?: MarketingHook): string {
     const formatHeader = (s: ScenePlan, start: number) => {
       const pad = (n: number) => String(n).padStart(2, '0');
       const startMin = Math.floor(start / 60);
@@ -625,7 +771,7 @@ Rules:
     return plan
       .map((s) => {
         const start = plan.slice(0, s.scene - 1).reduce((acc, x) => acc + x.durationSeconds, 0);
-        return `${formatHeader(s, start)}\n${this.fallbackNarration(listing, s.scene, voiceOver)}`;
+        return `${formatHeader(s, start)}\n${this.narrationForScene(listing, s.scene, voiceOver, hook)}`;
       })
       .join('\n\n');
   }
@@ -700,7 +846,8 @@ Rules:
     aspectRatio: string,
     voiceOver: VoiceOverConfig,
     plan: ScenePlan[],
-    narrationsByScene: Map<number, string>
+    narrationsByScene: Map<number, string>,
+    hook?: MarketingHook
   ): VideoScriptJson {
     const type = listing.property_type || 'Rumah';
     const totalDuration = plan.reduce((acc, s) => acc + s.durationSeconds, 0);
@@ -721,18 +868,37 @@ Rules:
     const dialogueDelivery = `${langLabel}, natural conversational delivery, warm and clear`;
     const music = MUSIC_BY_STYLE[style];
 
+    const isEn = voiceOver.language === 'inggris';
     const onScreenTexts: Array<VideoOnScreenText | null> = [
       { content: `${listing.title.toUpperCase()}`, style: 'Bold elegant sans-serif font, stark white glow', animation: 'Flicker on, smooth tracking' },
-      { content: `LOCATION: ${listing.location.toUpperCase()}`, style: 'Minimalist clean typography, subtle cyan accent', animation: 'Pop up sharply on beat, stays centered' },
-      { content: listing.bedrooms ? `${listing.bedrooms} BEDROOMS | ${listing.bathrooms || 1} BATHROOMS` : 'MODERN DESIGN & READY TO MOVE IN', style: 'Italic bold modern font, neon white glow', animation: 'Fades in smoothly from bottom third' },
+      {
+        content: isEn
+          ? `LOCATION: ${listing.location.toUpperCase()}`
+          : `LOKASI: ${listing.location.toUpperCase()}`,
+        style: 'Minimalist clean typography, subtle cyan accent',
+        animation: 'Pop up sharply on beat, stays centered',
+      },
+      {
+        content: listing.bedrooms
+          ? (isEn
+            ? `${listing.bedrooms} BEDROOMS | ${listing.bathrooms || 1} BATHROOMS`
+            : `${listing.bedrooms} KAMAR TIDUR | ${listing.bathrooms || 1} KAMAR MANDI`)
+          : (isEn ? 'MODERN DESIGN & READY TO MOVE IN' : 'DESAIN MODERN & SIAP HUNI'),
+        style: 'Italic bold modern font, neon white glow',
+        animation: 'Fades in smoothly from bottom third',
+      },
       null,
-      { content: `CONTACT THE AGENT NOW`, style: 'Cinematic elegant serif font, glowing gold, large scale', animation: 'Expands slowly from center (zoom in)' },
+      {
+        content: isEn ? 'CONTACT THE AGENT NOW' : 'HUBUNGI AGEN SEKARANG',
+        style: 'Cinematic elegant serif font, glowing gold, large scale',
+        animation: 'Expands slowly from center (zoom in)',
+      },
     ];
 
     const scenes: VideoScriptScene[] = plan.map((s, idx) => {
       const visual = this.buildSceneVisual(s.scene, listing, style, type);
       const narration = narrationsByScene.get(s.scene)
-        || (voiceOver.enabled ? this.fallbackNarration(listing, s.scene, voiceOver) : null);
+        || (voiceOver.enabled ? this.narrationForScene(listing, s.scene, voiceOver, hook) : null);
       const ost = onScreenTexts[idx] || null;
 
       const shot = `${visual.camera}, ${visual.lens}`;
@@ -799,12 +965,22 @@ Rules:
         reference_identity: this.REFERENCE_IDENTITY_CONSTRAINT,
         voice_over: this.voiceOverConstraint(voiceOver),
       },
+      hook: hook ? { style: hook.style, label: hook.label, text: hook.text } : undefined,
       scenes,
     };
   }
 
+  private readonly PROPERTY_LOCK_CONSTRAINT =
+    "Do not change the house design, interior, environment, or the model's face";
+
+  private ensurePropertyLock(script: string): string {
+    const lock = `${this.PROPERTY_LOCK_CONSTRAINT}.`;
+    if (script.includes(this.PROPERTY_LOCK_CONSTRAINT)) return script;
+    return `${script.trim()}\n\n${lock}`;
+  }
+
   private readonly REFERENCE_IDENTITY_CONSTRAINT =
-    'Do not change the model, objects, or faces from the reference images. Preserve identity, facial features, body shape, clothing, and every object exactly as shown in the reference photos.';
+    `Do not change the model, objects, or faces from the reference images. ${this.PROPERTY_LOCK_CONSTRAINT}. Preserve identity, facial features, body shape, clothing, house design, interior, environment, and every object exactly as shown in the reference photos.`;
 
   private voiceOverConstraint(voiceOver: VoiceOverConfig): string {
     const lang = this.spokenLanguageLabel(voiceOver);
@@ -814,7 +990,7 @@ Rules:
   private buildPreservation(style: VideoStyle, voiceOver: VoiceOverConfig): string {
     const identity = this.REFERENCE_IDENTITY_CONSTRAINT;
     const voice = this.voiceOverConstraint(voiceOver);
-    const property = 'Keep the property layout, materials, colors, and fixtures exactly unchanged.';
+    const property = `Keep the property layout, materials, colors, and fixtures exactly unchanged. ${this.PROPERTY_LOCK_CONSTRAINT}.`;
     if (style === 'talking_head' || style === 'ugc') {
       return `${identity} ${property} Keep the same presenter identity, face, hairstyle, and outfit across all scenes. ${voice}`;
     }
@@ -823,7 +999,7 @@ Rules:
 
   private buildNegative(voiceOver: VoiceOverConfig): string {
     const lang = this.spokenLanguageLabel(voiceOver);
-    return `Do not alter the model, objects, or faces from the reference images. Do not change the defined ${lang} voice-over. No readable text, no logos, no watermarks, no extra people, no distorted architecture, no invented property features, no scene cuts.`;
+    return `Do not alter the model, objects, or faces from the reference images. ${this.PROPERTY_LOCK_CONSTRAINT}. Do not change the defined ${lang} voice-over. No readable text, no logos, no watermarks, no extra people, no distorted architecture, no invented property features, no scene cuts.`;
   }
 
   private buildOmniScenePrompt(args: {

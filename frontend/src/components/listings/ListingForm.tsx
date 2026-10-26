@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Upload, X, Image as ImageIcon, Star, AlertTriangle } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Star, AlertTriangle, MapPin, Sparkles } from 'lucide-react';
 import type { CreateListingData, ListingWithDetails } from '../../types';
 import { listingApi } from '../../services/api';
 
@@ -24,6 +24,8 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
     bathrooms: undefined,
     propertyType: '',
     additionalInfo: '',
+    latitude: undefined,
+    longitude: undefined,
   });
 
   const [photos, setPhotos] = useState<File[]>([]);
@@ -31,6 +33,7 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
   const [existingPhotos, setExistingPhotos] = useState<Array<{ id: string; url: string; is_featured: boolean }>>([]);
   const [featuredSelection, setFeaturedSelection] = useState<{ type: 'existing' | 'new'; idOrIndex: string | number } | null>(null);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
+  const [isGeneratingPoints, setIsGeneratingPoints] = useState(false);
 
   // Initialize form with existing data in edit mode
   useEffect(() => {
@@ -45,6 +48,8 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
         bathrooms: initialData.bathrooms,
         propertyType: initialData.property_type || '',
         additionalInfo: initialData.additional_info || '',
+        latitude: initialData.latitude,
+        longitude: initialData.longitude,
       });
 
       setPhotos([]);
@@ -70,7 +75,7 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'price' || name === 'landArea' || name === 'buildingArea' || name === 'bedrooms' || name === 'bathrooms'
+      [name]: name === 'price' || name === 'landArea' || name === 'buildingArea' || name === 'bedrooms' || name === 'bathrooms' || name === 'latitude' || name === 'longitude'
         ? value ? parseFloat(value) : undefined
         : value,
     }));
@@ -203,6 +208,46 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
     await onSubmit(submitData, photos);
   };
 
+  const mergeSellingPoints = (existing: string | undefined, generated: string): string => {
+    const current = (existing || '').trim();
+    if (!current) return generated;
+    if (/Selling Point/i.test(current)) {
+      return current.replace(/Selling Point(?:\s*&\s*Keunggulan)?\s*:?[\s\S]*$/i, generated).trim();
+    }
+    return `${current}\n\n${generated}`;
+  };
+
+  const handleGenerateSellingPoints = async () => {
+    if (!formData.location?.trim()) {
+      setWarningMessage('Fill Location first to generate selling points.');
+      return;
+    }
+
+    try {
+      setIsGeneratingPoints(true);
+      setWarningMessage(null);
+      const response = await listingApi.generateSellingPoints({
+        location: formData.location,
+        latitude: formData.latitude,
+        longitude: formData.longitude,
+      });
+      if (response.success && response.data) {
+        setFormData((prev) => ({
+          ...prev,
+          additionalInfo: mergeSellingPoints(prev.additionalInfo, response.data!.sellingPoints),
+          latitude: response.data!.coordinates.latitude,
+          longitude: response.data!.coordinates.longitude,
+        }));
+      }
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+        || 'Failed to generate selling points from location.';
+      setWarningMessage(message);
+    } finally {
+      setIsGeneratingPoints(false);
+    }
+  };
+
   const totalCurrentPhotos = existingPhotos.length + photos.length;
   const currentTotalNewSize = photos.reduce((sum, f) => sum + f.size, 0);
 
@@ -246,9 +291,44 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
               value={formData.location}
               onChange={handleInputChange}
               className="input"
-              placeholder="e.g., Kemang, South Jakarta"
+              placeholder="e.g., Setiabudi Regency, Bandung"
               required
             />
+            <p className="mt-1 text-xs text-text-tertiary dark:text-text-tertiary-dark">
+              Housing complex name is used to find nearby schools, campuses, shops, and tourism spots.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="label" htmlFor="latitude">Latitude (optional geotag)</label>
+              <div className="relative">
+                <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+                <input
+                  id="latitude"
+                  type="number"
+                  name="latitude"
+                  value={formData.latitude ?? ''}
+                  onChange={handleInputChange}
+                  className="input pl-9"
+                  placeholder="-6.8625"
+                  step="any"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="label" htmlFor="longitude">Longitude (optional geotag)</label>
+              <input
+                id="longitude"
+                type="number"
+                name="longitude"
+                value={formData.longitude ?? ''}
+                onChange={handleInputChange}
+                className="input"
+                placeholder="107.5964"
+                step="any"
+              />
+            </div>
           </div>
 
           <div>
@@ -348,15 +428,30 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
         </div>
 
         <div className="mt-4">
-          <label className="label">Additional Information</label>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <label className="label mb-0" htmlFor="additionalInfo">Additional Information</label>
+            <button
+              type="button"
+              onClick={handleGenerateSellingPoints}
+              disabled={isGeneratingPoints || isLoading}
+              className="btn btn-secondary inline-flex min-h-11 items-center justify-center gap-2 text-sm"
+            >
+              <Sparkles className="h-4 w-4" />
+              {isGeneratingPoints ? 'Generating...' : 'Generate Selling Points'}
+            </button>
+          </div>
           <textarea
+            id="additionalInfo"
             name="additionalInfo"
             value={formData.additionalInfo}
             onChange={handleInputChange}
-            className="input"
-            rows={3}
+            className="input mt-2"
+            rows={6}
             placeholder="e.g., Near international school, highway access, gated community"
           />
+          <p className="mt-1 text-xs text-text-tertiary dark:text-text-tertiary-dark">
+            Uses location or geotag to list nearby strategic places with travel time.
+          </p>
         </div>
       </div>
 

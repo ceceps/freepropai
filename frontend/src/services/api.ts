@@ -160,6 +160,8 @@ export const listingApi = {
     if (data.bathrooms !== undefined && data.bathrooms !== null) formData.append('bathrooms', String(data.bathrooms));
     if (data.propertyType !== undefined && data.propertyType !== null) formData.append('propertyType', data.propertyType);
     if (data.additionalInfo !== undefined && data.additionalInfo !== null) formData.append('additionalInfo', data.additionalInfo);
+    if (data.latitude !== undefined && data.latitude !== null) formData.append('latitude', String(data.latitude));
+    if (data.longitude !== undefined && data.longitude !== null) formData.append('longitude', String(data.longitude));
     
     // Append photos
     if (photos && photos.length > 0) {
@@ -209,6 +211,8 @@ export const listingApi = {
     if (data.bathrooms !== undefined && data.bathrooms !== null) formData.append('bathrooms', String(data.bathrooms));
     if (data.propertyType !== undefined && data.propertyType !== null) formData.append('propertyType', data.propertyType);
     if (data.additionalInfo !== undefined && data.additionalInfo !== null) formData.append('additionalInfo', data.additionalInfo);
+    if (data.latitude !== undefined && data.latitude !== null) formData.append('latitude', String(data.latitude));
+    if (data.longitude !== undefined && data.longitude !== null) formData.append('longitude', String(data.longitude));
     if (data.featuredPhotoId) formData.append('featuredPhotoId', data.featuredPhotoId);
     if (data.featuredPhotoIndex !== undefined && data.featuredPhotoIndex !== null) formData.append('featuredPhotoIndex', String(data.featuredPhotoIndex));
 
@@ -230,6 +234,23 @@ export const listingApi = {
   // Delete listing
   async delete(id: string): Promise<ApiResponse> {
     const response = await api.delete<ApiResponse>(`/listings/${id}`);
+    return response.data;
+  },
+
+  async generateSellingPoints(data: {
+    location: string;
+    latitude?: number;
+    longitude?: number;
+  }): Promise<ApiResponse<{
+    sellingPoints: string;
+    coordinates: { latitude: number; longitude: number };
+    places: Array<{ name: string; category: string; distanceMeters: number }>;
+  }>> {
+    const response = await api.post<ApiResponse<{
+      sellingPoints: string;
+      coordinates: { latitude: number; longitude: number };
+      places: Array<{ name: string; category: string; distanceMeters: number }>;
+    }>>('/listings/generate-selling-points', data);
     return response.data;
   },
 

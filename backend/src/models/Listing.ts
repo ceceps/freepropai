@@ -18,6 +18,12 @@ export class ListingModel {
       landArea: data.landArea?.toString(),
       buildingArea: data.buildingArea?.toString(),
       location: data.location,
+      latitude: data.latitude !== undefined && data.latitude !== null && data.latitude !== ''
+        ? String(data.latitude)
+        : undefined,
+      longitude: data.longitude !== undefined && data.longitude !== null && data.longitude !== ''
+        ? String(data.longitude)
+        : undefined,
       price: data.price.toString(),
       bedrooms: data.bedrooms,
       bathrooms: data.bathrooms,
@@ -169,6 +175,12 @@ export class ListingModel {
     if (data.landArea !== undefined) updateData.landArea = data.landArea.toString();
     if (data.buildingArea !== undefined) updateData.buildingArea = data.buildingArea.toString();
     if (data.location !== undefined) updateData.location = data.location;
+    if (data.latitude !== undefined) {
+      updateData.latitude = data.latitude === null || data.latitude === '' ? null : String(data.latitude);
+    }
+    if (data.longitude !== undefined) {
+      updateData.longitude = data.longitude === null || data.longitude === '' ? null : String(data.longitude);
+    }
     if (data.price !== undefined) updateData.price = data.price.toString();
     if (data.bedrooms !== undefined) updateData.bedrooms = data.bedrooms;
     if (data.bathrooms !== undefined) updateData.bathrooms = data.bathrooms;
@@ -471,6 +483,8 @@ export class ListingModel {
       land_area: data.landArea ? parseFloat(data.landArea) : undefined,
       building_area: data.buildingArea ? parseFloat(data.buildingArea) : undefined,
       location: data.location,
+      latitude: data.latitude ? parseFloat(data.latitude) : undefined,
+      longitude: data.longitude ? parseFloat(data.longitude) : undefined,
       price: parseFloat(data.price),
       bedrooms: data.bedrooms,
       bathrooms: data.bathrooms,

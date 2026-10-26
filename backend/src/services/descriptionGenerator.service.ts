@@ -68,7 +68,7 @@ function removeDuplicatePrices(text: string): string {
   
   // Find all price patterns (Rp + digits/spaces/dots/commas + optional Juta/Milyar)
   // Handles normalized text like "Rp 782. 700. 000" or "Rp 782.700.000"
-  const pricePattern = /Rp\s*\d[\d\s.,]*(?:\s*(?:Juta|Milyar))?/gi;
+  const pricePattern = /Rp\s*\d[\d\s.,]*(?:\s*(?:Juta|Milyar|Miliar))?/gi;
   const matches: Array<{match: string, start: number, end: number}> = [];
   let match;
   while ((match = pricePattern.exec(text)) !== null) {
@@ -90,7 +90,7 @@ function removeDuplicatePrices(text: string): string {
     
     // Check if there's a label like "Harga:" or "Harga :" before the price
     const textBefore = result.slice(Math.max(0, m.start - 20), m.start);
-    const labelMatch = textBefore.match(/(?:Harga|Price)\s*:?\s*$/i);
+    const labelMatch = textBefore.match(/(?:Harga|Price)\s*:\s*$/i);
     if (labelMatch) {
       removeStart = m.start - labelMatch[0].length;
     }
@@ -137,6 +137,37 @@ function postProcessDescription(text: string): string {
   return cleaned;
 }
 
+function isThinDescription(text: string, minChars: number): boolean {
+  return (text || '').replace(/\s+/g, ' ').trim().length < minChars;
+}
+
+function stripMd(text: string): string {
+  return text.replace(/\*+/g, '').trim();
+}
+
+function isIncompleteFormal(text: string): boolean {
+  const body = (text || '').trim();
+  if (!body || isThinDescription(body, 400)) return true;
+
+  const paragraphs = body.split(/\n\s*\n/).map(stripMd).filter(Boolean);
+  const labeled = /^(Spesifikasi|Akses terdekat|Pembayaran|Survey|Catatan)\s*:/i;
+  const title = /^.+\s+di\s+.+\s+[–—-]\s*Rp/i;
+  const specsIndex = paragraphs.findIndex((p) => /^Spesifikasi\s*:/i.test(p));
+  const before = paragraphs
+    .slice(0, specsIndex === -1 ? paragraphs.length : specsIndex)
+    .filter((p, i) => !(i === 0 && title.test(p)))
+    .filter((p) => !labeled.test(p));
+
+  if (before.length < 3) return true;
+
+  const after = specsIndex === -1 ? [] : paragraphs.slice(specsIndex + 1);
+  const hasCta = after.some((p) => {
+    if (/^(Spesifikasi|Akses terdekat|Pembayaran|Survey|Catatan)\s*:/i.test(p)) return false;
+    return /hubungi|chat\b|\bDM\b|WhatsApp|jadwalkan survey/i.test(p);
+  });
+  return !hasCta;
+}
+
 class DescriptionGeneratorService {
   /**
    * Generate 3 description variants for a property listing
@@ -166,11 +197,16 @@ class DescriptionGeneratorService {
         throw new Error('Invalid response structure from LLM');
       }
 
-      return {
-        formal: postProcessDescription(response.formal),
-        casual_1: postProcessDescription(response.casual_1),
-        casual_2: postProcessDescription(response.casual_2),
-      };
+      const formal = postProcessDescription(response.formal);
+      const casual_1 = postProcessDescription(response.casual_1);
+      const casual_2 = postProcessDescription(response.casual_2);
+
+      if (isIncompleteFormal(formal) || isThinDescription(casual_1, 200)) {
+        console.warn('⚠️ LLM description too short or missing Hook-Problem-Solution-CTA body, using fallback');
+        return this.generateFallbackDescriptions(listing);
+      }
+
+      return { formal, casual_1, casual_2 };
     } catch (error) {
       console.warn('⚠️ LLM generation failed, using template-based generator fallback:', error instanceof Error ? error.message : error);
       return this.generateFallbackDescriptions(listing);
@@ -207,11 +243,11 @@ class DescriptionGeneratorService {
 
     return `Kamu adalah copywriter properti untuk agen real estate di Bandung Raya (Bandung, Cimahi, Bandung Barat, Depok). Tugasmu mengubah data mentah listing menjadi deskripsi iklan yang rapi, akurat, dan siap posting.
 
-Return ONLY valid JSON format (no markdown code fence, no explanation):
+    Return ONLY valid JSON format (no markdown code fence, no explanation):
 {
-  "formal": "Deskripsi formal sesuai FORMAT OUTPUT KETAT di bawah.",
+  "formal": "Deskripsi formal Hook → Problem → Solution → CTA. Jangan singkat. Minimal 4 paragraf plus blok spesifikasi.",
   "casual_1": "Konten Instagram feed shareable (Problem -> Agitate -> Solution -> CTA) dengan humor/kedekatan khas Indo. Sebutkan harga HANYA SEKALI. 2-3 emoji.",
-  "casual_2": "Instagram Story / WhatsApp Status super singkat dan punchy. Sebutkan harga HANYA SEKALI. 3-5 emoji."
+  "casual_2": "Instagram Story / WhatsApp Status punchy Hook → Problem → Solution → CTA. Sebutkan harga HANYA SEKALI. 3-5 emoji."
 }
 
 ATURAN FAKTA (berlaku untuk semua versi):
@@ -228,18 +264,25 @@ ATURAN FORMAT & HARGA:
 9. Jika ada keterbatasan yang relevan bagi pembeli (misalnya akses 1 mobil), jangan disembunyikan. Sebut secara netral sesuai format masing-masing versi.
 10. Jika data harga atau luas terlihat tidak wajar (misalnya harga jauh di luar pola untuk jumlah kamar dan luasnya), tetap tulis sesuai data, tapi tambahkan satu baris di paling akhir output: "PERIKSA DATA: [alasan singkat]".
 11. Keluarkan HANYA tiga versi dalam JSON (formal, casual_1, casual_2) tanpa pembuka, penjelasan, atau penutup tambahan.
+12. Versi formal WAJIB Hook → Problem → Solution → CTA. Jangan singkat. Minimal 4 paragraf isi (hook, problem, solution, CTA) sebelum atau di sekitar blok spesifikasi. Jangan tulis label Hook/Problem/Solution/CTA di output.
 
 FORMAT OUTPUT 'formal' (WAJIB ikuti struktur persis ini):
 
 **[Jenis properti] di [Nama perumahan/area], [Kota/Kecamatan] – [Harga]**
 
-[Pembuka 1-2 kalimat]
+[HOOK: 1 kalimat pembuka yang menarik perhatian. Pertanyaan atau pernyataan kuat. Sertakan area atau harga.]
+
+[PROBLEM: 3-4 kalimat. Situasi pembeli yang relevan dengan data listing. Jangan klaim pasar, kompetitor, atau fasilitas yang tidak tertulis.]
+
+[SOLUTION: 2-3 kalimat memperkenalkan listing ini sebagai jawaban, lalu blok di bawah.]
 
 **Spesifikasi:** [KT, KM, LT, LB, lebar muka, listrik, air, legalitas, dipisah koma]
 
 **Akses terdekat:** [Tempat + waktu tempuh, urut dari yang terdekat]
 
 **Pembayaran:** [Metode]. **Survey:** [Aturan survey].
+
+[CTA: 1-2 kalimat ajak hubungi / chat / survey. Sebut aturan survey jika ada.]
 
 **Catatan:** [Opsional, hanya jika ada keterbatasan]`;
   }
@@ -271,16 +314,23 @@ Tulis persis dengan penanda di bawah (atau sebagai nilai key JSON: formal, casua
 
 [[FORMAL]]
 Nada: ramah dan profesional, tanpa emoji. Untuk portal dan website.
+Wajib Hook → Problem → Solution → CTA. Jangan singkat. Minimal 4 paragraf isi.
 Format:
 **[Jenis properti] di [Nama perumahan/area], [Kota/Kecamatan] – [Harga]**
 
-[Pembuka 1-2 kalimat: kedekatan utama dan siapa yang cocok membeli, hanya jika didukung data]
+[HOOK 1 kalimat]
+
+[PROBLEM 3-4 kalimat]
+
+[SOLUTION 2-3 kalimat + blok spesifikasi]
 
 **Spesifikasi:** [KT, KM, LT, LB, lebar muka, listrik, air, legalitas, dipisah koma]
 
 **Akses terdekat:** [Tempat + waktu tempuh]
 
 **Pembayaran:** [Metode]. **Survey:** [Aturan survey].
+
+[CTA 1-2 kalimat ajak hubungi / survey]
 
 **Catatan:** [Opsional, keterbatasan relevan]
 [[/FORMAL]]
@@ -333,55 +383,98 @@ Format:
   /**
    * Fallback generator when LLM API call fails - dynamic, structured to exact templates
    */
-  private generateFallbackDescriptions(listing: Listing): GeneratedDescriptions {
-    const typeTitle = this.getPropertyTypeLabel(listing.property_type);
-    const compactPrice = this.formatCompactPrice(listing.price);
-    const loc = listing.location || 'Bandung';
-    const titleStr = listing.title || `${typeTitle} di ${loc}`;
-    const addInfo = listing.additional_info ? normalizeText(listing.additional_info) : '';
-
-    // Extract structured info from raw additional_info if present
+  private extractListingFacts(listing: Listing): {
+    extraSpecs: string[];
+    sellingPoints: string;
+    caraBayar: string;
+    surveyRules: string;
+    catatan: string;
+  } {
+    const raw = listing.additional_info || '';
+    const extraSpecs: string[] = [];
     let sellingPoints = '';
     let caraBayar = 'Cash & KPR';
     let surveyRules = 'Janjian satu hari sebelumnya';
     let catatan = '';
 
-    if (addInfo) {
-      const spMatch = addInfo.match(/Selling Point:\s*([\s\S]*?)(?=(CARA BAYAR|AKSES LOKASI|SURVEY|$))/i);
-      if (spMatch && spMatch[1]) {
-        sellingPoints = spMatch[1].replace(/[-•]\s*/g, '').split('\n').map(s => s.trim()).filter(Boolean).join(', ');
+    const lebar = raw.match(/lebar muka\s*:?\s*(\d+)\s*(?:meter|m\b)/i);
+    if (lebar) extraSpecs.push(`lebar muka ${lebar[1]} meter`);
+    const garasi = raw.match(/garasi muat\s*(\d+)\s*mobil/i);
+    if (garasi) extraSpecs.push(`garasi muat ${garasi[1]} mobil`);
+    const carport = raw.match(/carport muat\s*(\d+)\s*mobil/i);
+    if (carport) extraSpecs.push(`carport muat ${carport[1]} mobil`);
+
+    const cbMatch = raw.match(/CARA BAYAR\s*:\s*([^\n\r]+)/i);
+    if (cbMatch?.[1]) caraBayar = cbMatch[1].trim();
+    const surMatch = raw.match(/SURVEY\s*:\s*([^\n\r]+)/i);
+    if (surMatch?.[1]) surveyRules = surMatch[1].trim();
+    const aksMatch = raw.match(/AKSES LOKASI\s*:\s*([^\n\r]+)/i);
+    if (aksMatch?.[1]) catatan = `Akses lokasi: ${aksMatch[1].trim()}`;
+
+    const spMatch = raw.match(/Selling Point(?:\s*&\s*Keunggulan)?\s*:?\s*([\s\S]*?)(?=\n(?:CARA BAYAR|AKSES LOKASI|SURVEY|Lokasi:)\b|$)/i);
+    const accessBits: string[] = [];
+    if (spMatch?.[1]) {
+      const cleaned = spMatch[1]
+        .split(/\n+/)
+        .map((line) => line.replace(/^[\s•\-\t]+/, '').trim())
+        .filter((line) => line && !/^(Lingkungan|Pemandangan|Fasilitas|Aksesibilitas)\b/i.test(line));
+      for (const line of cleaned) {
+        if (/\d+\s*menit|dekat|akses|UPI|Lembang|tol|kampus|wisata/i.test(line)) {
+          accessBits.push(line.replace(/\s+/g, ' '));
+        }
       }
-      const cbMatch = addInfo.match(/CARA BAYAR\s*:\s*([^\n]+)/i);
-      if (cbMatch && cbMatch[1]) caraBayar = cbMatch[1].trim();
-
-      const surMatch = addInfo.match(/SURVEY\s*:\s*([^\n]+)/i);
-      if (surMatch && surMatch[1]) surveyRules = surMatch[1].trim();
-
-      const aksMatch = addInfo.match(/AKSES LOKASI\s*:\s*([^\n]+)/i);
-      if (aksMatch && aksMatch[1]) catatan = `Akses lokasi: ${aksMatch[1].trim()}`;
+      if (accessBits.length === 0 && cleaned.length) {
+        sellingPoints = cleaned.slice(0, 3).join(', ');
+      }
     }
+    if (!accessBits.length) {
+      const menit = raw.match(/[^\n•]*\d+\s*menit[^\n]*/gi) || [];
+      for (const m of menit) {
+        const t = m.replace(/^[\s•\-\t]+/, '').replace(/\s+/g, ' ').trim();
+        if (t) accessBits.push(t);
+      }
+    }
+    if (accessBits.length) {
+      const bits = accessBits.slice(0, 3).map((s) => s.replace(/[.,;]+$/, ''));
+      sellingPoints = bits.join('; ');
+    }
+
+    return { extraSpecs, sellingPoints, caraBayar, surveyRules, catatan };
+  }
+
+  private generateFallbackDescriptions(listing: Listing): GeneratedDescriptions {
+    const typeTitle = this.getPropertyTypeLabel(listing.property_type);
+    const compactPrice = this.formatCompactPrice(listing.price);
+    const loc = listing.location || 'Bandung';
+    const titleStr = listing.title || `${typeTitle} di ${loc}`;
+    const facts = this.extractListingFacts(listing);
+    const { extraSpecs, sellingPoints, caraBayar, surveyRules, catatan } = facts;
 
     const specsList: string[] = [];
     if (listing.bedrooms) specsList.push(`${listing.bedrooms} KT`);
     if (listing.bathrooms) specsList.push(`${listing.bathrooms} KM`);
     if (listing.land_area) specsList.push(`LT ${listing.land_area} m²`);
     if (listing.building_area) specsList.push(`LB ${listing.building_area} m²`);
+    specsList.push(...extraSpecs);
     const specsStr = specsList.join(', ');
 
-    // 1. FORMAL
+    // 1. FORMAL — Hook → Problem → Solution → CTA
     const formalLines: string[] = [];
     formalLines.push(`**${typeTitle} di ${loc} – ${compactPrice}**\n`);
-    formalLines.push(`${titleStr}. Hunian nyaman di lokasi strategis ${loc}.\n`);
+    formalLines.push(`Masih mencari ${typeTitle.toLowerCase()} siap huni di ${loc}?\n`);
+    formalLines.push(`Mencari hunian yang kamarnya cukup, luasnya jelas, dan aksesnya tidak merepotkan sering berakhir di kompromi. Banyak listing tampak menarik di foto, tapi spesifikasi, cara bayar, atau aturan survey tidak dijelaskan. Pembeli yang gercep butuh data lengkap sebelum datang ke lokasi.\n`);
+    formalLines.push(`${titleStr} menjawab kebutuhan itu. Hunian ini menawarkan spesifikasi yang tercatat di lokasi strategis ${loc}.\n`);
     if (specsStr) formalLines.push(`**Spesifikasi:** ${specsStr}`);
     if (sellingPoints) formalLines.push(`**Akses terdekat:** ${sellingPoints}`);
     formalLines.push(`**Pembayaran:** ${caraBayar}. **Survey:** ${surveyRules}.`);
+    formalLines.push(`\nHubungi kami untuk jadwalkan survey. ${surveyRules}.`);
     if (catatan) formalLines.push(`\n**Catatan:** ${catatan}`);
     const formal = formalLines.join('\n');
 
-    // 2. PAS (CASUAL 1)
+    // 2. PAS (CASUAL 1) — Problem → Agitate → Solution → CTA
     const pasLines: string[] = [];
-    pasLines.push(`Lagi cari hunian strategis di ${loc} yang dekat akses transportasi?\n`);
-    pasLines.push(`Mencari properti dengan spesifikasi lengkap dan lokasi berkembang memang butuh kecermatan. Unit berkualitas di area ini selalu diminati pembeli gercep.\n`);
+    pasLines.push(`Lagi cari hunian strategis di ${loc} yang kamarnya cukup dan aksesnya tidak ribet?\n`);
+    pasLines.push(`Mencari properti dengan spesifikasi lengkap di lokasi berkembang memang butuh kecermatan. Banyak yang terburu-buru booking, lalu baru sadar luas, cara bayar, atau aturan survey tidak sesuai. Unit yang datanya jelas selalu lebih dulu diambil pembeli gercep.\n`);
     pasLines.push(`Solusinya ${titleStr}! ✨\n`);
     pasLines.push(`**${typeTitle} di ${loc} – ${compactPrice}**`);
     if (specsStr) pasLines.push(`- Spesifikasi: ${specsStr}`);

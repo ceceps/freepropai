@@ -103,6 +103,8 @@ export const listings = pgTable('listings', {
   landArea: decimal('land_area', { precision: 10, scale: 2 }),
   buildingArea: decimal('building_area', { precision: 10, scale: 2 }),
   location: varchar('location', { length: 255 }).notNull(),
+  latitude: decimal('latitude', { precision: 10, scale: 7 }),
+  longitude: decimal('longitude', { precision: 10, scale: 7 }),
   price: decimal('price', { precision: 15, scale: 2 }).notNull(),
   bedrooms: integer('bedrooms'),
   bathrooms: integer('bathrooms'),

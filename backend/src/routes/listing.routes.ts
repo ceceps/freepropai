@@ -20,6 +20,13 @@ router.post('/', upload.array('photos', 10), listingController.createListing);
 router.get('/', listingController.getListings);
 
 /**
+ * @route   POST /api/listings/generate-selling-points
+ * @desc    Generate selling points from housing location / geotag
+ * @access  Public
+ */
+router.post('/generate-selling-points', listingController.generateSellingPoints);
+
+/**
  * @route   GET /api/listings/:id
  * @desc    Get listing by ID with full details (photos, descriptions)
  * @access  Public

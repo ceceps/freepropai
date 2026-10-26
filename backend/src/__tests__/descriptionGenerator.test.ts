@@ -76,5 +76,150 @@ describe('DescriptionGeneratorService Unit Tests', () => {
     expect(systemPrompt).toContain('ATURAN FORMAT & HARGA:');
     expect(systemPrompt).toContain('PERIKSA DATA: [alasan singkat]');
     expect(systemPrompt).toContain('FORMAT OUTPUT \'formal\'');
+    expect(systemPrompt).toMatch(/Hook\s*→\s*Problem\s*→\s*Solution\s*→\s*CTA/);
+    expect(systemPrompt).toMatch(/minimal 4 paragraf|jangan singkat/i);
+  });
+
+  it('writes a full Hook → Problem → Solution → CTA formal fallback, not a 2-sentence stub', async () => {
+    const result = await descriptionGeneratorService.generateDescriptions(sampleListing);
+    const formal = result.formal.replace(/\s+/g, ' ').trim();
+
+    expect(formal.length).toBeGreaterThan(400);
+    expect(result.formal.split(/\n\s*\n/).length).toBeGreaterThanOrEqual(4);
+    expect(result.formal).toMatch(/Spesifikasi:/);
+    expect(result.formal).toMatch(/Survey:/);
+    expect(result.formal).toMatch(/hubungi|chat|DM|WhatsApp|survey/i);
+    expect(result.formal).not.toMatch(/^\*\*[^*]+\*\*\s*\n\n[^\n]+\n\n\*\*Spesifikasi:/);
+  });
+
+  it('rejects a too-short LLM formal and falls back to the full Hook-Problem-Solution-CTA copy', async () => {
+    const llmClient = await import('../utils/llmClient');
+    vi.spyOn(llmClient.default, 'generateJSON').mockResolvedValueOnce({
+      formal: `**Rumah di Setiabudi Regency – Rp5,5 Miliar**
+
+Rumah Kokoh dan Luas di Setiabudi Regency Bandung. Hunian nyaman di lokasi strategis Setiabudi Regency.
+
+**Spesifikasi:** 6 KT, 4 KM, LT 300 m², LB 800 m²
+
+**Pembayaran:** CASH DAN KPR. **Survey:** JANJIAN SATU HARI SEBELUMNYA.
+
+**Catatan:** Akses lokasi: 2 MOBIL`,
+      casual_1: 'Lagi cari rumah di Bandung? Hubungi kami.',
+      casual_2: 'Rumah Bandung Rp5,5 Miliar',
+    });
+
+    const result = await descriptionGeneratorService.generateDescriptions(sampleListing);
+    expect(result.formal.replace(/\s+/g, ' ').trim().length).toBeGreaterThan(400);
+    expect(result.formal).toContain('Ngamprah Bandung Barat');
+    expect(result.formal).toContain('Rp975 Juta');
+    expect(result.casual_1.length).toBeGreaterThan(200);
+  });
+
+  it('rejects a long stub-shaped LLM formal that still skips Problem and CTA', async () => {
+    const llmClient = await import('../utils/llmClient');
+    vi.spyOn(llmClient.default, 'generateJSON').mockResolvedValueOnce({
+      formal: `Rumah di Setiabudi Regency – Rp5,5 Miliar
+
+Rumah Kokoh dan Luas di Setiabudi Regency Bandung. Hunian nyaman di lokasi strategis Setiabudi Regency.
+
+Spesifikasi: 6 KT, 4 KM, LT 300 m², LB 800 m², lebar muka 10 m, listrik 3500 watt, air PDAM, SHM
+
+Pembayaran: CASH DAN KPR. Survey: JANJIAN SATU HARI SEBELUMNYA.
+
+Catatan: Akses lokasi: 2 MOBIL. Unit readystock, 2 lantai, carport 2 mobil, rooftop, dapur, ruang keluarga.`,
+      casual_1: `Lagi cari rumah di Bandung?
+
+Mencari rumah luas di Setiabudi memang butuh waktu. Banyak unit terlihat bagus di foto tapi datanya kurang.
+
+Solusinya Rumah Kokoh Setiabudi.
+
+Spesifikasi: 6 KT, 4 KM
+Survey: janjian. Hubungi kami sekarang.`,
+      casual_2: 'Rumah Bandung Rp5,5 Miliar. Hubungi kami.',
+    });
+
+    const result = await descriptionGeneratorService.generateDescriptions(sampleListing);
+    expect(result.formal).not.toMatch(/Hunian nyaman di lokasi strategis/);
+    expect(result.formal).toMatch(/Masih mencari|Lagi cari/i);
+    const beforeSpecs = result.formal.split(/Spesifikasi:/i)[0];
+    const prose = beforeSpecs.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    expect(prose.length).toBeGreaterThanOrEqual(4);
+    expect(result.formal).toMatch(/hubungi kami/i);
+  });
+
+  it('builds a full Formal for Rumah Kokoh Setiabudi with specs, selling points, and CTA', async () => {
+    const setiabudi: Listing = {
+      ...sampleListing,
+      id: '4bb83d6a-e789-414a-8f71-7fa3c2b9cea4',
+      title: 'Rumah Kokoh dan Luas di Setiabudi Regency Bandung',
+      location: 'Setiabudi Regency',
+      price: 5500000000,
+      bedrooms: 6,
+      bathrooms: 4,
+      land_area: 300,
+      building_area: 800,
+      additional_info: `Harga: Rp5.500.000.000
+Detail:
+Luas Tanah: 300.00 m²
+Luas Bangunan: 800.00 m²
+Kamar Tidur: 6
+Kamar Mandi: 4
+Deskripsi:
+Rumah Kokoh dan Luas di Setiabudi Regency Bandung
+Spesifikasi:
+- luas tanah 300 m2
+- luas bangunan 800 m2
+- garasi muat 2 mobil
+- carport muat 2 mobil
+- lebar muka 13 meter
+CARA BAYAR : CASH DAN KPR
+AKSES LOKASI : 2 MOBIL
+SURVEY : JANJIAN SATU HARI SEBELUMNYA
+
+Selling Point & Keunggulan:
+• Lingkungan Asri dan Sejuk
+	• Berada di dataran tinggi Bandung Utara dengan udara yang sangat dingin, segar, dan bebas polusi.
+• Pemandangan Indah (City View)
+	• Terkenal memiliki panorama city view dan city light terbaik yang menghadap ke lanskap Kota Bandung dari ketinggian.
+• Aksesibilitas Strategis ke Pusat Edukasi & Wisata
+	• Dekat dengan kampus-kampus ternama (seperti UPI ±7 menit).
+	• Akses cepat ke kawasan wisata populer di Lembang (seperti Farmhouse, Floating Market, dan Dusun Bambu).
+Lokasi: Setiabudi Regency`,
+    };
+
+    const llmClient = await import('../utils/llmClient');
+    vi.spyOn(llmClient.default, 'generateJSON').mockResolvedValueOnce({
+      formal: `Rumah di Setiabudi Regency – Rp5,5 Miliar
+
+Rumah Kokoh dan Luas di Setiabudi Regency Bandung. Hunian nyaman di lokasi strategis Setiabudi Regency.
+
+Spesifikasi: 6 KT, 4 KM, LT 300 m², LB 800 m²
+
+Pembayaran: CASH DAN KPR. Survey: JANJIAN SATU HARI SEBELUMNYA.
+
+Catatan: Akses lokasi: 2 MOBIL`,
+      casual_1: 'Lagi cari rumah di Bandung? Hubungi kami.',
+      casual_2: 'Rumah Bandung Rp5,5 Miliar',
+    });
+
+    const result = await descriptionGeneratorService.generateDescriptions(setiabudi);
+    const formal = result.formal;
+
+    expect(formal).not.toMatch(/Hunian nyaman di lokasi strategis/);
+    expect(formal).toMatch(/Masih mencari|Lagi cari/i);
+    expect(formal).toMatch(/6 KT/);
+    expect(formal).toMatch(/4 KM/);
+    expect(formal).toMatch(/LT 300/);
+    expect(formal).toMatch(/LB 800/);
+    expect(formal).toMatch(/lebar muka 13/i);
+    expect(formal).toMatch(/garasi muat 2 mobil/i);
+    expect(formal).toMatch(/carport muat 2 mobil/i);
+    expect(formal).toMatch(/UPI/i);
+    expect(formal).toMatch(/Lembang/i);
+    expect(formal).toMatch(/hubungi kami/i);
+    expect(formal.split(/\n\s*\n/).length).toBeGreaterThanOrEqual(4);
+    const beforeSpecs = formal.split(/Spesifikasi:/i)[0];
+    const prose = beforeSpecs.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    expect(prose.length).toBeGreaterThanOrEqual(4);
   });
 });
