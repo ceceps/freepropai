@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   X, MapPin, ExternalLink, Phone, User, Bed, Bath, Car, Maximize, FileText, Tag,
   Sparkles, Loader2, CheckCircle, Download, Home, AlertCircle,
@@ -86,7 +87,6 @@ export default function ScrapedListingDetail({ listingId, onClose, onImported }:
   };
 
   const directSourceUrl = detail ? getDirectSourceUrl(detail) : '';
-  const importedDetailUrl = detail?.importedListingId ? `/listings/${detail.importedListingId}` : '/listings';
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex justify-end" onClick={onClose}>
@@ -171,15 +171,15 @@ export default function ScrapedListingDetail({ listingId, onClose, onImported }:
                     </p>
                   </div>
                 </div>
-                {detail.imported ? (
-                  <a
-                    href={importedDetailUrl}
+                {detail.imported && detail.importedListingId ? (
+                  <Link
+                    to={`/listings/${detail.importedListingId}`}
                     className="btn btn-secondary btn-sm flex items-center gap-1.5 whitespace-nowrap flex-shrink-0"
                   >
                     <Home className="w-3.5 h-3.5" />
                     <span>View</span>
-                  </a>
-                ) : (
+                  </Link>
+                ) : !detail.imported ? (
                   <button
                     onClick={async () => {
                       setImportLoading(true);
@@ -220,7 +220,7 @@ export default function ScrapedListingDetail({ listingId, onClose, onImported }:
                       </>
                     )}
                   </button>
-                )}
+                ) : null}
               </div>
 
               {importMsg && (
@@ -238,12 +238,12 @@ export default function ScrapedListingDetail({ listingId, onClose, onImported }:
                   )}
                   <span className="flex-1">{importMsg.text}</span>
                   {importMsg.mainListingId && (
-                    <a
-                      href={`/listings/${importMsg.mainListingId}`}
+                    <Link
+                      to={`/listings/${importMsg.mainListingId}`}
                       className="flex items-center gap-1 font-semibold underline whitespace-nowrap hover:opacity-80"
                     >
                       <Home className="w-3 h-3" /> View
-                    </a>
+                    </Link>
                   )}
                 </div>
               )}
