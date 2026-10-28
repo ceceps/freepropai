@@ -14,6 +14,7 @@ import type {
   VOLanguage,
   VOAgeRange,
   VoiceOverConfig,
+  HookStyle,
   StoryboardPlannerResult,
   StoryboardSheetOutput,
   StoryboardSceneOutput,
@@ -65,6 +66,13 @@ const AGE_RANGE_OPTIONS: { value: VOAgeRange; label: string }[] = [
   { value: 'senior', label: 'Senior (> 50 thn)' },
 ];
 
+const HOOK_OPTIONS: { value: HookStyle; label: string }[] = [
+  { value: 'auto', label: 'Acak (Marketing 2.0 / 3.0 / 4.0)' },
+  { value: 'marketing2', label: 'Marketing 2.0 — Benefit & Solusi' },
+  { value: 'marketing3', label: 'Marketing 3.0 — Emosi & Nilai' },
+  { value: 'marketing4', label: 'Marketing 4.0 — Sosial & Digital' },
+];
+
 type VOOption = 'tanpa' | 'custom';
 
 type OutputFormat = 'prompt' | 'json' | 'storyboard';
@@ -77,6 +85,7 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
   const [voGender, setVoGender] = useState<VOGender>('wanita');
   const [voLanguage, setVoLanguage] = useState<VOLanguage>('indonesia');
   const [voAgeRange, setVoAgeRange] = useState<VOAgeRange>('dewasa');
+  const [hookStyle, setHookStyle] = useState<HookStyle>('auto');
   const [customInstructions, setCustomInstructions] = useState('');
   const [modelRefAvailable, setModelRefAvailable] = useState(false);
   
@@ -107,6 +116,7 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
   const includeVoiceOver = voPreset === 'custom' || genderRequired;
   const isVeo = model === 'veo';
   const promptLanguageLabel = 'English';
+  const jsonLanguageLabel = includeVoiceOver && voLanguage === 'inggris' ? 'English' : 'Bahasa Indonesia';
 
   const jsonText = useMemo(
     () => (result?.scriptJson ? JSON.stringify(result.scriptJson, null, 2) : ''),
@@ -204,6 +214,7 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
         aspectRatio,
         voiceOver,
         customInstructions: customInstructions.trim() || undefined,
+        hookStyle,
       };
 
       const response = await listingApi.generateVideoScript(listing.id, options);
@@ -267,6 +278,7 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
       setVoPreset('tanpa');
     }
     setCustomInstructions(saved.custom_instructions || '');
+    setHookStyle((saved.script_json?.hook?.style as HookStyle) || 'auto');
 
     setResult({
       listingId: listing.id,
@@ -276,6 +288,7 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
       script: saved.script,
       voiceOverScript: saved.voice_over_script,
       scriptJson: saved.script_json,
+      hook: saved.script_json?.hook as any,
     });
     setActiveSavedScript(saved);
   };
@@ -490,6 +503,25 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
           </div>
         )}
 
+        {/* Scene 1 Hook */}
+        {includeVoiceOver && (
+          <div className="space-y-2 pt-2 border-t border-border">
+            <label htmlFor="video-hook" className="block text-sm font-medium text-text-secondary">Hook Scene 1 (Marketing Angle)</label>
+            <select
+              id="video-hook"
+              value={hookStyle}
+              onChange={(e) => setHookStyle(e.target.value as HookStyle)}
+              disabled={isGenerating}
+              className="w-full"
+            >
+              {HOOK_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-text-tertiary">Narasi Scene 1 dibuka dengan hook sesuai angle marketing terpilih. Pilih "Acak" untuk memilih salah satu secara random.</p>
+          </div>
+        )}
+
         {/* Custom Instructions */}
         <div className="space-y-2">
           <label htmlFor="video-custom-instructions" className="block text-sm font-medium text-text-secondary">
@@ -540,6 +572,19 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
           </div>
         ) : hasResult && result ? (
           <div className="space-y-4">
+            {/* Scene 1 Marketing Hook */}
+            {result.hook && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                    Hook Scene 1 · {result.hook.label}
+                  </span>
+                </div>
+                <p className="text-sm text-amber-900 dark:text-amber-200 italic">"{result.hook.text}"</p>
+              </div>
+            )}
+
             {/* Active Banner if loaded from saved */}
             {activeSavedScript && (
               <div className="flex items-center justify-between p-3 bg-primary-50 dark:bg-primary-950/30 border border-primary-200 dark:border-primary-800 rounded-lg">
@@ -641,7 +686,7 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
                 <div className="flex items-center justify-between">
                   <h5 className="text-xs font-semibold text-text-primary flex items-center gap-2">
                     <Braces className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-                    Multi-Scene JSON <span className="text-text-tertiary font-normal">(structured)</span>
+                    Multi-Scene JSON <span className="text-text-tertiary font-normal">({jsonLanguageLabel})</span>
                   </h5>
                   <button
                     onClick={() => handleCopy(jsonText, 'json')}

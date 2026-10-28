@@ -92,6 +92,13 @@
       "when": 1791200000000,
       "tag": "0012_password_reset_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792992000000,
+      "tag": "0013_listing_geotag",
+      "breakpoints": true
     }
   ]
 }

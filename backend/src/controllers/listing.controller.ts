@@ -6,6 +6,7 @@ import { asyncHandler, AppError } from '../middleware/errorHandler';
 import { validatePhotoUploads } from '../middleware/upload';
 import ListingModel from '../models/Listing';
 import descriptionGenerator from '../services/descriptionGenerator.service';
+import sellingPointGenerator from '../services/sellingPointGenerator.service';
 import videoScriptGenerator from '../services/videoScriptGenerator.service';
 import storyboardPlanner from '../services/storyboardPlanner.service';
 import { getFirstUser } from '../services/auth.service';
@@ -78,6 +79,12 @@ class ListingController {
     }
     if (data.bathrooms && typeof data.bathrooms === 'string') {
       data.bathrooms = parseInt(data.bathrooms);
+    }
+    if (data.latitude !== undefined && data.latitude !== null && data.latitude !== '') {
+      data.latitude = typeof data.latitude === 'string' ? parseFloat(data.latitude) : data.latitude;
+    }
+    if (data.longitude !== undefined && data.longitude !== null && data.longitude !== '') {
+      data.longitude = typeof data.longitude === 'string' ? parseFloat(data.longitude) : data.longitude;
     }
 
     const files = req.files && Array.isArray(req.files) ? req.files : [];
@@ -273,6 +280,12 @@ class ListingController {
     if (data.buildingArea && typeof data.buildingArea === 'string') data.buildingArea = parseFloat(data.buildingArea);
     if (data.bedrooms && typeof data.bedrooms === 'string') data.bedrooms = parseInt(data.bedrooms);
     if (data.bathrooms && typeof data.bathrooms === 'string') data.bathrooms = parseInt(data.bathrooms);
+    if (data.latitude !== undefined && data.latitude !== null && data.latitude !== '') {
+      data.latitude = typeof data.latitude === 'string' ? parseFloat(data.latitude) : data.latitude;
+    }
+    if (data.longitude !== undefined && data.longitude !== null && data.longitude !== '') {
+      data.longitude = typeof data.longitude === 'string' ? parseFloat(data.longitude) : data.longitude;
+    }
 
     const newFiles = req.files && Array.isArray(req.files) ? req.files : [];
 
@@ -335,6 +348,46 @@ class ListingController {
   });
 
   /**
+   * Generate selling points from housing location / geotag
+   * POST /api/listings/generate-selling-points
+   */
+  generateSellingPoints = asyncHandler(async (req: Request, res: Response) => {
+    const location = typeof req.body?.location === 'string' ? req.body.location.trim() : '';
+    if (!location) {
+      throw new AppError('Location is required', 400);
+    }
+
+    const latitude = req.body?.latitude !== undefined && req.body?.latitude !== ''
+      ? parseFloat(req.body.latitude)
+      : undefined;
+    const longitude = req.body?.longitude !== undefined && req.body?.longitude !== ''
+      ? parseFloat(req.body.longitude)
+      : undefined;
+
+    let result;
+    try {
+      result = await sellingPointGenerator.generateSellingPoints({
+        location,
+        latitude: Number.isFinite(latitude as number) ? latitude : undefined,
+        longitude: Number.isFinite(longitude as number) ? longitude : undefined,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to generate selling points';
+      if (/required|not found/i.test(message)) {
+        throw new AppError(message, 400);
+      }
+      throw new AppError(message, 502);
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+    };
+
+    res.json(response);
+  });
+
+  /**
    * Generate descriptions for a listing
    * POST /api/listings/:id/generate-descriptions
    */
@@ -386,7 +439,7 @@ class ListingController {
       throw new AppError('Property must have at least one photo to generate a video script prompt', 400);
     }
 
-    const body = (req.body || {}) as { style?: string; model?: string; aspectRatio?: string; voiceOver?: any; includeVoiceOver?: boolean; customInstructions?: string };
+    const body = (req.body || {}) as { style?: string; model?: string; aspectRatio?: string; voiceOver?: any; includeVoiceOver?: boolean; customInstructions?: string; hookStyle?: string };
     const voiceOver = body.voiceOver || (body.includeVoiceOver ? { enabled: true } : { enabled: false });
     const result = await videoScriptGenerator.generate(listing, {
       style: body.style,
@@ -394,6 +447,7 @@ class ListingController {
       aspectRatio: body.aspectRatio,
       voiceOver,
       customInstructions: body.customInstructions,
+      hookStyle: body.hookStyle as any,
     });
 
     res.json({

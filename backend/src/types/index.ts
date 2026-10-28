@@ -163,6 +163,8 @@ export interface Listing {
   land_area?: number;
   building_area?: number;
   location: string;
+  latitude?: number;
+  longitude?: number;
   price: number;
   bedrooms?: number;
   bathrooms?: number;
@@ -227,6 +229,8 @@ export interface CreateListingRequest {
   bathrooms?: number;
   propertyType?: string;
   additionalInfo?: string;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   featuredPhotoId?: string;
   featuredPhotoIndex?: number;
   userId?: string;

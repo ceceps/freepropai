@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Copy, Check, Sparkles, RefreshCw } from 'lucide-react';
 import type { ListingDescription } from '../../types';
+import MarkdownRenderer from '../common/MarkdownRenderer';
 
 interface DescriptionVariantsProps {
   descriptions: ListingDescription[];
@@ -79,7 +80,7 @@ export default function DescriptionVariants({
     );
   }
 
-  const TAB_ORDER = ['formal', 'casual_1', 'casual_2'];
+  const TAB_ORDER = ['formal', 'pas', 'short'];
   const tabs = TAB_ORDER.filter(type => descriptions.some(d => d.variant_type === type));
   const activeDesc = descriptions.find(d => d.variant_type === activeTab) || descriptions[0];
   const activeInfo = getVariantLabel(activeDesc.variant_type);
@@ -148,9 +149,10 @@ export default function DescriptionVariants({
           </div>
         </div>
         <div className="bg-secondary-50 dark:bg-secondary-800 rounded-lg p-4 mb-3">
-          <p className="text-text-primary dark:text-text-primary-dark whitespace-pre-wrap leading-relaxed">
-            {activeDesc.description_text}
-          </p>
+          <MarkdownRenderer
+            content={activeDesc.description_text}
+            className="text-text-primary dark:text-text-primary-dark leading-relaxed"
+          />
         </div>
         {!activeDesc.is_selected && (
           <button

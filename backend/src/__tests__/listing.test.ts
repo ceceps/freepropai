@@ -6,6 +6,7 @@ import { listings, listingPhotos, listingDescriptions, listingVideoPrompts, scra
 import { eq } from 'drizzle-orm';
 import path from 'path';
 import llmClient from '../utils/llmClient';
+import sellingPointGenerator from '../services/sellingPointGenerator.service';
 
 describe('Listing API Endpoints', () => {
   let testListingId: string;
@@ -708,7 +709,7 @@ describe('Listing API Endpoints', () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.script).toBe(mockScript);
+      expect(response.body.data.script).toContain(mockScript);
       expect(response.body.data.listingId).toBe(listingWithPhotosId);
       vi.restoreAllMocks();
     });
@@ -723,7 +724,7 @@ describe('Listing API Endpoints', () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.script).toBe(mockScript);
+      expect(response.body.data.script).toContain(mockScript);
       vi.restoreAllMocks();
     });
 
@@ -780,7 +781,7 @@ describe('Listing API Endpoints', () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.script).toBe(mockScript);
+      expect(response.body.data.script).toContain(mockScript);
       expect(response.body.data.style).toBe('aerial');
       expect(response.body.data.model).toBe('veo');
       expect(response.body.data.voiceOver).toMatchObject({
@@ -822,7 +823,7 @@ describe('Listing API Endpoints', () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.script).toBe(mockScript);
+      expect(response.body.data.script).toContain(mockScript);
       expect(response.body.data.voiceOverScript).toBe(mockVoiceOver);
       expect(response.body.data.voiceOver.language).toBe('indonesia');
       expect(llmClient.generateCompletion).toHaveBeenCalledTimes(2);
@@ -1096,6 +1097,37 @@ describe('Listing API Endpoints', () => {
         .expect(404);
 
       expect(response.body.success).toBe(false);
+    });
+  });
+
+  describe('POST /api/listings/generate-selling-points', () => {
+    it('returns 400 when location is missing', async () => {
+      const response = await request(app)
+        .post('/api/listings/generate-selling-points')
+        .send({})
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+    });
+
+    it('returns selling points from housing location', async () => {
+      vi.spyOn(sellingPointGenerator, 'generateSellingPoints').mockResolvedValue({
+        coordinates: { latitude: -6.8625, longitude: 107.5964 },
+        places: [
+          { name: 'UPI Bandung', category: 'university', distanceMeters: 2800 },
+        ],
+        sellingPoints: 'Selling Point & Keunggulan:\n• UPI Bandung (kampus) ±7 menit',
+      });
+
+      const response = await request(app)
+        .post('/api/listings/generate-selling-points')
+        .send({ location: 'Setiabudi Regency Bandung' })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.sellingPoints).toContain('Selling Point');
+      expect(response.body.data.coordinates.latitude).toBe(-6.8625);
+      expect(response.body.data.places[0].name).toBe('UPI Bandung');
     });
   });
 });

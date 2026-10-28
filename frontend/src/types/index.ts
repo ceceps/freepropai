@@ -48,6 +48,8 @@ export interface Listing {
   land_area?: number;
   building_area?: number;
   location: string;
+  latitude?: number;
+  longitude?: number;
   price: number;
   bedrooms?: number;
   bathrooms?: number;
@@ -100,12 +102,22 @@ export interface VoiceOverConfig {
   ageRange?: VOAgeRange;
 }
 
+export type MarketingAngle = 'marketing2' | 'marketing3' | 'marketing4';
+export type HookStyle = 'auto' | MarketingAngle;
+
+export interface MarketingHook {
+  style: MarketingAngle;
+  label: string;
+  text: string;
+}
+
 export interface VideoScriptOptions {
   style?: VideoStyle;
   model?: VideoModel;
   aspectRatio?: AspectRatio;
   voiceOver?: VoiceOverConfig;
   customInstructions?: string;
+  hookStyle?: HookStyle;
 }
 
 export interface VideoOnScreenText {
@@ -160,6 +172,11 @@ export interface VideoScriptJson {
     reference_identity: string;
     voice_over: string;
   };
+  hook?: {
+    style: string;
+    label: string;
+    text: string;
+  };
   scenes: VideoScriptScene[];
 }
 
@@ -188,6 +205,7 @@ export interface VideoScriptResult {
   model: VideoModel;
   aspectRatio: AspectRatio;
   voiceOver?: VoiceOverConfig;
+  hook?: MarketingHook;
   script: string;
   voiceOverScript: string | null;
   scriptJson: VideoScriptJson;
@@ -260,6 +278,8 @@ export interface CreateListingData {
   bathrooms?: number;
   propertyType?: string;
   additionalInfo?: string;
+  latitude?: number;
+  longitude?: number;
   featuredPhotoId?: string;
   featuredPhotoIndex?: number;
 }

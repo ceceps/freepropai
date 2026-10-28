@@ -71,6 +71,37 @@ describe('VideoScriptGenerator — Omni Flash JSON', () => {
     expect(scene.negative).toMatch(/Do not alter the model, objects, or faces/);
   });
 
+  it('forbids changing house design, interior, environment, and the model face in prompt and JSON', async () => {
+    generateCompletion.mockResolvedValue('[Visual: Exterior shot.]\nVO: Selamat datang.');
+
+    const res = await videoScriptGenerator.generate(listing, {
+      style: 'cinematic',
+      model: 'veo',
+      voiceOver: { enabled: true, gender: 'wanita', language: 'indonesia', ageRange: 'dewasa' },
+    });
+
+    const lock = /house design|interior|environment|model'?s? face/i;
+    expect(res.scriptJson.constraints.reference_identity).toMatch(lock);
+    expect(res.scriptJson.constraints.reference_identity).toMatch(/Do not change the house design, interior, environment, or the model's face/i);
+
+    for (const scene of res.scriptJson.scenes) {
+      expect(scene.preservation).toMatch(/house design/i);
+      expect(scene.preservation).toMatch(/interior/i);
+      expect(scene.preservation).toMatch(/environment/i);
+      expect(scene.preservation).toMatch(/model'?s? face/i);
+      expect(scene.negative).toMatch(/house design/i);
+      expect(scene.negative).toMatch(/interior/i);
+      expect(scene.negative).toMatch(/environment/i);
+      expect(scene.negative).toMatch(/model'?s? face/i);
+      expect(scene.prompt).toMatch(/Do not change the house design, interior, environment, or the model's face/i);
+    }
+
+    const [systemPrompt, userPrompt] = generateCompletion.mock.calls[0];
+    expect(systemPrompt).toMatch(/Do not change the house design, interior, environment, or the model's face/i);
+    expect(userPrompt).toMatch(/Do not change the house design, interior, environment, or the model's face/i);
+    expect(res.script).toMatch(/Do not change the house design, interior, environment, or the model's face/i);
+  });
+
   it('forces voice over with a gender for the Talking Head style', async () => {
     generateCompletion.mockResolvedValue('');
 
@@ -121,6 +152,39 @@ describe('VideoScriptGenerator — Omni Flash JSON', () => {
     expect(res.scriptJson.constraints.voice_over).toMatch(/Bahasa Indonesia|Indonesian/);
     expect(res.script).toMatch(/\[Visual:/);
     expect(res.script).not.toMatch(/Drone turun perlahan/);
+
+    const overlays = res.scriptJson.scenes
+      .map((s) => s.text_rendering?.content)
+      .filter((text): text is string => Boolean(text));
+    expect(overlays.join(' ')).toMatch(/LOKASI:/);
+    expect(overlays.join(' ')).toMatch(/KAMAR TIDUR/);
+    expect(overlays.join(' ')).toMatch(/KAMAR MANDI/);
+    expect(overlays.join(' ')).toMatch(/HUBUNGI AGEN/);
+    expect(overlays.join(' ')).not.toMatch(/LOCATION:/);
+    expect(overlays.join(' ')).not.toMatch(/BEDROOMS/);
+    expect(overlays.join(' ')).not.toMatch(/BATHROOMS/);
+    expect(overlays.join(' ')).not.toMatch(/CONTACT THE AGENT/);
+  });
+
+  it('keeps English on-screen JSON overlays when spoken language is English', async () => {
+    generateCompletion.mockResolvedValue('');
+
+    const res = await videoScriptGenerator.generate(listing, {
+      style: 'cinematic',
+      model: 'veo',
+      voiceOver: { enabled: true, gender: 'wanita', language: 'inggris', ageRange: 'dewasa' },
+    });
+
+    const overlays = res.scriptJson.scenes
+      .map((s) => s.text_rendering?.content)
+      .filter((text): text is string => Boolean(text));
+    expect(overlays.join(' ')).toMatch(/LOCATION:/);
+    expect(overlays.join(' ')).toMatch(/BEDROOMS/);
+    expect(overlays.join(' ')).toMatch(/BATHROOMS/);
+    expect(overlays.join(' ')).toMatch(/CONTACT THE AGENT/);
+    expect(overlays.join(' ')).not.toMatch(/LOKASI:/);
+    expect(overlays.join(' ')).not.toMatch(/KAMAR TIDUR/);
+    expect(overlays.join(' ')).not.toMatch(/HUBUNGI AGEN/);
   });
 
   it('writes English visual instructions and Indonesian spoken lines in the Veo LLM prompt', async () => {
@@ -155,5 +219,72 @@ describe('VideoScriptGenerator — Omni Flash JSON', () => {
 
     expect(res.scriptJson.settings.video_style).toBe('UGC');
     expect(res.scriptJson.scenes[0].prompt.toLowerCase()).toContain('selfie');
+  });
+
+  describe('scene 1 marketing hook', () => {
+    it('randomly picks one marketing angle and opens scene 1 VO with its hook', async () => {
+      generateCompletion.mockResolvedValue('');
+      vi.spyOn(Math, 'random').mockReturnValue(0.9); // -> marketing4
+
+      const res = await videoScriptGenerator.generate(listing, {
+        style: 'cinematic',
+        model: 'veo',
+        voiceOver: { enabled: true, gender: 'wanita', language: 'indonesia', ageRange: 'dewasa' },
+      });
+
+      expect(res.hook?.style).toBe('marketing4');
+      expect(res.hook?.label).toMatch(/Marketing 4\.0/);
+      expect(res.hook?.text.length).toBeGreaterThan(0);
+      expect(res.scriptJson.hook?.style).toBe('marketing4');
+
+      const spoken = res.scriptJson.scenes[0].audio.dialogue?.text || '';
+      expect(spoken.startsWith(res.hook!.text)).toBe(true);
+      expect(res.voiceOverScript).toContain(res.hook!.text);
+    });
+
+    it('honours an explicit marketing angle instead of randomising', async () => {
+      generateCompletion.mockResolvedValue('');
+      vi.spyOn(Math, 'random').mockReturnValue(0.9); // would pick marketing4 if random were used
+
+      const res = await videoScriptGenerator.generate(listing, {
+        style: 'cinematic',
+        model: 'veo',
+        voiceOver: { enabled: true, gender: 'pria', language: 'indonesia', ageRange: 'dewasa' },
+        hookStyle: 'marketing2',
+      });
+
+      expect(res.hook?.style).toBe('marketing2');
+      expect(res.hook?.label).toMatch(/Marketing 2\.0/);
+      expect(res.scriptJson.scenes[0].audio.dialogue?.text.startsWith(res.hook!.text)).toBe(true);
+    });
+
+    it('writes an English hook when the voice over language is English', async () => {
+      generateCompletion.mockResolvedValue('');
+      vi.spyOn(Math, 'random').mockReturnValue(0); // -> marketing2
+
+      const res = await videoScriptGenerator.generate(listing, {
+        style: 'cinematic',
+        model: 'veo',
+        voiceOver: { enabled: true, gender: 'wanita', language: 'inggris', ageRange: 'dewasa' },
+      });
+
+      expect(res.hook?.text).not.toMatch(/[Mm]asih/);
+      expect(res.hook?.text).toMatch(/earch|home|Trending/i);
+    });
+
+    it('tells the LLM to open scene 1 with the chosen hook', async () => {
+      generateCompletion.mockResolvedValue('[Visual: Exterior shot.]\nVO: Placeholder.');
+
+      await videoScriptGenerator.generate(listing, {
+        style: 'cinematic',
+        model: 'veo',
+        voiceOver: { enabled: true, gender: 'wanita', language: 'indonesia', ageRange: 'dewasa' },
+        hookStyle: 'marketing3',
+      });
+
+      const [voSystemPrompt] = generateCompletion.mock.calls[1];
+      expect(voSystemPrompt).toMatch(/Marketing 3\.0/);
+      expect(voSystemPrompt).toMatch(/Scene 1/);
+    });
   });
 });
