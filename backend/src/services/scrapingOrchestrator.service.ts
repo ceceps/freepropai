@@ -12,6 +12,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { notificationService } from './notification.service';
 import { qualifiesForAutoImport } from './scrapeImportGate';
 import { convertToAvifOrKeep } from '../utils/image';
+import { findListingBySourceIdentity } from '../utils/listingIdentity';
+import { extractListingUuid } from '../utils/listingUuid';
 
 interface CreateJobOptions {
   sourceUrl: string;
@@ -617,13 +619,8 @@ export class ScrapingOrchestratorService {
   }
 
   private async findListingBySourceUrl(sourceUrl: string | null): Promise<{ id: string } | null> {
-    if (!sourceUrl) return null;
-    const [existing] = await db
-      .select({ id: listings.id })
-      .from(listings)
-      .where(eq(listings.sourceUrl, sourceUrl))
-      .limit(1);
-    return existing ?? null;
+    const existing = await findListingBySourceIdentity(sourceUrl);
+    return existing ? { id: existing.id } : null;
   }
 
   /**
@@ -692,6 +689,11 @@ export class ScrapingOrchestratorService {
     for (const row of imported) {
       const id = this.idFromUrl(row.sourceUrl);
       if (id) ids.add(id);
+      const uid = extractListingUuid(row.sourceUrl);
+      if (uid) {
+        ids.add(uid);
+        ids.add(uid.replace(/-/g, ''));
+      }
     }
 
     return ids;
@@ -724,6 +726,7 @@ export class ScrapingOrchestratorService {
 
     const knownIds = new Set<string>();
     const knownUrls = new Set<string>();
+    const knownUuids = new Set<string>();
 
     if (ids.length > 0) {
       const rows = await db
@@ -743,7 +746,27 @@ export class ScrapingOrchestratorService {
         .select({ sourceUrl: listings.sourceUrl })
         .from(listings)
         .where(inArray(listings.sourceUrl, urls));
-      imported.forEach(r => r.sourceUrl && knownUrls.add(r.sourceUrl));
+      imported.forEach((r) => {
+        if (r.sourceUrl) {
+          knownUrls.add(r.sourceUrl);
+          const uid = extractListingUuid(r.sourceUrl);
+          if (uid) knownUuids.add(uid);
+        }
+      });
+    }
+
+    const incomingUuids = [
+      ...urls.map((url) => extractListingUuid(url)),
+      ...ids.map((id) => extractListingUuid(id) || extractListingUuid(`/${id}`)),
+    ].filter((uid): uid is string => Boolean(uid));
+    if (incomingUuids.length > 0) {
+      const uuidRows = await db
+        .select({ sourceUrl: listings.sourceUrl })
+        .from(listings);
+      for (const row of uuidRows) {
+        const uid = extractListingUuid(row.sourceUrl);
+        if (uid && incomingUuids.includes(uid)) knownUuids.add(uid);
+      }
     }
 
     const seenInBatch = new Set<string>();
@@ -753,8 +776,15 @@ export class ScrapingOrchestratorService {
     for (const item of scrapedData) {
       const id = item.sourceId || '';
       const url = item.listingUrl || '';
-      const dupInBatch = (id && seenInBatch.has(`id:${id}`)) || (url && seenInBatch.has(`url:${url}`));
-      const dupInDb = (id && knownIds.has(id)) || (url && knownUrls.has(url));
+      const uid = extractListingUuid(url) || extractListingUuid(id) || '';
+      const dupInBatch =
+        (id && seenInBatch.has(`id:${id}`)) ||
+        (url && seenInBatch.has(`url:${url}`)) ||
+        (uid && seenInBatch.has(`uid:${uid}`));
+      const dupInDb =
+        (id && knownIds.has(id)) ||
+        (url && knownUrls.has(url)) ||
+        (uid && knownUuids.has(uid));
 
       if (dupInBatch || dupInDb) {
         skipped++;
@@ -763,6 +793,7 @@ export class ScrapingOrchestratorService {
 
       if (id) seenInBatch.add(`id:${id}`);
       if (url) seenInBatch.add(`url:${url}`);
+      if (uid) seenInBatch.add(`uid:${uid}`);
       fresh.push(item);
     }
 

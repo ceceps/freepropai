@@ -143,6 +143,24 @@ describe('ScrapingOrchestratorService — skip listings already in DB', () => {
     expect(ids.has('ACNOTHING')).toBe(false);
   });
 
+  it('drops a row whose listing UUID already exists from another source', async () => {
+    const uid = 'acb80f20-1564-482b-9df0-209dead97798';
+    await db.insert(listings).values({
+      sourceUrl: `https://www.acehome.co.id/project/detail/${uid}`,
+      title: 'Rumah Siap Huni Murah Sayap Gegerkalong Bandung',
+      location: 'Bandung',
+      price: '1200000000',
+    } as any);
+
+    const { fresh, skipped } = await call<{ fresh: any[]; skipped: number }>(
+      'filterExisting',
+      [row(uid.replace(/-/g, ''), `https://prolov.id/find/project/${uid.replace(/-/g, '')}`)]
+    );
+
+    expect(fresh).toHaveLength(0);
+    expect(skipped).toBe(1);
+  });
+
   it('auto-imports qualifying pending rows and skips sold or incomplete ones', async () => {
     vi.spyOn(axios, 'get').mockRejectedValue(new Error('skip image download in tests'));
     const job = await makeJob();

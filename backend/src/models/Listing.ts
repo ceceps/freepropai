@@ -497,7 +497,9 @@ export class ListingModel {
     return {
       id: data.id,
       listing_id: data.listingId,
-      photo_url: data.photoUrl,
+      photo_url: data.photoUrl && !data.photoUrl.startsWith('http') && !data.photoUrl.startsWith('/')
+        ? `/${data.photoUrl}`
+        : data.photoUrl,
       photo_order: data.photoOrder,
       is_featured: data.isFeatured ?? data.is_featured ?? false,
       uploaded_at: data.uploadedAt,

@@ -96,6 +96,7 @@ app.get('*', (req, res, next) => {
     req.path.startsWith('/api') ||
     req.path.startsWith('/uploads') ||
     req.path.startsWith('/posters') ||
+    req.path.startsWith('/assets') ||
     req.path.startsWith('/health')
   ) {
     return next();
