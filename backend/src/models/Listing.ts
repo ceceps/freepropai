@@ -272,7 +272,7 @@ export class ListingModel {
   // Add description to listing
   async addDescription(
     listingId: string,
-    variantType: 'formal' | 'casual_1' | 'casual_2',
+    variantType: 'formal' | 'pas' | 'short',
     text: string
   ): Promise<ListingDescription> {
     const [description] = await db.insert(listingDescriptions).values({

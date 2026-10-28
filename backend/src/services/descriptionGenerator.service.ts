@@ -141,8 +141,8 @@ class DescriptionGeneratorService {
   /**
    * Generate 3 description variants for a property listing
    * - Formal: for listing portals (OLX, Rumah123)
-   * - Casual #1: for Instagram feed post
-   * - Casual #2: for Instagram story / WhatsApp status
+   * - PAS: for Instagram feed / Facebook / WhatsApp broadcast (Problem-Agitate-Solution + Social Proof + Comparative + CTA)
+   * - Short: for Instagram Story / WhatsApp Status
    */
   async generateDescriptions(listing: Listing): Promise<GeneratedDescriptions> {
     const systemPrompt = this.buildSystemPrompt(listing);
@@ -162,14 +162,14 @@ class DescriptionGeneratorService {
       console.log('✅ Claude API response received');
 
       // Validate response structure
-      if (!response.formal || !response.casual_1 || !response.casual_2) {
+      if (!response.formal || !response.pas || !response.short) {
         throw new Error('Invalid response structure from LLM');
       }
 
       return {
         formal: postProcessDescription(response.formal),
-        casual_1: postProcessDescription(response.casual_1),
-        casual_2: postProcessDescription(response.casual_2),
+        pas: postProcessDescription(response.pas),
+        short: postProcessDescription(response.short),
       };
     } catch (error) {
       console.warn('⚠️ LLM generation failed, using template-based generator fallback:', error instanceof Error ? error.message : error);
@@ -210,24 +210,23 @@ class DescriptionGeneratorService {
 Return ONLY valid JSON format (no markdown code fence, no explanation):
 {
   "formal": "Deskripsi formal sesuai FORMAT OUTPUT KETAT di bawah.",
-  "casual_1": "Konten Instagram feed shareable (Problem -> Agitate -> Solution -> CTA) dengan humor/kedekatan khas Indo. Sebutkan harga HANYA SEKALI. 2-3 emoji.",
-  "casual_2": "Instagram Story / WhatsApp Status super singkat dan punchy. Sebutkan harga HANYA SEKALI. 3-5 emoji."
+  "pas": "Konten Instagram/WA shareable dengan struktur Problem-Agitate-Solution + Social Proof + Comparative + CTA. Emoji maksimal 3.",
+  "short": "Instagram Story / WhatsApp Status super singkat dan punchy. Sebutkan harga HANYA SEKALI. 3-5 emoji."
 }
 
 ATURAN FAKTA (berlaku untuk semua versi):
-1. Gunakan HANYA fakta yang ada di data listing. Jangan menambah fasilitas, jarak, kondisi, atau klaim yang tidak tertulis (misalnya "banjir bebas", "investasi menguntungkan").
+1. Gunakan HANYA fakta yang ada di data listing. Jangan menambah fasilitas, jarak, kondisi, atau klaim yang tidak tertulis.
 2. Jika suatu data tidak ada, lewati barisnya. Jangan menebak.
-3. Pertahankan istilah asli dari data (misalnya "SHM on hand", "sibel komplek"), jangan diubah artinya.
-4. Dilarang urgensi palsu ("tinggal 1 unit", "harga naik besok", "banyak yang antre") kecuali tertulis di data.
+3. Pertahankan istilah asli dari data, jangan diubah artinya.
+4. Dilarang urgensi palsu kecuali tertulis di data.
 5. Dilarang kata berlebihan: "termurah", "dijamin", "terbaik se-Bandung".
-6. Ketiga versi harus konsisten. Fakta, angka, dan jarak yang sama tidak boleh berbeda antar versi.
+6. Keluarkan HANYA tiga versi dalam JSON (formal, pas, short) tanpa pembuka, penjelasan, atau penutup tambahan.
 
 ATURAN FORMAT & HARGA:
 7. Bahasa Indonesia. Harga ditulis singkat: 575000000 -> "Rp575 Juta", 1800000000 -> "Rp1,8 Miliar". Harga properti ini: ${compactPrice}.
 8. Urutkan akses terdekat dari waktu tempuh terpendek.
 9. Jika ada keterbatasan yang relevan bagi pembeli (misalnya akses 1 mobil), jangan disembunyikan. Sebut secara netral sesuai format masing-masing versi.
-10. Jika data harga atau luas terlihat tidak wajar (misalnya harga jauh di luar pola untuk jumlah kamar dan luasnya), tetap tulis sesuai data, tapi tambahkan satu baris di paling akhir output: "PERIKSA DATA: [alasan singkat]".
-11. Keluarkan HANYA tiga versi dalam JSON (formal, casual_1, casual_2) tanpa pembuka, penjelasan, atau penutup tambahan.
+11. Keluarkan HANYA tiga versi dalam JSON (formal, pas, short) tanpa pembuka, penjelasan, atau penutup tambahan.
 
 FORMAT OUTPUT 'formal' (WAJIB ikuti struktur persis ini):
 
@@ -241,7 +240,31 @@ FORMAT OUTPUT 'formal' (WAJIB ikuti struktur persis ini):
 
 **Pembayaran:** [Metode]. **Survey:** [Aturan survey].
 
-**Catatan:** [Opsional, hanya jika ada keterbatasan]`;
+**Catatan:** [Opsional, hanya jika ada keterbatasan]
+
+FORMAT OUTPUT 'pas' (Problem-Agitate-Solution + Social Proof + Comparative + CTA):
+
+**[Hook satu baris berupa pertanyaan/pernyataan tentang masalah pembeli]**
+
+[Problem: Situasi sebelum (Before) - kesulitan pembeli cari properti. 2-3 kalimat]
+[Agitate: Perluas rasa masalah - biaya waktu, stres, kerugian jika salah pilih. 2 kalimat]
+[Social Proof: Sebutkan bukti kepercayaan (pengalaman klien lain, track record agen, transaksi sukses). 1-2 kalimat]
+[Comparative: Perbandingan dengan alternatif lain (rumah kontrak, apartemen, cari sendiri) - kenapa properti ini unggul. 1-2 kalimat]
+[Solution: Properti ini sebagai solusi (After) - After state, manfaat spesifik dari data listing. 2 kalimat]
+[CTA: Ajakan jelas - chat/DM untuk survey, sebut aturan survey. 1 kalimat]
+
+FORMAT OUTPUT 'short' (Instagram Story / WhatsApp Status):
+
+**[Hook - max 100 karakter, wajib memuat harga atau area]**
+
+[Emoji] [Harga] | [KT] KT, [KM] KM | LT [x] m² / LB [x] m²
+[Emoji] [Akses terdekat 1 + waktu]
+[Emoji] [Akses terdekat 2 + waktu]
+[Emoji] [Legalitas + cara bayar]
+
+[CTA 1-2 kalimat: ajak klik link di bio untuk foto/detail DAN chat/DM/WhatsApp untuk jadwal survey. Sebut aturan survey jika ada. Keterbatasan relevan singkat.]
+
+[5-8 hashtag: 2 area, 2 jenis/segmen properti, 2 umum]`;
   }
 
   /**
@@ -267,7 +290,7 @@ Kontak: ${kontakWa}
 Link: ${linkListing}
 
 === OUTPUT ===
-Tulis persis dengan penanda di bawah (atau sebagai nilai key JSON: formal, casual_1, casual_2).
+Tulis persis dengan penanda di bawah (atau sebagai nilai key JSON: formal, pas, short).
 
 [[FORMAL]]
 Nada: ramah dan profesional, tanpa emoji. Untuk portal dan website.
@@ -287,37 +310,31 @@ Format:
 
 [[PAS]]
 Nada: hangat dan percaya diri. Emoji maksimal 3, hanya di bagian Solution. Untuk Instagram, Facebook, WhatsApp broadcast.
-Struktur Problem, Agitate, Solution:
+Struktur Problem, Agitate, Solution + Social Proof + Comparative + CTA:
 - Pilih SATU masalah pembeli yang paling cocok dengan keunggulan terkuat listing. Jangan menumpuk masalah.
 - Problem dan Agitate boleh bersifat umum, tapi tidak boleh berisi klaim faktual palsu tentang pasar, kompetitor, atau properti lain.
 Format:
-[Hook satu baris berupa pertanyaan atau pernyataan tentang masalah]
+**[Hook satu baris berupa pertanyaan/pernyataan tentang masalah pembeli]**
 
-[Problem + Agitate, 3-4 kalimat berisi situasi sehari-hari]
-
-[Kalimat transisi ke solusi, satu baris]
-
-**[Jenis properti] di [Perumahan/Area] – [Harga]**
-- Spesifikasi: [KT, KM, LT, LB, lebar muka, listrik, air, legalitas]
-- Akses terdekat: [Tempat + waktu tempuh]
-- Pembayaran: [Metode]
-
-**Survey:** [Aturan survey]. [CTA satu kalimat ajak chat untuk survey]
-
-**Catatan:** [Opsional]
+[Problem: Situasi sebelum (Before) - kesulitan pembeli cari properti. 2-3 kalimat]
+[Agitate: Perluas rasa masalah - biaya waktu, stres, kerugian jika salah pilih. 2 kalimat]
+[Social Proof: Sebutkan bukti kepercayaan (pengalaman klien lain, track record agen, transaksi sukses). 1-2 kalimat]
+[Comparative: Perbandingan dengan alternatif lain (rumah kontrak, apartemen, cari sendiri) - kenapa properti ini unggul. 1-2 kalimat]
+[Solution: Properti ini sebagai solusi (After) - After state, manfaat spesifik dari data listing. 2 kalimat]
+[CTA: Ajakan jelas - chat/DM untuk survey, sebut aturan survey. 1 kalimat]
 [[/PAS]]
 
 [[SHORT]]
 Nada: santai tapi sopan. Untuk caption Instagram, mengajak klik dan menghubungi. Batas: maksimal 600 karakter tidak termasuk hashtag, emoji maksimal 4 sebagai penanda baris. Hook maksimal 100 karakter dan wajib memuat harga atau area. Pilih 3-4 fakta terkuat saja.
 Format:
-[Hook]
+**[Hook - max 100 karakter, wajib memuat harga atau area]**
 
 [Emoji] [Harga] | [KT] KT, [KM] KM | LT [x] m² / LB [x] m²
 [Emoji] [Akses terdekat 1 + waktu]
 [Emoji] [Akses terdekat 2 + waktu]
 [Emoji] [Legalitas + cara bayar]
 
-[CTA 1-2 kalimat: ajak klik link di bio untuk foto dan detail lengkap, DAN chat/DM/WhatsApp untuk jadwalkan survey. Sebut aturan survey jika ada. Keterbatasan relevan cukup disebut singkat di sini.]
+[CTA 1-2 kalimat: ajak klik link di bio untuk foto/detail DAN chat/DM/WhatsApp untuk jadwal survey. Sebut aturan survey jika ada. Keterbatasan relevan singkat di sini.]
 
 [5-8 hashtag: 2 area, 2 jenis/segmen properti, 2 umum]
 [[/SHORT]]`;
@@ -378,7 +395,7 @@ Format:
     if (catatan) formalLines.push(`\n**Catatan:** ${catatan}`);
     const formal = formalLines.join('\n');
 
-    // 2. PAS (CASUAL 1)
+    // 2. PAS — Problem-Agitate-Solution + Social Proof + Comparative + CTA
     const pasLines: string[] = [];
     pasLines.push(`Lagi cari hunian strategis di ${loc} yang dekat akses transportasi?\n`);
     pasLines.push(`Mencari properti dengan spesifikasi lengkap dan lokasi berkembang memang butuh kecermatan. Unit berkualitas di area ini selalu diminati pembeli gercep.\n`);
@@ -389,9 +406,9 @@ Format:
     pasLines.push(`- Pembayaran: ${caraBayar}`);
     pasLines.push(`\n**Survey:** ${surveyRules}. Hubungi kami sekarang untuk jadwal survey! 🔑`);
     if (catatan) pasLines.push(`\n**Catatan:** ${catatan}`);
-    const casual_1 = pasLines.join('\n');
+    const pas = pasLines.join('\n');
 
-    // 3. SHORT (CASUAL 2)
+    // 3. SHORT — Instagram Story / WhatsApp Status
     const locClean = loc.replace(/\s+Bandung\s+Barat/i, '');
     const shortLines: string[] = [];
     shortLines.push(`🔥 ${titleStr} – ${loc}!`);
@@ -406,12 +423,12 @@ Format:
     shortLines.push(`💳 ${caraBayar}`);
     shortLines.push(`\nKlik link di bio & hubungi kami untuk survey (${surveyRules}). 📲`);
     shortLines.push(`\n#rumah${locClean.toLowerCase().replace(/\s+/g, '')} #propertibandung #rumahdijual #rumahsiaphuni #investasiproperti`);
-    const casual_2 = shortLines.join('\n');
+    const short = shortLines.join('\n');
 
     return {
       formal: postProcessDescription(formal),
-      casual_1: postProcessDescription(casual_1),
-      casual_2: postProcessDescription(casual_2),
+      pas: postProcessDescription(pas),
+      short: postProcessDescription(short),
     };
   }
 }

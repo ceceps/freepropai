@@ -262,8 +262,8 @@ describe('Listing API Endpoints', () => {
         },
         {
           listingId: testListingId,
-          variantType: 'casual_1',
-          descriptionText: 'Casual description 1',
+          variantType: 'pas',
+          descriptionText: 'PAS description',
           isSelected: true,
         },
       ]);
@@ -454,8 +454,8 @@ describe('Listing API Endpoints', () => {
 
       const variantTypes = response.body.data.descriptions.map((d: any) => d.variant_type);
       expect(variantTypes).toContain('formal');
-      expect(variantTypes).toContain('casual_1');
-      expect(variantTypes).toContain('casual_2');
+      expect(variantTypes).toContain('pas');
+      expect(variantTypes).toContain('short');
     }, 30000); // 30 second timeout for LLM call
 
     it('should return 404 for non-existent listing', async () => {
@@ -501,13 +501,13 @@ describe('Listing API Endpoints', () => {
       expect(formal?.description_text).toContain('Pembayaran:');
       expect(formal?.description_text).not.toMatch(/hubungi agen kami/i);
 
-      const casual1 = variants.find(v => v.variant_type === 'casual_1');
-      expect(casual1?.description_text).toContain('BSD City');
-      expect(casual1?.description_text).toMatch(/hubungi kami/i);
+      const pas = variants.find(v => v.variant_type === 'pas');
+      expect(pas?.description_text).toContain('BSD City');
+      expect(pas?.description_text).toMatch(/hubungi kami/i);
 
-      const casual2 = variants.find(v => v.variant_type === 'casual_2');
-      expect(casual2?.description_text).toContain('BSD City');
-      expect(casual2?.description_text).toMatch(/hubungi kami/i);
+      const short = variants.find(v => v.variant_type === 'short');
+      expect(short?.description_text).toContain('BSD City');
+      expect(short?.description_text).toMatch(/hubungi kami/i);
       vi.restoreAllMocks();
     });
   });
@@ -534,8 +534,8 @@ describe('Listing API Endpoints', () => {
 
       await db.insert(listingDescriptions).values({
         listingId: testListingId,
-        variantType: 'casual_1',
-        descriptionText: 'Casual description',
+        variantType: 'pas',
+        descriptionText: 'PAS description',
         isSelected: true,
       });
 

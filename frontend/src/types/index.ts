@@ -73,7 +73,7 @@ export interface ListingPhoto {
 export interface ListingDescription {
   id: string;
   listing_id: string;
-  variant_type: 'formal' | 'casual_1' | 'casual_2';
+  variant_type: 'formal' | 'pas' | 'short';
   description_text: string;
   generated_at: string;
   is_selected: boolean;
