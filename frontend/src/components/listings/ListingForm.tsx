@@ -95,7 +95,7 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
 
     if (totalSize > MAX_TOTAL_SIZE_BYTES) {
       const sizeMB = (totalSize / (1024 * 1024)).toFixed(2);
-      setWarningMessage(`⚠️ Peringatan: Total ukuran file foto yang akan diunggah (${sizeMB} MB) melebihi batas maksimal 5 MB. Harap kurangi ukuran atau jumlah foto.`);
+      setWarningMessage(`Total upload size (${sizeMB} MB) exceeds the 5 MB maximum. Reduce file size or number of photos.`);
       return;
     }
 
@@ -186,7 +186,7 @@ export default function ListingForm({ onSubmit, isLoading = false, initialData, 
     const totalSize = photos.reduce((sum, file) => sum + file.size, 0);
     if (totalSize > MAX_TOTAL_SIZE_BYTES) {
       const sizeMB = (totalSize / (1024 * 1024)).toFixed(2);
-      setWarningMessage(`⚠️ Peringatan: Total ukuran file foto (${sizeMB} MB) melebihi batas maksimal 5 MB.`);
+      setWarningMessage(`Total photo file size (${sizeMB} MB) exceeds the 5 MB maximum.`);
       return;
     }
 

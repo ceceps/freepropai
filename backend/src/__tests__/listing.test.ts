@@ -391,6 +391,25 @@ describe('Listing API Endpoints', () => {
       expect(response.body.data.title).toBe('Scraped listing with many photos');
       expect(response.body.data.photos.length).toBe(12);
     });
+
+    it('should accept additional photos on update when total exceeds 10', async () => {
+      await db.insert(listingPhotos).values(
+        Array.from({ length: 11 }, (_, i) => ({
+          listingId: testListingId,
+          photoUrl: `/uploads/existing-${i}.avif`,
+          photoOrder: i,
+        }))
+      );
+
+      const response = await request(app)
+        .patch(`/api/listings/${testListingId}`)
+        .field('title', 'Listing with extra photo')
+        .attach('photos', Buffer.from('fake-image-extra'), 'extra.jpg')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.photos.length).toBe(12);
+    });
   });
 
   describe('DELETE /api/listings/:id', () => {
@@ -529,21 +548,47 @@ describe('Listing API Endpoints', () => {
         expect(v.description_text.trim().length).toBeGreaterThan(0);
       }
 
+      for (const v of variants) {
+        expect(v.description_text).not.toMatch(/\*\*/);
+      }
+
       const formal = variants.find(v => v.variant_type === 'formal');
       expect(formal?.description_text).toContain('BSD City');
-      // Formal is the portal format (title, spesifikasi, pembayaran/survey) and
-      // carries no CTA by design — the CTA lives in the casual variants.
       expect(formal?.description_text).toContain('Spesifikasi:');
       expect(formal?.description_text).toContain('Pembayaran:');
       expect(formal?.description_text).not.toMatch(/hubungi agen kami/i);
 
       const pas = variants.find(v => v.variant_type === 'pas');
       expect(pas?.description_text).toContain('BSD City');
-      expect(pas?.description_text).toMatch(/hubungi kami/i);
+      expect(pas?.description_text).toMatch(/chat|DM|survey|hubungi/i);
+      expect(pas?.description_text).not.toMatch(/Lagi cari hunian strategis/);
 
       const short = variants.find(v => v.variant_type === 'short');
       expect(short?.description_text).toContain('BSD City');
-      expect(short?.description_text).toMatch(/hubungi kami/i);
+      expect(short?.description_text).toMatch(/chat|DM|survey|hubungi/i);
+      vi.restoreAllMocks();
+    });
+
+    it('returns description variants in Formal, PAS, Short order', async () => {
+      vi.spyOn(llmClient, 'generateJSON').mockRejectedValue(new Error('Forced fallback'));
+
+      const generateResponse = await request(app)
+        .post(`/api/listings/${testListingId}/generate-descriptions`)
+        .expect(201);
+
+      const generatedTypes = generateResponse.body.data.descriptions.map(
+        (d: { variant_type: string }) => d.variant_type
+      );
+      expect(generatedTypes).toEqual(['formal', 'pas', 'short']);
+
+      const detailResponse = await request(app)
+        .get(`/api/listings/${testListingId}`)
+        .expect(200);
+
+      const detailTypes = detailResponse.body.data.descriptions.map(
+        (d: { variant_type: string }) => d.variant_type
+      );
+      expect(detailTypes).toEqual(['formal', 'pas', 'short']);
       vi.restoreAllMocks();
     });
   });

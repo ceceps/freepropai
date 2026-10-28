@@ -79,8 +79,8 @@ export default function DescriptionVariants({
     );
   }
 
-  // Deduplicate tabs to avoid multiple Formal/PAS/Short tabs
-  const tabs = Array.from(new Set(descriptions.map(d => d.variant_type)));
+  const TAB_ORDER = ['formal', 'casual_1', 'casual_2'];
+  const tabs = TAB_ORDER.filter(type => descriptions.some(d => d.variant_type === type));
   const activeDesc = descriptions.find(d => d.variant_type === activeTab) || descriptions[0];
   const activeInfo = getVariantLabel(activeDesc.variant_type);
   const isCopied = copiedId === activeDesc.id;

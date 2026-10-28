@@ -353,12 +353,11 @@ class ListingController {
     // Clear existing descriptions before saving new ones
     await ListingModel.clearDescriptions(id);
 
-    // Save descriptions to database
-    const savedDescriptions = await Promise.all([
-      ListingModel.addDescription(id, 'formal', descriptions.formal),
-      ListingModel.addDescription(id, 'pas', descriptions.pas),
-      ListingModel.addDescription(id, 'short', descriptions.short),
-    ]);
+    const savedDescriptions = [
+      await ListingModel.addDescription(id, 'formal', descriptions.formal),
+      await ListingModel.addDescription(id, 'pas', descriptions.pas),
+      await ListingModel.addDescription(id, 'short', descriptions.short),
+    ];
 
     const response: ApiResponse = {
       success: true,

@@ -27,19 +27,51 @@ describe('DescriptionGeneratorService Unit Tests', () => {
     expect(result).toHaveProperty('pas');
     expect(result).toHaveProperty('short');
 
-    // Check Formal variant rules
     expect(result.formal).toContain('Rumah di Ngamprah Bandung Barat');
     expect(result.formal).toContain('Rp975 Juta');
     expect(result.formal).toContain('Spesifikasi:');
-    expect(result.formal).not.toMatch(/\p{Extended_Pictographic}/u); // No emojis in formal
+    expect(result.formal).not.toMatch(/\p{Extended_Pictographic}/u);
 
-    // Check PAS variant rules
     expect(result.pas).toContain('Ngamprah Bandung Barat');
     expect(result.pas).toContain('Rp975 Juta');
 
-    // Check Short variant rules
     expect(result.short).toContain('Ngamprah Bandung Barat');
     expect(result.short).toContain('Rp975 Juta');
+  });
+
+  it('strips markdown bold markers from all description variants', async () => {
+    const result = await descriptionGeneratorService.generateDescriptions(sampleListing);
+
+    expect(result.formal).not.toMatch(/\*\*/);
+    expect(result.pas).not.toMatch(/\*\*/);
+    expect(result.short).not.toMatch(/\*\*/);
+  });
+
+  it('writes PAS copy in Marketing 2.0-4.0 voice instead of stiff spec dump', async () => {
+    const result = await descriptionGeneratorService.generateDescriptions(sampleListing);
+
+    expect(result.pas).not.toMatch(/^\s*-\s*Spesifikasi:/m);
+    expect(result.pas).not.toMatch(/Lagi cari hunian strategis/);
+    expect(result.pas).toMatch(/kamu|kita|rumah yang|pagi|pulang|keluarga|weekend|cerita|hidup/i);
+  });
+
+  it('writes Short copy in Marketing 2.0-4.0 voice instead of stiff caption template', async () => {
+    const result = await descriptionGeneratorService.generateDescriptions(sampleListing);
+
+    expect(result.short).not.toMatch(/Klik link di bio & hubungi kami untuk survey/i);
+    expect(result.short).toMatch(/kamu|cerita|pulang|pagi|DM|chat|survey/i);
+  });
+
+  it('instructs the LLM to strip markdown and write PAS/Short in Marketing 2.0-4.0 voice', () => {
+    const buildSystemPrompt = (descriptionGeneratorService as any).buildSystemPrompt.bind(descriptionGeneratorService);
+    const buildUserPrompt = (descriptionGeneratorService as any).buildUserPrompt.bind(descriptionGeneratorService);
+    const systemPrompt = buildSystemPrompt(sampleListing);
+    const userPrompt = buildUserPrompt(sampleListing);
+
+    expect(systemPrompt).toMatch(/tanpa markdown|jangan pakai \*\*|plain text/i);
+    expect(systemPrompt + userPrompt).toMatch(/Marketing (2|3|4)\.0/);
+    expect(userPrompt).not.toMatch(/\*\*\[Jenis properti\]/);
+    expect(userPrompt).not.toMatch(/\*\*Spesifikasi:\*\*/);
   });
 
   it('should correctly format compact price for millions and billions', () => {
@@ -76,6 +108,6 @@ describe('DescriptionGeneratorService Unit Tests', () => {
     expect(systemPrompt).toContain("FORMAT OUTPUT 'formal'");
     expect(systemPrompt).toContain("FORMAT OUTPUT 'pas'");
     expect(systemPrompt).toContain("FORMAT OUTPUT 'short'");
-    expect(systemPrompt).toContain('Problem-Agitate-Solution + Social Proof + Comparative + CTA');
+    expect(systemPrompt).toContain('Problem-Agitate-Solution, voice Marketing 3.0/4.0');
   });
 });
