@@ -106,11 +106,7 @@ export default function VideoScriptGenerator({ listing }: VideoScriptGeneratorPr
   const genderRequired = style === 'talking_head';
   const includeVoiceOver = voPreset === 'custom' || genderRequired;
   const isVeo = model === 'veo';
-  const promptLanguageLabel = isVeo
-    ? includeVoiceOver && voLanguage === 'inggris'
-      ? 'English'
-      : 'Bahasa Indonesia'
-    : 'English';
+  const promptLanguageLabel = 'English';
 
   const jsonText = useMemo(
     () => (result?.scriptJson ? JSON.stringify(result.scriptJson, null, 2) : ''),

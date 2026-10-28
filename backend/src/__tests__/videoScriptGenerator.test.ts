@@ -85,11 +85,64 @@ describe('VideoScriptGenerator — Omni Flash JSON', () => {
     expect(res.scriptJson.settings.voice_over.gender).toBe('wanita');
     expect(res.scriptJson.scenes[0].audio.dialogue).not.toBeNull();
     expect(res.scriptJson.scenes[0].audio.dialogue?.speaker).toContain('Female');
-    expect(res.scriptJson.settings.voice_over.language).toBe('English');
+    expect(res.scriptJson.settings.voice_over.language).toBe('Bahasa Indonesia');
     expect(res.scriptJson.constraints.reference_identity).toMatch(/Do not change the model, objects, or faces/);
-    expect(res.scriptJson.constraints.voice_over).toMatch(/English/);
+    expect(res.scriptJson.constraints.voice_over).toMatch(/Bahasa Indonesia/);
     expect(res.scriptJson.scenes[0].preservation).toMatch(/Do not change the model, objects, or faces/);
-    expect(res.scriptJson.scenes[0].audio.dialogue?.text).toMatch(/Welcome to/);
+    expect(res.scriptJson.scenes[0].audio.dialogue?.text).toMatch(/Selamat datang/);
+  });
+
+  it('keeps visual prompts in English and speaks Indonesian VO matching gender and age', async () => {
+    generateCompletion.mockResolvedValue('');
+
+    const res = await videoScriptGenerator.generate(listing, {
+      style: 'cinematic',
+      model: 'veo',
+      voiceOver: { enabled: true, gender: 'pria', language: 'indonesia', ageRange: 'senior' },
+    });
+
+    expect(res.voiceOver).toMatchObject({
+      enabled: true,
+      gender: 'pria',
+      language: 'indonesia',
+      ageRange: 'senior',
+    });
+    expect(res.scriptJson.settings.voice_over).toMatchObject({
+      enabled: true,
+      gender: 'pria',
+      language: 'Bahasa Indonesia',
+      age_range: '50+',
+    });
+    expect(res.scriptJson.scenes[0].audio.dialogue?.speaker).toMatch(/Male/);
+    expect(res.scriptJson.scenes[0].audio.dialogue?.text).toMatch(/Selamat datang/);
+    expect(res.voiceOverScript).toMatch(/Selamat datang/);
+    expect(res.scriptJson.scenes[0].prompt).toContain('In a single continuous shot');
+    expect(res.scriptJson.scenes[0].prompt).toContain('Camera:');
+    expect(res.scriptJson.constraints.voice_over).toMatch(/Bahasa Indonesia|Indonesian/);
+    expect(res.script).toMatch(/\[Visual:/);
+    expect(res.script).not.toMatch(/Drone turun perlahan/);
+  });
+
+  it('writes English visual instructions and Indonesian spoken lines in the Veo LLM prompt', async () => {
+    generateCompletion.mockResolvedValue('[Visual: Exterior shot.]\nVO: Selamat datang.');
+
+    await videoScriptGenerator.generate(listing, {
+      style: 'cinematic',
+      model: 'veo',
+      voiceOver: { enabled: true, gender: 'wanita', language: 'indonesia', ageRange: 'dewasa_muda' },
+    });
+
+    const [systemPrompt, userPrompt] = generateCompletion.mock.calls[0];
+    expect(systemPrompt).toMatch(/English/);
+    expect(systemPrompt).toMatch(/Bahasa Indonesia/);
+    expect(systemPrompt).toMatch(/wanita|female/i);
+    expect(systemPrompt).toMatch(/20-30|dewasa_muda|young adult/i);
+    expect(userPrompt).toMatch(/alternating \[Visual: \.\.\.\] and VO: \.\.\. blocks/);
+    expect(userPrompt).toMatch(/Visual.+English|Write the \[Visual\].+English/i);
+
+    const [voSystemPrompt] = generateCompletion.mock.calls[1];
+    expect(voSystemPrompt).toMatch(/Bahasa Indonesia/);
+    expect(voSystemPrompt).not.toMatch(/speaking in English/);
   });
 
   it('supports the UGC style', async () => {
