@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
-import { generateThumbnail } from '../utils/image';
+import { generateThumbnail, convertToAvifOrKeep } from '../utils/image';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import { validatePhotoUploads } from '../middleware/upload';
 import ListingModel from '../models/Listing';
@@ -98,16 +98,15 @@ class ListingController {
       const uploadDir = path.join(__dirname, '..', '..', process.env.UPLOAD_DIR || './uploads');
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const photoUrl = `/uploads/${file.filename}`;
+        const originalPath = path.join(uploadDir, file.filename);
+        const converted = await convertToAvifOrKeep(originalPath, { publicPrefix: '/uploads' });
         const isFeatured = i === featuredIndex;
 
-        // Generate thumbnail for the first/featured photo
         if (i === featuredIndex) {
-          const originalPath = path.join(uploadDir, file.filename);
-          await generateThumbnail(originalPath, uploadDir);
+          await generateThumbnail(converted.avifPath, uploadDir);
         }
 
-        const photo = await ListingModel.addPhoto(listing.id, photoUrl, i, isFeatured);
+        const photo = await ListingModel.addPhoto(listing.id, converted.avifUrl, i, isFeatured);
         photos.push(photo);
       }
     }
@@ -276,9 +275,6 @@ class ListingController {
     if (data.bathrooms && typeof data.bathrooms === 'string') data.bathrooms = parseInt(data.bathrooms);
 
     const newFiles = req.files && Array.isArray(req.files) ? req.files : [];
-    if (existingListing.photos.length + newFiles.length > 10) {
-      throw new AppError('Jumlah total foto melebihi batas maksimal 10 foto', 400);
-    }
 
     // Update listing text fields
     await ListingModel.update(id, data);
@@ -289,17 +285,16 @@ class ListingController {
       const uploadDir = path.join(__dirname, '..', '..', process.env.UPLOAD_DIR || './uploads');
       for (let i = 0; i < newFiles.length; i++) {
         const file = newFiles[i];
-        const photoUrl = `/uploads/${file.filename}`;
+        const originalPath = path.join(uploadDir, file.filename);
+        const converted = await convertToAvifOrKeep(originalPath, { publicPrefix: '/uploads' });
         const order = existingListing.photos.length + i;
         const isFeatured = (featuredIndex === i);
 
-        // Generate thumbnail for the featured photo
         if (isFeatured) {
-          const originalPath = path.join(uploadDir, file.filename);
-          await generateThumbnail(originalPath, uploadDir);
+          await generateThumbnail(converted.avifPath, uploadDir);
         }
 
-        await ListingModel.addPhoto(id, photoUrl, order, isFeatured);
+        await ListingModel.addPhoto(id, converted.avifUrl, order, isFeatured);
       }
     }
 

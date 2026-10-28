@@ -11,6 +11,7 @@ import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { notificationService } from './notification.service';
 import { qualifiesForAutoImport } from './scrapeImportGate';
+import { convertToAvifOrKeep } from '../utils/image';
 
 interface CreateJobOptions {
   sourceUrl: string;
@@ -518,7 +519,6 @@ export class ScrapingOrchestratorService {
         const filename = `${listingId}_${i}_${uuidv4()}.jpg`;
         const filepath = path.join(this.uploadDir, filename);
 
-        // Download image
         const response = await axios.get(imageUrl, {
           responseType: 'arraybuffer',
           timeout: 10000,
@@ -527,15 +527,14 @@ export class ScrapingOrchestratorService {
           },
         });
 
-        // Save to file
         fs.writeFileSync(filepath, response.data);
+        const converted = await convertToAvifOrKeep(filepath, { publicPrefix: '/uploads' });
 
-        // Create listing_photos record
         await db.insert(listingPhotos).values({
           listingId,
-          photoUrl: `/uploads/${filename}`,
+          photoUrl: converted.avifUrl,
           photoOrder: i,
-          isFeatured: i === 0, // First image is featured
+          isFeatured: i === 0,
         });
 
         downloadedCount++;
