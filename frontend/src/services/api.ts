@@ -62,6 +62,16 @@ export const authApi = {
     return response.data;
   },
 
+  async forgotPassword(email: string): Promise<ApiResponse> {
+    const response = await api.post<ApiResponse>('/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  async resetPassword(token: string, password: string): Promise<ApiResponse> {
+    const response = await api.post<ApiResponse>('/auth/reset-password', { token, password });
+    return response.data;
+  },
+
   async logout(): Promise<ApiResponse> {
     const response = await api.post<ApiResponse>('/auth/logout');
     return response.data;
@@ -101,7 +111,11 @@ api.interceptors.response.use(
     // Handle 401 Unauthenticated
     if (error.response?.status === 401) {
       // Avoid infinite loop during login/refresh
-      if (originalRequest.url === '/auth/login') {
+      if (
+        originalRequest.url === '/auth/login' ||
+        originalRequest.url === '/auth/forgot-password' ||
+        originalRequest.url === '/auth/reset-password'
+      ) {
         if (error.response?.data?.error) {
           error.message = error.response.data.error;
         }

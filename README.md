@@ -11,6 +11,7 @@ It is not a buyer marketplace. Agents own their records, content, and conversati
 ### Auth and workspace
 
 - Register, login, logout, and JWT refresh (15-minute access token, 7-day refresh cookie)
+- Forgot password: enter email, receive a one-hour reset link, set a new password
 - Roles: `solo_agent`, `team_owner`, `team_agent`
 - Protected app routes, automatic token refresh, profile photo upload
 - Dark/light theme, mobile-friendly shell
@@ -250,7 +251,7 @@ cd frontend
 npx tsc --noEmit
 ```
 
-Related suites: `scrapeImportGate`, `skipExistingDb`, `listing`, `hepihosScraper`, `notification`, `videoScriptGenerator`.
+Related suites: `scrapeImportGate`, `skipExistingDb`, `listing`, `hepihosScraper`, `notification`, `videoScriptGenerator`, `passwordReset`.
 
 ---
 
@@ -264,6 +265,8 @@ Auth required unless noted. Base path `/api`.
 | --- | --- | --- |
 | POST | `/auth/register` | Register |
 | POST | `/auth/login` | Login |
+| POST | `/auth/forgot-password` | Email a reset link (same message if unknown) |
+| POST | `/auth/reset-password` | Set a new password with the email token |
 | POST | `/auth/logout` | Logout |
 | POST | `/auth/refresh` | Rotate access token |
 | GET | `/auth/me` | Current user |

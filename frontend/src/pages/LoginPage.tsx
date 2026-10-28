@@ -126,6 +126,14 @@ export default function LoginPage() {
                   <p className="mt-1.5 text-sm text-danger-500 dark:text-danger-400">{errors.password.message}</p>
                 )}
               </div>
+              <div className="mt-2 text-right">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
+                >
+                  Forgot password?
+                </Link>
+              </div>
             </div>
 
             {/* Submit */}
