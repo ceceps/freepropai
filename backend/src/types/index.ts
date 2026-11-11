@@ -1,4 +1,4 @@
-export type UserRole = 'solo_agent' | 'team_owner' | 'team_agent';
+export type UserRole = 'solo_agent' | 'team_owner' | 'team_agent' | 'super_admin';
 export type TeamRole = 'owner' | 'agent';
 
 export interface User {

@@ -161,5 +161,24 @@ describe('Lead Qualifying System (Phase 3)', () => {
       expect(response.body.data.name).toBe('Updated Lead Name');
       expect(response.body.data.status).toBe('contacted');
     });
+
+    it('DELETE /api/leads/:id - should delete a lead', async () => {
+      const [inserted] = await db.insert(leads).values({
+        name: 'Delete Me',
+        phone: '0812999',
+        status: 'new',
+      }).returning();
+
+      const response = await request(app)
+        .delete(`/api/leads/${inserted.id}`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+
+      const missing = await request(app)
+        .get(`/api/leads/${inserted.id}`)
+        .expect(404);
+      expect(missing.body.success).toBe(false);
+    });
   });
 });

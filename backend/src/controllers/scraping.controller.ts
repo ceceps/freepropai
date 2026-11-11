@@ -350,3 +350,23 @@ export const getScrapingConfigs = async (req: Request, res: Response) => {
     });
   }
 };
+
+/**
+ * POST /api/scraping/listings/rescrape-missing-images
+ * Re-fetch source pages for imported listings that have no usable photo files.
+ */
+export const rescrapeMissingImages = async (_req: Request, res: Response) => {
+  try {
+    const result = await getOrchestrator().rescrapeImportedMissingImages();
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('[ScrapingController] Rescrape missing images error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to rescrape missing images',
+    });
+  }
+};

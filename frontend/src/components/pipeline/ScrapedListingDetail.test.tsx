@@ -88,7 +88,7 @@ describe('ScrapedListingDetail View routing', () => {
 
     renderDetail();
 
-    const view = await screen.findByRole('link', { name: /view/i });
+    const view = await screen.findByRole('link', { name: /^view$/i });
     expect(view).toHaveAttribute('href', `/listings/${MAIN_ID}`);
     expect(view.getAttribute('href')).not.toContain('undefined');
   });
@@ -102,7 +102,7 @@ describe('ScrapedListingDetail View routing', () => {
     renderDetail();
 
     await screen.findByText('Imported to Listings');
-    expect(screen.queryByRole('link', { name: /view/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^view$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /import/i })).not.toBeInTheDocument();
   });
 
@@ -112,7 +112,7 @@ describe('ScrapedListingDetail View routing', () => {
     renderDetail();
 
     await screen.findByRole('button', { name: /^import$/i });
-    expect(screen.queryByRole('link', { name: /view/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^view$/i })).not.toBeInTheDocument();
   });
 
   it('links the post-import banner View to /listings/{mainListingId}', async () => {
@@ -133,7 +133,7 @@ describe('ScrapedListingDetail View routing', () => {
     await user.click(await screen.findByRole('button', { name: /^import$/i }));
 
     await waitFor(() => {
-      const links = screen.getAllByRole('link', { name: /view/i });
+      const links = screen.getAllByRole('link', { name: /^view$/i });
       expect(links.length).toBeGreaterThanOrEqual(1);
       for (const link of links) {
         expect(link).toHaveAttribute('href', `/listings/${MAIN_ID}`);

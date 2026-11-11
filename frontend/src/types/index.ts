@@ -5,7 +5,7 @@ export interface User {
   name: string;
   phone?: string;
   location?: string;
-  role: 'solo_agent' | 'team_owner' | 'team_agent';
+  role: 'solo_agent' | 'team_owner' | 'team_agent' | 'super_admin';
   regionScope?: string;
   avatarUrl?: string;
   portraitPhotoUrl?: string;
@@ -35,7 +35,7 @@ export interface LoginCredentials {
 export interface RegisterData extends LoginCredentials {
   name: string;
   phone?: string;
-  role?: 'solo_agent' | 'team_owner' | 'team_agent';
+  role?: 'solo_agent' | 'team_owner' | 'team_agent' | 'super_admin';
   regionScope?: string;
 }
 

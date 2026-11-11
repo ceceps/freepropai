@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { scrapingJobs, scrapedListings, listings, listingPhotos } from '../db/schema';
-import { eq, and, desc, sql, inArray } from 'drizzle-orm';
+import { eq, and, desc, sql, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { AcehomeScraperService } from './acehomeScraper.service';
 import { ProlovScraperService } from './prolovScraper.service';
 import { HepihosScraperService } from './hepihosScraper.service';
@@ -323,6 +323,13 @@ export class ScrapingOrchestratorService {
 
       const existing = await this.findListingBySourceUrl(scraped.sourceUrl);
       if (existing) {
+        let imagesDownloaded = 0;
+        if (options.downloadImages && scraped.imageUrls && scraped.imageUrls.length > 0) {
+          const missing = await this.listingMissingImageAssets(existing.id);
+          if (missing) {
+            imagesDownloaded = await this.refreshImagesForListing(existing.id, scraped.imageUrls);
+          }
+        }
         await db.update(scrapedListings)
           .set({
             importStatus: 'imported',
@@ -335,7 +342,7 @@ export class ScrapingOrchestratorService {
           scrapedListingId,
           listingId: existing.id,
           importedAt: new Date(),
-          imagesDownloaded: 0,
+          imagesDownloaded,
           descriptionsGenerated: false,
         };
       }
@@ -798,6 +805,187 @@ export class ScrapingOrchestratorService {
     }
 
     return { fresh, skipped };
+  }
+
+  /**
+   * Create a job and wait until scraping (and auto-import) finishes.
+   */
+  async runJob(options: CreateJobOptions): Promise<any> {
+    const [job] = await db.insert(scrapingJobs).values({
+      sourceUrl: options.sourceUrl,
+      sourceName: options.sourceName,
+      status: 'pending',
+    }).returning();
+
+    await this.processJob(job.id, options);
+    return this.getJob(job.id);
+  }
+
+  detectSourceName(sourceUrl: string): 'acehome' | 'prolov' | 'hepihos' | null {
+    try {
+      const hostname = new URL(sourceUrl).hostname.toLowerCase();
+      if (hostname.includes('acehome.co.id')) return 'acehome';
+      if (hostname.includes('hepihos.com')) return 'hepihos';
+      if (hostname.includes('prolov.id')) return 'prolov';
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  async listingMissingImageAssets(listingId: string): Promise<boolean> {
+    const photos = await db.select()
+      .from(listingPhotos)
+      .where(eq(listingPhotos.listingId, listingId));
+
+    if (photos.length === 0) return true;
+
+    const anyFileExists = photos.some((photo) => {
+      const url = photo.photoUrl;
+      if (!url) return false;
+      if (/^https?:\/\//i.test(url)) return true;
+      const filename = path.basename(url);
+      return fs.existsSync(path.join(this.uploadDir, filename));
+    });
+
+    return !anyFileExists;
+  }
+
+  async findImportedListingsMissingImages(): Promise<Array<{ id: string; sourceUrl: string; title: string }>> {
+    const sourced = await db.select({
+      id: listings.id,
+      sourceUrl: listings.sourceUrl,
+      title: listings.title,
+    })
+      .from(listings)
+      .where(and(isNotNull(listings.sourceUrl), isNull(listings.deletedAt)));
+
+    const missing: Array<{ id: string; sourceUrl: string; title: string }> = [];
+    for (const row of sourced) {
+      if (!row.sourceUrl) continue;
+      if (await this.listingMissingImageAssets(row.id)) {
+        missing.push({ id: row.id, sourceUrl: row.sourceUrl, title: row.title });
+      }
+    }
+    return missing;
+  }
+
+  async refreshImagesForListing(listingId: string, imageUrls: string[]): Promise<number> {
+    await db.delete(listingPhotos).where(eq(listingPhotos.listingId, listingId));
+    return this.downloadAndSaveImages(listingId, imageUrls);
+  }
+
+  async scrapeDetailBySource(sourceName: string, sourceUrl: string): Promise<any | null> {
+    if (sourceName === 'acehome') {
+      return this.acehomeScraper.scrapeListingDetail(sourceUrl);
+    }
+    if (sourceName === 'hepihos') {
+      return this.hepihosScraper.scrapeListingDetail(sourceUrl);
+    }
+    if (sourceName === 'prolov') {
+      return this.prolovScraper.scrapeListingDetail(sourceUrl);
+    }
+    return null;
+  }
+
+  /**
+   * Re-fetch detail pages for imported listings that have a source URL but no
+   * usable photo files, then download the image assets.
+   */
+  async rescrapeImportedMissingImages(): Promise<{
+    scanned: number;
+    missing: number;
+    refreshed: number;
+    failed: number;
+    skipped: number;
+    results: Array<{
+      listingId: string;
+      sourceUrl: string;
+      status: 'refreshed' | 'failed' | 'skipped';
+      imagesDownloaded?: number;
+      error?: string;
+    }>;
+  }> {
+    const missing = await this.findImportedListingsMissingImages();
+    const results: Array<{
+      listingId: string;
+      sourceUrl: string;
+      status: 'refreshed' | 'failed' | 'skipped';
+      imagesDownloaded?: number;
+      error?: string;
+    }> = [];
+    let refreshed = 0;
+    let failed = 0;
+    let skipped = 0;
+
+    for (const listing of missing) {
+      const sourceName = this.detectSourceName(listing.sourceUrl);
+      if (!sourceName) {
+        skipped++;
+        results.push({
+          listingId: listing.id,
+          sourceUrl: listing.sourceUrl,
+          status: 'skipped',
+          error: 'unsupported source',
+        });
+        continue;
+      }
+
+      try {
+        const detail = await this.scrapeDetailBySource(sourceName, listing.sourceUrl);
+        const imageUrls: string[] = detail?.imageUrls?.filter(Boolean) ?? [];
+        if (imageUrls.length === 0) {
+          skipped++;
+          results.push({
+            listingId: listing.id,
+            sourceUrl: listing.sourceUrl,
+            status: 'skipped',
+            error: 'no images on source',
+          });
+          continue;
+        }
+
+        const imagesDownloaded = await this.refreshImagesForListing(listing.id, imageUrls);
+        if (imagesDownloaded === 0) {
+          failed++;
+          results.push({
+            listingId: listing.id,
+            sourceUrl: listing.sourceUrl,
+            status: 'failed',
+            imagesDownloaded,
+            error: 'image download failed',
+          });
+          continue;
+        }
+
+        refreshed++;
+        results.push({
+          listingId: listing.id,
+          sourceUrl: listing.sourceUrl,
+          status: 'refreshed',
+          imagesDownloaded,
+        });
+      } catch (error: any) {
+        failed++;
+        results.push({
+          listingId: listing.id,
+          sourceUrl: listing.sourceUrl,
+          status: 'failed',
+          error: error.message,
+        });
+      }
+
+      await this.delay(400);
+    }
+
+    return {
+      scanned: missing.length,
+      missing: missing.length,
+      refreshed,
+      failed,
+      skipped,
+      results,
+    };
   }
 
   /**
