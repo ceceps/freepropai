@@ -16,6 +16,10 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     throw new AppError('Name, email, and password are required', 400);
   }
 
+  if (data.role === 'super_admin') {
+    throw new AppError('Invalid role', 400);
+  }
+
   const existing = await authService.findUserByEmail(data.email);
   if (existing) {
     throw new AppError('Email already registered', 400);

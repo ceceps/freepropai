@@ -416,6 +416,23 @@ export const scrapingApi = {
     const response = await api.get<ApiResponse<ScrapingConfig[]>>('/scraping/configs');
     return response.data;
   },
+
+  async rescrapeMissingImages(): Promise<ApiResponse<{
+    scanned: number;
+    missing: number;
+    refreshed: number;
+    failed: number;
+    skipped: number;
+  }>> {
+    const response = await api.post<ApiResponse<{
+      scanned: number;
+      missing: number;
+      refreshed: number;
+      failed: number;
+      skipped: number;
+    }>>('/scraping/listings/rescrape-missing-images');
+    return response.data;
+  },
 };
 
 // Lead API

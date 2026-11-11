@@ -126,3 +126,65 @@ export const updateUserProfile = async (userId: string, data: UpdateProfileData)
 
   return mapUserRow(row);
 };
+
+export const findSuperAdmin = async (): Promise<(typeof users.$inferSelect) | null> => {
+  const [row] = await db
+    .select()
+    .from(users)
+    .where(eq(users.role, 'super_admin'))
+    .limit(1);
+  return row ?? null;
+};
+
+export const updateUserPassword = async (userId: string, password: string): Promise<void> => {
+  const passwordHash = await hashPassword(password);
+  await db.update(users)
+    .set({ passwordHash, refreshTokenHash: null, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+};
+
+export const createSuperAdmin = async (data: {
+  email: string;
+  password: string;
+  name?: string;
+}): Promise<User> => {
+  const email = data.email.toLowerCase().trim();
+  const existing = await findUserByEmail(email);
+  if (existing) {
+    throw new Error(`Email already registered: ${email}`);
+  }
+
+  const passwordHash = await hashPassword(data.password);
+  const [row] = await db.insert(users).values({
+    email,
+    passwordHash,
+    name: (data.name || 'Super Admin').trim(),
+    role: 'super_admin',
+  }).returning();
+  return mapUserRow(row);
+};
+
+export const upsertSuperAdmin = async (data: {
+  email?: string;
+  password: string;
+  name?: string;
+}): Promise<{ action: 'created' | 'updated'; user: User }> => {
+  const existing = await findSuperAdmin();
+  if (existing) {
+    await updateUserPassword(existing.id, data.password);
+    const user = await findUserById(existing.id);
+    if (!user) throw new Error('Super admin not found after password update');
+    return { action: 'updated', user };
+  }
+
+  if (!data.email) {
+    throw new Error('Email is required to create a super admin');
+  }
+
+  const user = await createSuperAdmin({
+    email: data.email,
+    password: data.password,
+    name: data.name,
+  });
+  return { action: 'created', user };
+};

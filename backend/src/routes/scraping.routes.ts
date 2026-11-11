@@ -8,6 +8,7 @@ import {
   batchImportListings,
   skipScrapedListing,
   getScrapingConfigs,
+  rescrapeMissingImages,
 } from '../controllers/scraping.controller';
 
 const router = Router();
@@ -19,6 +20,7 @@ router.get('/jobs/:id', getScrapingJob);
 router.get('/jobs/:id/listings', getScrapedListings);
 
 // Scraped listing routes
+router.post('/listings/rescrape-missing-images', rescrapeMissingImages);
 router.post('/listings/:id/import', importScrapedListing);
 router.post('/listings/import-batch', batchImportListings);
 router.delete('/listings/:id', skipScrapedListing);
